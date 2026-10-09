@@ -113,7 +113,18 @@ impl LokView {
         }
         // The kernel sizes a sheet in tile twips already.
         let reach = self.tile_of(self.reach);
-        (self.doc_size.0.max(reach.0), self.doc_size.1.max(reach.1))
+        let (w, h) = (self.doc_size.0.max(reach.0), self.doc_size.1.max(reach.1));
+        let Some(sheet) = &self.sheet else {
+            return (w, h);
+        };
+        // Sheets scroll ahead of the kernel, to their end.
+        let end = self.tile_of((sheet.columns.start(sheet.columns.count()), sheet.rows.start(sheet.rows.count())));
+        let (fx, fy) = self.frozen_tiles();
+        let ahead = (
+            fx + self.scroll.0 + 2 * self.geom.twips_of(self.viewport.0),
+            fy + self.scroll.1 + 2 * self.geom.twips_of(self.viewport.1),
+        );
+        (w.max(ahead.0.min(end.0)), h.max(ahead.1.min(end.1)))
     }
 
     /// The print-twips document point under a view position (LOK-04).

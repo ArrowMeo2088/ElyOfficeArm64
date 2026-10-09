@@ -202,7 +202,8 @@ fn a_sheet_brings_far_cut_and_frozen_cells_into_view() {
             assert_eq!(view.spare, (0.0, 0.0), "and stays left after it");
             let size = view.doc_size;
             view.doc_size = view.tile_of((view.print_of(size).0 + 20 * 1280, size.1));
-            assert_eq!(view.extent(), view.doc_size, "the kernel's size is the extent, uncut");
+            let extent = view.extent();
+            assert!(extent.0 >= view.doc_size.0 && extent.1 >= view.doc_size.1, "the kernel's size is uncut");
             view.doc_size = size;
             view.viewport = (800.0, 200.0);
             let (width, height) = (view.geom.twips_of(view.viewport.0), view.geom.twips_of(view.viewport.1));
@@ -439,4 +440,31 @@ fn the_first_size_has_a_scale_and_keeps_the_row() {
     cx.update(|app| view.update(app, |view, cx| view.apply_batch(crate::Events::default(), Some(first), cx)));
     let after = middle(&mut cx);
     assert!(before.abs_diff(after) <= 1, "row {before} became {after} when the first size landed");
+}
+
+#[test]
+fn an_empty_sheet_scrolls_on_without_waiting() {
+    let Some(install) = crate::client::tests::install() else {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    };
+    let mut cx = gpui::TestAppContext::single();
+    let (view, worker) = cx.update(|app| live_view_of(app, &install, "short.fods", SHORT_ROWS));
+    let json = cx.update(|app| worker.lock().expect("the worker lock").values(&view.read(app).doc, crate::sheet::GEOMETRY).expect("geometry"));
+    let geometry = crate::sheet::geometry(&json).expect("parsed");
+    let bounds = Bounds { origin: point(px(0.0), px(0.0)), size: size(px(400.0), px(200.0)) };
+    cx.update(|app| view.update(app, |view, cx| {
+        view.set_geometry(geometry.clone(), cx);
+        view.prepare(bounds);
+    }));
+    // Each step a viewport down, before the kernel answers.
+    for step in 1..=20 {
+        let moved = cx.update(|app| view.update(app, |view, cx| {
+            let from = view.scroll.1;
+            view.scroll_by(0.0, -200.0, cx);
+            view.scroll.1 - from
+        }));
+        let full = cx.update(|app| view.read(app).geom.twips_of(200.0));
+        assert_eq!(moved, full, "step {step} went the whole way");
+    }
 }
