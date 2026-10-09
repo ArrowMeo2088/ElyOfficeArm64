@@ -235,13 +235,16 @@ impl Book {
         let reading = path.clone();
         let chinese = ely_ui::i18n::resolve(&ely_platform::locale::system()) == "zh-CN";
         cx.spawn(async move |this, cx| {
-            let bytes = cx
-                .background_spawn(async move { std::fs::read(&reading) })
+            // Guessing checks the whole file: off the window thread.
+            let pending = cx
+                .background_spawn(async move {
+                    std::fs::read(&reading).map(|bytes| Pending::new(reading, bytes, chinese))
+                })
                 .await;
-            in_window(&this, cx, |book, _, cx| match bytes {
-                Ok(bytes) => {
-                    log::info!("table: import asks for {} bytes", bytes.len());
-                    book.imports.push_back(Pending::new(path, bytes, chinese));
+            in_window(&this, cx, |book, _, cx| match pending {
+                Ok(pending) => {
+                    log::info!("table: import asks for {} bytes", pending.bytes.len());
+                    book.imports.push_back(pending);
                     book.next_import(cx);
                 }
                 Err(error) => book.failed_open(&path.display().to_string(), &error, cx),
