@@ -3,6 +3,8 @@ use super::sheet::open_book;
 use super::*;
 use crate::sheet::{self, Layout, Look};
 
+const SETTLE: std::time::Duration = std::time::Duration::from_secs(3);
+
 /// Region, Year, Sales; four rows.
 fn data() -> String {
     let rows: String = [
@@ -330,4 +332,22 @@ fn undoing_a_new_kind_brings_the_whole_chart_back() {
         back.contains(r#"chart:stacked="true""#),
         "the stacking came back"
     );
+}
+
+#[test]
+fn a_new_chart_lands_beside_its_data() {
+    if skip() {
+        return;
+    }
+    let (_dir, mut worker, doc) = open_book(&data());
+    let all = written(&mut worker, &doc, "A1:C5");
+    let base = poll_until(&mut worker, &doc, &Events::default(), SETTLE, |_| false);
+    worker.run(&doc, "cell.goto", &["C5"]).expect("C5");
+    let corner = poll_until(&mut worker, &doc, &base, SETTLE, |seen| seen.cell.cursor.is_some() && seen.cell.cursor != base.cell.cursor);
+    let (x, y, w, h) = corner.cell.cursor.expect("the last data cell");
+    worker.run(&doc, "cell.goto", &["A1"]).expect("A1");
+    worker.run(&doc, "chart.insert", &[&all, "false", &Look { kind: "column".into(), ..Look::default() }.to_json()]).expect("inserts");
+    let framed = poll_until(&mut worker, &doc, &corner, SETTLE, |seen| seen.graphic.is_some());
+    let (left, top, _, _) = framed.graphic.expect("the chart is selected");
+    assert!(left >= x + w || top >= y + h, "the chart at {left},{top} covers data ending {},{}", x + w, y + h);
 }

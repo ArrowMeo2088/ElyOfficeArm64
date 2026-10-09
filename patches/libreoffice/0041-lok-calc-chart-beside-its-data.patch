@@ -1,0 +1,27 @@
+LOK Calc: a new chart lands beside its data
+
+FuInsertChart positions a chart away from aPositionRange. With request
+arguments (a kit client gives the range in FN_PARAM_5) that range was
+the cursor cell alone, so the chart went right next to the cursor and
+over the data it charts. Position it from the requested data range,
+as the dialog path does with the marked cells.
+
+diff --git a/sc/source/ui/drawfunc/fuins2.cxx b/sc/source/ui/drawfunc/fuins2.cxx
+index b0169d0..0a4e3dc 100644
+--- a/sc/source/ui/drawfunc/fuins2.cxx
++++ b/sc/source/ui/drawfunc/fuins2.cxx
+@@ -452,6 +452,14 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
+             aRangeString = static_cast<const SfxStringItem*>(pItem)->GetValue();
+ 
+         aPositionRange = rViewSh.GetViewData().GetCurPos();
++        // The chart goes beside its data, not over it.
++        if (pRange)
++        {
++            const ScRangeList aData = *sctools::chartRanges(rViewSh.GetViewData().GetDocument(), pRange->GetValue());
++            aPositionRange = aData[0];
++            for (size_t i = 1; i < aData.size(); ++i)
++                aPositionRange.ExtendTo(aData[i]);
++        }
+     }
+     else
+     {
