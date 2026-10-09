@@ -14,6 +14,21 @@ void ely_script_font(const unsigned char *data, size_t len)
 	script_len = len;
 }
 
+/* `cid` as text extraction reads it (pdf-op-run.c), or -1. */
+static int unicode_of(pdf_font_desc *desc, int cid)
+{
+	int ucs[PDF_MRANGE_CAP], n = 0;
+	if (desc->to_unicode)
+		n = pdf_lookup_cmap_full(desc->to_unicode, cid, ucs);
+	if (n == 1 && ucs[0] >= 8 && ucs[0] <= 13)
+		ucs[0] = ' ';
+	if (n == 1 && (ucs[0] < 32 || (ucs[0] >= 127 && ucs[0] < 160)))
+		n = 0;
+	if (n == 0 && cid < (int)desc->cid_to_ucs_len)
+		ucs[0] = desc->cid_to_ucs[cid], n = 1;
+	return n == 1 && ucs[0] > 0 && ucs[0] != FZ_REPLACEMENT_CHARACTER ? ucs[0] : -1;
+}
+
 /* Unicode and code pairs of `desc`; its codes are CIDs. */
 static void own_codes(fz_context *ctx, pdf_font_desc *desc, ely_pen *p)
 {
@@ -26,8 +41,7 @@ static void own_codes(fz_context *ctx, pdf_font_desc *desc, ely_pen *p)
 	p->map = fz_malloc_array(ctx, 2 * end, int);
 	for (cid = 0; cid < end; cid++)
 	{
-		int u = desc->to_unicode ? pdf_lookup_cmap(desc->to_unicode, cid)
-			: cid < (int)desc->cid_to_ucs_len ? desc->cid_to_ucs[cid] : 0;
+		int u = unicode_of(desc, cid);
 		if (u > 0 && pdf_font_cid_to_gid(ctx, desc, cid) > 0)
 			p->map[2 * p->mapped] = u, p->map[2 * p->mapped + 1] = cid, p->mapped++;
 	}

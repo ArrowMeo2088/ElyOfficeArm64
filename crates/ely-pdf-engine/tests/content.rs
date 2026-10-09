@@ -292,24 +292,8 @@ fn a_subset_font_writes_with_its_own_glyphs_and_reads_back() {
     assert!(now.contains("TEXT BUNDLE"), "the new words read back: {now:?}");
 }
 
-/// "AyB", where "x" and "y" share one glyph.
-fn shared_glyph_pdf() -> Vec<u8> {
-    let font = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/GreatVibes-Regular.ttf")).expect("the font");
-    let stream = |dict: &str, data: &[u8]| [format!("<<{dict}/Length {}>>stream\n", data.len()).as_bytes(), data, b"\nendstream"].concat();
-    let unicode = b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /U def\n1 begincodespacerange <0000> <FFFF> endcodespacerange\n4 beginbfchar <0001> <0041> <0002> <0078> <0003> <0079> <0004> <0042> endbfchar\nendcmap CMapName currentdict /CMap defineresource pop end end";
-    let gids: Vec<u8> = [0u16, 36, 16, 16, 37].iter().flat_map(|g| g.to_be_bytes()).collect();
-    let objects: Vec<Vec<u8>> = vec![
-        b"<</Type/Catalog/Pages 2 0 R>>".to_vec(),
-        b"<</Type/Pages/Kids[3 0 R]/Count 1>>".to_vec(),
-        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>".to_vec(),
-        b"<</Type/Font/Subtype/Type0/BaseFont/GreatVibes/Encoding/Identity-H/DescendantFonts[6 0 R]/ToUnicode 7 0 R>>".to_vec(),
-        stream("", b"BT /F1 24 Tf 72 700 Td <000100030004> Tj ET"),
-        b"<</Type/Font/Subtype/CIDFontType2/BaseFont/GreatVibes/CIDSystemInfo<</Registry(Adobe)/Ordering(Identity)/Supplement 0>>/FontDescriptor 8 0 R/CIDToGIDMap 9 0 R/DW 600>>".to_vec(),
-        stream("", unicode),
-        b"<</Type/FontDescriptor/FontName/GreatVibes/Flags 4/FontBBox[-200 -300 1200 1000]/ItalicAngle 0/Ascent 900/Descent -300/CapHeight 700/StemV 80/FontFile2 10 0 R>>".to_vec(),
-        stream("", &gids),
-        stream(&format!("/Length1 {}", font.len()), &font),
-    ];
+/// A PDF of `objects`, numbered from 1.
+fn assembled(objects: &[Vec<u8>]) -> Vec<u8> {
     let mut pdf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
     for (at, body) in objects.iter().enumerate() {
@@ -321,6 +305,41 @@ fn shared_glyph_pdf() -> Vec<u8> {
     offsets.iter().for_each(|at| pdf.extend(format!("{at:010} 00000 n \n").as_bytes()));
     pdf.extend(format!("trailer\n<</Size {}/Root 1 0 R>>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
     pdf
+}
+
+/// "AB" in WinAnsi Helvetica whose ToUnicode maps only "A".
+fn partial_unicode_pdf() -> Vec<u8> {
+    let stream = |data: &[u8]| [format!("<</Length {}>>stream\n", data.len()).as_bytes(), data, b"\nendstream"].concat();
+    let unicode = b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /U def\n1 begincodespacerange <00> <FF> endcodespacerange\n1 beginbfchar <41> <0041> endbfchar\nendcmap CMapName currentdict /CMap defineresource pop end end";
+    assembled(&[
+        b"<</Type/Catalog/Pages 2 0 R>>".to_vec(),
+        b"<</Type/Pages/Kids[3 0 R]/Count 1>>".to_vec(),
+        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>".to_vec(),
+        b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding/ToUnicode 6 0 R>>".to_vec(),
+        stream(b"BT /F1 24 Tf 72 700 Td (AB) Tj ET"),
+        stream(unicode),
+    ])
+}
+
+/// "AyB", where "x" and "y" share one glyph.
+fn shared_glyph_pdf() -> Vec<u8> {
+    let font = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/GreatVibes-Regular.ttf")).expect("the font");
+    let stream = |dict: &str, data: &[u8]| [format!("<<{dict}/Length {}>>stream\n", data.len()).as_bytes(), data, b"\nendstream"].concat();
+    let unicode = b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /U def\n1 begincodespacerange <0000> <FFFF> endcodespacerange\n4 beginbfchar <0001> <0041> <0002> <0078> <0003> <0079> <0004> <0042> endbfchar\nendcmap CMapName currentdict /CMap defineresource pop end end";
+    let gids: Vec<u8> = [0u16, 36, 16, 16, 37].iter().flat_map(|g| g.to_be_bytes()).collect();
+    let objects = [
+        b"<</Type/Catalog/Pages 2 0 R>>".to_vec(),
+        b"<</Type/Pages/Kids[3 0 R]/Count 1>>".to_vec(),
+        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>".to_vec(),
+        b"<</Type/Font/Subtype/Type0/BaseFont/GreatVibes/Encoding/Identity-H/DescendantFonts[6 0 R]/ToUnicode 7 0 R>>".to_vec(),
+        stream("", b"BT /F1 24 Tf 72 700 Td <000100030004> Tj ET"),
+        b"<</Type/Font/Subtype/CIDFontType2/BaseFont/GreatVibes/CIDSystemInfo<</Registry(Adobe)/Ordering(Identity)/Supplement 0>>/FontDescriptor 8 0 R/CIDToGIDMap 9 0 R/DW 600>>".to_vec(),
+        stream("", unicode),
+        b"<</Type/FontDescriptor/FontName/GreatVibes/Flags 4/FontBBox[-200 -300 1200 1000]/ItalicAngle 0/Ascent 900/Descent -300/CapHeight 700/StemV 80/FontFile2 10 0 R>>".to_vec(),
+        stream("", &gids),
+        stream(&format!("/Length1 {}", font.len()), &font),
+    ];
+    assembled(&objects)
 }
 
 #[test]
@@ -335,4 +354,21 @@ fn a_letter_that_shares_its_glyph_keeps_its_own_code() {
     assert!(matches!(worker.put_text(doc, 0, &writing, 0.0).expect("answers"), Wrote::Done(_)));
     doc = worker.now(doc).expect("the state");
     assert_eq!(page_text(&mut worker, doc), "ByA", "y stays y, not the glyph's other letter");
+}
+
+#[test]
+fn a_partial_to_unicode_falls_back_as_reading_does() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let path = dir.path().join("partial.pdf");
+    std::fs::write(&path, partial_unicode_pdf()).expect("writes");
+    let mut worker = worker();
+    let mut doc = worker.open(&path).expect("opens").doc;
+    assert_eq!(page_text(&mut worker, doc), "AB", "the sample reads as written");
+    let writing = rewrite(&mut worker, doc, 0, "BA", "original");
+    assert!(matches!(worker.put_text(doc, 0, &writing, 0.0).expect("answers"), Wrote::Done(_)), "B is in the font");
+    doc = worker.now(doc).expect("the state");
+    let out = dir.path().join("saved.pdf");
+    worker.save(doc, &out).expect("saves");
+    let doc = worker.open(&out).expect("reopens").doc;
+    assert_eq!(page_text(&mut worker, doc), "BA", "saved and read again");
 }
