@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# Shared helpers for the per-app recording scripts.
+set -euo pipefail
+
+video=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+root=$(cd "$video/../.." && pwd)
+out=$video/out
+bin=$out/bin
+demo=$out/demo
+check=${ELY_REC_CHECK:-$out/check}
+inputsource=${ELY_INPUTSOURCE:?set ELY_INPUTSOURCE to the input source switcher}
+# Window place in screen points.
+win_x=120
+win_y=120
+win_w=1600
+win_h=900
+app_pid=
+app_name=
+cap_pid=
+
+mkdir -p "$bin" "$out/rec" "$out/logs" "$check"
+
+tools() {
+  local s
+  for s in ax-values ax-press ax-frames; do
+    [ "$bin/$s" -nt "$root/tests/scripts/$s.swift" ] || swiftc -O -o "$bin/$s" "$root/tests/scripts/$s.swift"
+  done
+  [ "$bin/mouse" -nt "$video/record/mouse.swift" ] || swiftc -O -o "$bin/mouse" "$video/record/mouse.swift"
+}
+
+content() {
+  python3 "$video/demo/make.py" "$demo"
+  swift "$video/demo/guide.swift" "$demo/Coastal Trails Guide.pdf"
+}
+
+# Starts app $1 with files; fresh HOME, light, English.
+launch() {
+  local app=$1
+  shift
+  app_name=$app
+  local home=$out/home/$app
+  rm -rf "$home"
+  local data="$home/Library/Application Support/ElyOffice/$app"
+  mkdir -p "$data"
+  printf '{"version":1,"window":{"mode":"windowed","x":%s,"y":%s,"width":%s,"height":%s}}\n' \
+    "$win_x" "$win_y" "$win_w" "$win_h" >"$data/settings.json"
+  HOME=$home ELY_APPEARANCE=light ELY_LOCALE=en ELY_NO_DIALOG=1 ELY_LOG=info ELY_REDUCE_MOTION=0 \
+    ${EXTRA_ENV:-} "$root/target/release/$app" "$@" >"$out/logs/$app.out" 2>"$out/logs/$app.err" &
+  app_pid=$!
+}
+
+# Waits up to $2 seconds for log text $1.
+wait_log() {
+  local i
+  for i in $(seq $((${2:-30} * 4))); do
+    grep -q -- "$1" "$out/logs/$app_name.err" 2>/dev/null && return 0
+    kill -0 "$app_pid" 2>/dev/null || { echo "app quit: $(tail -n 5 "$out/logs/$app_name.err")" >&2; return 1; }
+    sleep 0.25
+  done
+  echo "timed out waiting for: $1" >&2
+  return 1
+}
+
+# Waits until the AX tree shows text $1.
+wait_ax() {
+  local i
+  for i in $(seq $((${2:-30} * 2))); do
+    "$bin/ax-values" "$app_pid" | grep -q -- "$1" && return 0
+    sleep 0.5
+  done
+  echo "AX never showed: $1" >&2
+  return 1
+}
+
+# Center of the first AX element whose line has $1, as "x y".
+where() {
+  "$bin/ax-values" "$app_pid" | grep -F -- "$1" | grep -oE 'at=[0-9]+,[0-9]+' | head -n 1 | sed 's/at=//; s/,/ /'
+}
+
+front() {
+  osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $app_pid) to true" >/dev/null
+}
+
+keys() { osascript -e "tell application \"System Events\" to $1" >/dev/null; }
+
+# Types $1 at about twelve characters a second.
+typed() {
+  local text=$1 i c
+  local script='tell application "System Events"'
+  for ((i = 0; i < ${#text}; i++)); do
+    c=${text:i:1}
+    case $c in
+      '"') c='\"' ;;
+      '\') c='\\' ;;
+    esac
+    script+=$'\n'"keystroke \"$c\""$'\n'"delay $(awk -v r=$RANDOM 'BEGIN { printf "%.3f", 0.065 + (r % 40) / 1000 }')"
+  done
+  osascript -e "$script"$'\nend tell' >/dev/null
+}
+
+pause() { sleep "${1:-0.6}"; }
+mouse() { "$bin/mouse" "$@"; }
+
+# Window frame in points, as "x y w h".
+frame() {
+  osascript -l JavaScript - "$app_pid" <<'JS'
+ObjC.import('CoreGraphics');
+function run(argv) {
+  const all = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0)));
+  const w = all.filter(w => w.kCGWindowOwnerPID === parseInt(argv[0]) && w.kCGWindowLayer === 0)[0];
+  const b = w.kCGWindowBounds;
+  return [b.X, b.Y, b.Width, b.Height].join(' ');
+}
+JS
+}
+
+# Starts capturing the window region of the main screen.
+record_start() {
+  local x y w h
+  read -r x y w h < <(frame)
+  [ "$w" = "$win_w" ] && [ "$h" = "$win_h" ] || echo "note: window is ${w}x${h}, not ${win_w}x${win_h}" >&2
+  rm -f "$out/rec/$1.mov"
+  ffmpeg -hide_banner -loglevel error -f avfoundation -capture_cursor 1 -framerate 60 -i "0:none" \
+    -vf "crop=$((w * 2)):$((h * 2)):$((x * 2)):$((y * 2))" -c:v h264_videotoolbox -b:v 80M -r 60 \
+    "$out/rec/$1.mov" </dev/null &
+  cap_pid=$!
+  sleep 1.2
+}
+
+# Stops capture; encodes 1920x1080 H.264 60 fps; checks frames.
+record_stop() {
+  local name=$1
+  sleep 0.8
+  kill -INT "$cap_pid"
+  wait "$cap_pid" || true
+  ffmpeg -hide_banner -loglevel error -y -ss 0.5 -i "$out/rec/$name.mov" -an \
+    -vf "scale=1920:1080:flags=lanczos,format=yuv420p" -c:v libx264 -preset slow -crf 16 -r 60 \
+    -movflags +faststart "$out/rec/$name.mp4"
+  rm -f "$out/rec/$name.mov"
+  local d
+  d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out/rec/$name.mp4")
+  for at in start middle end; do
+    local t
+    case $at in start) t=0.2 ;; middle) t=$(awk -v d="$d" 'BEGIN { print d / 2 }') ;; end) t=$(awk -v d="$d" 'BEGIN { print d - 0.3 }') ;; esac
+    ffmpeg -v error -y -ss "$t" -i "$out/rec/$name.mp4" -frames:v 1 "$check/$name-$at.png"
+  done
+  echo "$name: $d s"
+}
+
+quit_app() {
+  [ -n "$app_pid" ] || return 0
+  kill "$app_pid" 2>/dev/null || true
+  wait "$app_pid" 2>/dev/null || true
+  app_pid=
+}
+
+us_input() { "$inputsource" com.apple.keylayout.US; }
+restore_input() { "$inputsource" com.tencent.inputmethod.wetype.pinyin; }
+
+cleanup() {
+  [ -n "$cap_pid" ] && kill -INT "$cap_pid" 2>/dev/null || true
+  quit_app
+  restore_input
+}
+trap cleanup EXIT
+
+tools
