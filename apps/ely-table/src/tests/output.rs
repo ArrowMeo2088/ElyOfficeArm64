@@ -413,3 +413,26 @@ fn an_import_waits_behind_a_dialog_that_displaces_it() {
     // Text keeps `1E3`; the skipped column stays empty.
     assert_eq!(cells(&mut cx, &book, "A2:B2").trim_end(), "1E3");
 }
+
+#[test]
+fn closing_a_tab_takes_its_dialog_and_frees_the_import() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some((window, book)) = book(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    blank(&mut cx, &book);
+    window
+        .update(&mut cx, |_, window, cx| {
+            book.update(cx, |book, cx| book.on_export(&ely_ui::commands::Export, window, cx))
+        })
+        .expect("the window");
+    asked(&cx, &book, |dialog| matches!(dialog, Dialog::Export { .. }));
+    let id = cx.update(|app| book.read(app).core.tabs[0].id);
+    update(&mut cx, &book, |book, cx| book.close_tab(id, cx));
+    let path = dir.path().join("after.csv");
+    std::fs::write(&path, "Name\nx\n").expect("writes");
+    update(&mut cx, &book, |book, cx| book.ask_import(path.clone(), cx));
+    asked(&cx, &book, |dialog| matches!(dialog, Dialog::Import(_)));
+}

@@ -152,6 +152,35 @@ pub enum Dialog {
     },
 }
 
+impl Dialog {
+    /// The workbook it asks about; imports have none yet.
+    pub fn tab(&self) -> Option<u64> {
+        match self {
+            Dialog::Rename { tab, .. }
+            | Dialog::Show { tab, .. }
+            | Dialog::Delete { tab, .. }
+            | Dialog::Size { tab, .. }
+            | Dialog::Merge { tab, .. }
+            | Dialog::Define { tab, .. }
+            | Dialog::Names { tab, .. }
+            | Dialog::Sort { tab, .. }
+            | Dialog::Filter { tab, .. }
+            | Dialog::Dedupe { tab, .. }
+            | Dialog::Columns { tab, .. }
+            | Dialog::Column { tab, .. }
+            | Dialog::Validation { tab, .. }
+            | Dialog::Conditional { tab, .. }
+            | Dialog::Formats { tab, .. }
+            | Dialog::Pivot { tab, .. }
+            | Dialog::Chart { tab, .. }
+            | Dialog::Export { tab, .. }
+            | Dialog::Page { tab, .. }
+            | Dialog::Protect { tab, .. } => Some(*tab),
+            Dialog::Import(_) => None,
+        }
+    }
+}
+
 impl Book {
     /// The define dialog's sheets: its own workbook's.
     pub(crate) fn define_scopes(&self) -> Option<Vec<String>> {

@@ -101,6 +101,17 @@ impl Host for Book {
             self.sync_bars(view, cx);
         }
     }
+
+    /// A closed tab's dialog and list go with it.
+    fn tab_closed(&mut self, tab: &ely_office::Tab<Extra, ely_office::Lok>, cx: &mut Context<Self>) {
+        if self.dialog.as_ref().and_then(crate::dialog::Dialog::tab) == Some(tab.id) {
+            self.dialog = None;
+        }
+        if self.choices.as_ref().is_some_and(|choices| choices.tab == tab.id) {
+            self.choices = None;
+        }
+        cx.notify();
+    }
 }
 
 /// The window root with a blank workbook.
