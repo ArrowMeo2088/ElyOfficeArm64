@@ -1,0 +1,110 @@
+LOK Calc: an AutoFilter on marked rows keeps to those rows
+
+Each time the filter list opens, GetFilterEntries grows an unnamed
+filter range to the data rows right under it (ExtendDataArea and
+ExtendBackColorArea), so appended rows join. It cannot tell them from
+a totals row that was there when the user marked the block: the
+total joined the filter, showed in its list and hid with the data.
+Under LOK, an AutoFilter set on a marked block that spans rows keeps
+that block: ScDBData remembers it (not saved) and never extends.
+
+diff --git a/sc/inc/dbdata.hxx b/sc/inc/dbdata.hxx
+index 6d80216b4..54515b138 100644
+--- a/sc/inc/dbdata.hxx
++++ b/sc/inc/dbdata.hxx
+@@ -119,6 +119,7 @@ private:
+ 
+     sal_uInt16      nIndex;             ///< unique index formulas
+     bool            bAutoFilter;        ///< AutoFilter? (not saved)
++    bool            bMarkedRows;        ///< rows were marked; never extend (not saved)
+     bool            bModified;          ///< is set/cleared for/by(?) UpdateReference
+ 
+     ::std::vector< OUString > maTableColumnNames;   ///< names of table columns
+@@ -244,6 +245,9 @@ public:
+     bool        HasAutoFilter() const       { return bAutoFilter; }
+     void        SetAutoFilter(bool bSet)    { bAutoFilter = bSet; }
+ 
++    bool        HasMarkedRows() const       { return bMarkedRows; }
++    void        SetMarkedRows(bool bSet)    { bMarkedRows = bSet; }
++
+     bool        IsModified() const          { return bModified; }
+     void        SetModified(bool bMod)      { bModified = bMod; }
+ 
+diff --git a/sc/source/core/tool/dbdata.cxx b/sc/source/core/tool/dbdata.cxx
+index b1d714c55..e7c5a16c1 100644
+--- a/sc/source/core/tool/dbdata.cxx
++++ b/sc/source/core/tool/dbdata.cxx
+@@ -75,6 +75,7 @@ ScDBData::ScDBData( const OUString& rName,
+     bDBSelection(false),
+     nIndex      (0),
+     bAutoFilter (false),
++    bMarkedRows (false),
+     bModified   (false),
+     mbTableColumnNamesDirty(true),
+     nFilteredRowCount(SCSIZE_MAX)
+@@ -110,6 +111,7 @@ ScDBData::ScDBData( const ScDBData& rData ) :
+     bDBSelection        (rData.bDBSelection),
+     nIndex              (rData.nIndex),
+     bAutoFilter         (rData.bAutoFilter),
++    bMarkedRows         (rData.bMarkedRows),
+     bModified           (rData.bModified),
+     maTableColumnNames  (rData.maTableColumnNames),
+     maTableColumnAttributes(rData.maTableColumnAttributes),
+@@ -146,6 +148,7 @@ ScDBData::ScDBData( const OUString& rName, const ScDBData& rData ) :
+     bDBSelection        (rData.bDBSelection),
+     nIndex              (rData.nIndex),
+     bAutoFilter         (rData.bAutoFilter),
++    bMarkedRows         (rData.bMarkedRows),
+     bModified           (rData.bModified),
+     maTableColumnNames  (rData.maTableColumnNames),
+     maTableColumnAttributes(rData.maTableColumnAttributes),
+@@ -192,6 +195,7 @@ ScDBData& ScDBData::operator= (const ScDBData& rData)
+         bDBSelection        = rData.bDBSelection;
+         nIndex              = rData.nIndex;
+         bAutoFilter         = rData.bAutoFilter;
++        bMarkedRows         = rData.bMarkedRows;
+         nFilteredRowCount   = rData.nFilteredRowCount;
+ 
+         if (bHeaderRangeDiffers)
+@@ -646,6 +650,8 @@ bool ScDBData::UpdateReference(const ScDocument& rDoc, UpdateRefMode eUpdateRefM
+ 
+ void ScDBData::ExtendDataArea(const ScDocument& rDoc)
+ {
++    if (bMarkedRows)
++        return;
+     // Extend the DB area to include data rows immediately below.
+     SCCOL nOldCol1 = nStartCol, nOldCol2 = nEndCol;
+     SCROW nOldEndRow = nEndRow;
+@@ -665,6 +671,8 @@ void ScDBData::ExtendDataArea(const ScDocument& rDoc)
+ 
+ void ScDBData::ExtendBackColorArea(const ScDocument& rDoc)
+ {
++    if (bMarkedRows)
++        return;
+     // Extend the DB area to include data rows immediately below.
+     SCCOL nOldCol1 = nStartCol, nOldCol2 = nEndCol;
+     SCROW nOldEndRow = nEndRow;
+diff --git a/sc/source/ui/view/dbfunc.cxx b/sc/source/ui/view/dbfunc.cxx
+index db3d23d86..8140ce4d0 100644
+--- a/sc/source/ui/view/dbfunc.cxx
++++ b/sc/source/ui/view/dbfunc.cxx
+@@ -18,6 +18,7 @@
+  */
+ 
+ #include <scitems.hxx>
++#include <comphelper/lok.hxx>
+ #include <sfx2/bindings.hxx>
+ #include <vcl/svapp.hxx>
+ #include <vcl/weld.hxx>
+@@ -286,6 +287,11 @@ void ScDBFunc::ToggleAutoFilter()
+         return;
+ 
+     pDBData->SetByRow( true );              //! undo, retrieve beforehand ??
++    // LOK: marked rows are the range, as in Excel.
++    ScRange aMarked;
++    pDBData->SetMarkedRows(comphelper::LibreOfficeKit::isActive()
++        && rViewData.GetSimpleArea(aMarked) == SC_MARK_SIMPLE
++        && aMarked.aStart.Row() != aMarked.aEnd.Row());
+     pDBData->GetQueryParam( aParam );
+ 
+     SCCOL  nCol;

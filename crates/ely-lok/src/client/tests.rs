@@ -6,6 +6,7 @@ mod analysis;
 mod charts;
 mod check;
 mod commands;
+mod filter;
 mod format;
 mod formula;
 mod handouts;
