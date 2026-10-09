@@ -9,6 +9,7 @@ showed in its list and hid with the data; a saved range reopened grew
 the same way. Under LOK the range keeps the rows it was set on, as in
 Excel, while the cursor is inside it; a cell in another block finds
 that block. A single cell still takes the data area when the filter is set.
+
 diff --git a/sc/source/core/tool/dbdata.cxx b/sc/source/core/tool/dbdata.cxx
 index b1d714c55..9a01847ee 100644
 --- a/sc/source/core/tool/dbdata.cxx
