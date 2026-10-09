@@ -30,3 +30,27 @@
     animation: none;
   }
 }
+
+/* Interaction moves by translate; landing owns transform. */
+.block {
+  transition: translate 0.15s ease-out;
+}
+
+.block[data-part] {
+  cursor: pointer;
+  outline: none;
+}
+
+.block.lifted {
+  translate: 0 calc(-1 * var(--step));
+}
+
+.block.lifted.pressed {
+  translate: 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    transition: none;
+  }
+}

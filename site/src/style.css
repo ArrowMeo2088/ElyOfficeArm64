@@ -30,3 +30,41 @@ h1 {
   max-width: 100%;
   height: auto;
 }
+
+.model {
+  position: relative;
+  max-width: 100%;
+}
+
+.caption {
+  position: absolute;
+  margin: 0;
+  translate: -50% calc(-100% - 0.75rem);
+  font-size: 0.9375rem;
+  font-weight: 300;
+  color: #6e6e73;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.caption.shown {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caption {
+    transition: none;
+  }
+}
+
+/* Keyboard and reader links; focus shows on the model. */
+.doors a {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
