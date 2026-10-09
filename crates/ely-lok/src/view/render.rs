@@ -110,7 +110,13 @@ impl Render for LokView {
                                             )
                                         });
                                         match painted {
-                                            Ok(()) => drawn = true,
+                                            Ok(()) => {
+                                                drawn = true;
+                                                let tile = Arc::as_ptr(image) as usize;
+                                                if this.read(app).clock.awaits(tile) {
+                                                    this.update(app, |view, _| view.clock.drawn(tile));
+                                                }
+                                            }
                                             Err(error) => log::error!("lok: tile paint failed: {error}"),
                                         }
                                     }

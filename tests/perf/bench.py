@@ -29,7 +29,7 @@ def sh(*args, **kw):
 
 
 def tools(folder):
-    for tool in ["ax-values", "ax-press", "click"]:
+    for tool in ["ax-values", "ax-press", "click", "chord"]:
         sh("swiftc", "-O", "-o", os.path.join(folder, tool), os.path.join(ROOT, "tests", "scripts", tool + ".swift"))
 
 
@@ -97,9 +97,6 @@ class App:
 
     def memory_mb(self):
         return self.family()[1] / 1024
-
-    def files(self):
-        return sum(self.handles().values())
 
     def handles(self):
         """Open handles of the app and its children, as type and name."""
@@ -207,6 +204,9 @@ def perf02(work, runs):
         lines = app.lines()
     finally:
         app.stop()
+    failed = [line for line in lines if re.search(PAINT_FAILED, line)]
+    if failed:
+        raise RuntimeError(f"ely-doc: a tile failed to draw while typing: {failed[0]}")
     ticks = [int(m.group(1)) for line in lines if (m := re.search(tick, line))]
     if len(ticks) != runs:
         raise RuntimeError(f"ely-doc: {runs} keys gave {len(ticks)} timings")
@@ -269,8 +269,8 @@ def perf08(work, cycles=40):
     """New and close a document; memory, handles and live documents."""
     app = App("ely-doc", os.path.join(work, "home-cycles"))
 
-    def open_docs():
-        return documents_open(app.lines())
+    def open_docs(since=0):
+        return documents_open(app.lines()[since:])
 
     try:
         app.wait("opened Untitled")
@@ -280,19 +280,24 @@ def perf08(work, cycles=40):
         baseline = (app.memory_mb(), sum(before.values()), open_docs())
         seen, extra = [], None
         for n in range(cycles):
-            keys('keystroke "n" using command down')
+            cursor = len(app.lines())
+            sh(os.path.join(work, "chord"), str(app.process.pid), "45")
             for _ in range(40):
                 if "title=Use template" in app.ax():
                     break
                 time.sleep(0.25)
             sh(os.path.join(work, "ax-press"), str(app.process.pid), "Use template", "AXButton")
             app.wait(f"opened Untitled {n + 2} ", timeout=30)
+            # This cycle's own report, not an earlier one.
+            if open_docs(cursor) != baseline[2] + 1:
+                raise RuntimeError(f"ely-doc: cycle {n + 1} opened, yet {open_docs(cursor)} documents")
+            cursor = len(app.lines())
             time.sleep(1)
             # A keystroke can miss a window still taking focus.
             for _ in range(3):
                 app.front()
                 raise_main(app)
-                keys('keystroke "w" using command down')
+                sh(os.path.join(work, "chord"), str(app.process.pid), "13")
                 try:
                     app.wait(f"office: closed Untitled {n + 2}$", timeout=5)
                     break
@@ -304,17 +309,20 @@ def perf08(work, cycles=40):
             else:
                 said = [line for line in app.lines() if re.search("clos|dialog|opened|focus", line)]
                 raise RuntimeError(f"ely-doc: Untitled {n + 2} never closed: {said[-8:]}")
-            # The kernel lets go in the background.
+            # The kernel lets go later; a fresh report must come.
             for _ in range(100):
-                if open_docs() == baseline[2]:
-                    break
+                try:
+                    if open_docs(cursor) == baseline[2]:
+                        break
+                except RuntimeError:
+                    pass
                 time.sleep(0.05)
             else:
-                raise RuntimeError(f"ely-doc: {open_docs()} documents after closing, not {baseline[2]}")
+                raise RuntimeError(f"ely-doc: cycle {n + 1} closed, yet no report of {baseline[2]} documents")
             time.sleep(0.5)
             now = app.handles()
             extra = handles_kept(before, now, extra, n + 1)
-            seen.append((app.memory_mb(), sum(now.values()), open_docs()))
+            seen.append((app.memory_mb(), sum(now.values()), open_docs(cursor)))
     finally:
         app.stop()
     return baseline, seen

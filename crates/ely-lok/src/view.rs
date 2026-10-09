@@ -471,15 +471,11 @@ impl LokView {
                     log::warn!("lok: a tile came back the wrong size");
                     return;
                 };
-                let entry = TileEntry {
-                    image: Arc::new(RenderImage::new([Frame::new(image)])),
-                    stale: false,
-                };
-                log::debug!("lok: tile {key:?} shown");
-                if let Some(old) = self.tiles.insert(key, entry) {
+                let image = Arc::new(RenderImage::new([Frame::new(image)]));
+                self.clock.painted(tile.generation, Arc::as_ptr(&image) as usize);
+                if let Some(old) = self.tiles.insert(key, TileEntry { image, stale: false }) {
                     self.retired.push(old.image);
                 }
-                self.clock.painted(tile.generation);
                 cx.notify();
             }
             Ok(_) => cx.notify(),

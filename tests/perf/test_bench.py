@@ -35,6 +35,12 @@ class Verdicts(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "no document count"):
             bench.documents_open(["office: closed Untitled 2"])
 
+    def test_a_cycle_needs_its_own_count(self):
+        log = ["lok-worker: 1 documents open", "ely-doc: opened Untitled 2 as tab 1", "office: closed Untitled 2"]
+        cursor = 1
+        with self.assertRaisesRegex(RuntimeError, "no document count"):
+            bench.documents_open(log[cursor:])
+
 
 if __name__ == "__main__":
     unittest.main()
