@@ -74,7 +74,7 @@ pub fn label(status: &str, cx: &App) -> SharedString {
     parts.join("  ").into()
 }
 
-/// A plain General number at 10 significant digits, as Excel shows it.
+/// A plain number at ten significant digits, like Excel.
 fn tidy(value: &str) -> String {
     let plain = value.trim_start_matches('-');
     if plain.is_empty() || !plain.chars().all(|c| c.is_ascii_digit() || c == '.') {
