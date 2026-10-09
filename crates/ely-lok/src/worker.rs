@@ -192,8 +192,12 @@ fn answer(lok: &Lok, tag: u8, id: u64, payload: &[u8]) {
         tag::EXPORT_TEXT => text::export(unpack).map(|()| Vec::new()),
         tag::DOC_SIZE => unpack
             .u64()
-            .and_then(|id| with_doc(id, |doc| doc.size()))
-            .map(|(width, height)| Pack::new().i64(width).i64(height).bytes()),
+            .and_then(|id| Ok((with_doc(id, |doc| doc.size())?, crate::events::zoom(id))))
+            .map(|((width, height), (pixels, twips))| {
+                // The scale the kernel measured at; 0 if never set.
+                let pack = Pack::new().i64(width).i64(height);
+                pack.i64(i64::from(pixels)).i64(i64::from(twips)).bytes()
+            }),
         tag::SAVE_AS => save(unpack).map(|()| Vec::new()),
         tag::EXPORT_PDF => export_pdf(unpack).map(|()| Vec::new()),
         tag::CLOSE_DOC => unpack.u64().map(|id| {
@@ -255,6 +259,7 @@ fn answer(lok: &Lok, tag: u8, id: u64, payload: &[u8]) {
                     doc.set_client_zoom(pixels, twips);
                     doc.set_visible_area(x, y, w, h)
                 })
+                .inspect(|_| crate::events::rescaled(id, (pixels, twips)))
             })
             .map(|()| Vec::new()),
         tag::SELECTION_TEXT => unpack
@@ -331,6 +336,12 @@ fn load(lok: &Lok, url: &str, password: String, filter: &str) -> io::Result<u64>
     crate::events::seed_a11y(id, &doc.a11y_paragraph()?);
     // Settle the initial layout now; later paints see it (LOK-03).
     doc.post_uno(".uno:Repaginate", None)?;
+    // A sheet's size has a known scale from the start.
+    if doc.kind() == 1 {
+        let zoom = (crate::TILE_TWIPS / crate::TWIPS_PER_PIXEL as i32, crate::TILE_TWIPS);
+        doc.set_client_zoom(zoom.0, zoom.1);
+        crate::events::rescaled(id, zoom);
+    }
     let mut docs = docs().lock().expect("the docs lock");
     docs.insert(id, doc);
     log::info!("lok-worker: {} documents open", docs.len());

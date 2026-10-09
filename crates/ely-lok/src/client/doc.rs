@@ -98,6 +98,15 @@ impl Doc {
         Ok((unpack.i64()?, unpack.i64()?))
     }
 
+    /// The size and the client zoom it was measured at.
+    pub fn size_at(&self, worker: &mut Worker) -> io::Result<((i64, i64), (i32, i32))> {
+        let payload = worker.request(tag::DOC_SIZE, &Pack::new().u64(worker.doc_id(self)?).bytes())?;
+        let mut unpack = Unpack::new(&payload);
+        let size = (unpack.i64()?, unpack.i64()?);
+        let number = |value: i64| i32::try_from(value).map_err(io::Error::other);
+        Ok((size, (number(unpack.i64()?)?, number(unpack.i64()?)?)))
+    }
+
     /// Page rectangles in twips; empty without pages.
     pub fn pages(&self, worker: &mut Worker) -> io::Result<Vec<Rect>> {
         let payload = worker.request(tag::PAGES, &Pack::new().u64(worker.doc_id(self)?).bytes())?;

@@ -111,10 +111,9 @@ impl LokView {
         if self.fit {
             return self.doc_size;
         }
-        self.tile_of((
-            self.doc_size.0.max(self.reach.0),
-            self.doc_size.1.max(self.reach.1),
-        ))
+        // The kernel sizes a sheet in tile twips already.
+        let reach = self.tile_of(self.reach);
+        (self.doc_size.0.max(reach.0), self.doc_size.1.max(reach.1))
     }
 
     /// The print-twips document point under a view position (LOK-04).

@@ -1,9 +1,21 @@
 //! Calc reports print twips; tiles and clicks take tile twips.
 
+use std::{io, sync::Mutex};
+
 use gpui::Context;
 
-use super::{LokView, TILE_TWIPS};
-use crate::{Rect, sheet::Geometry};
+use super::{Layout, LokView, TILE_TWIPS};
+use crate::{Doc, Rect, Worker, sheet::Geometry};
+
+/// A layout and the client zoom it was measured at.
+pub(super) type Measured = io::Result<(Layout, (i32, i32))>;
+
+/// Reads the layout under the worker lock.
+pub(super) fn measure(worker: &Mutex<Worker>, doc: &Doc) -> Measured {
+    let mut worker = worker.lock().expect("the worker lock");
+    let (size, zoom) = doc.size_at(&mut worker)?;
+    Ok(((size, doc.pages(&mut worker)?), zoom))
+}
 
 impl LokView {
     /// Lays the sheet out the kernel's way.
@@ -51,9 +63,27 @@ impl LokView {
     /// Rescales, keeping the scrolling pane's start in place.
     pub(super) fn keep_scroll(&mut self, change: impl FnOnce(&mut Self)) {
         let start = self.scrolled_start();
-        change(self);
+        self.carry_size(change);
         let ((x, y), (fx, fy)) = (self.tile_of(start), self.frozen_tiles());
         self.scroll = (x - fx, y - fy);
+    }
+
+    /// Rescales; the measured size moves to the new scale too.
+    pub(super) fn carry_size(&mut self, change: impl FnOnce(&mut Self)) {
+        // Until measured again, scrolls clamp against this.
+        let print = self.print_of(self.doc_size);
+        change(self);
+        self.doc_size = self.tile_of(print);
+    }
+
+    /// A sheet size the kernel measured at `zoom`, at ours.
+    pub(super) fn at_scale(&self, size: (i32, i32), (pixels, twips): (i32, i32)) -> (i32, i32) {
+        let Some(sheet) = self.sheet.as_ref().filter(|_| pixels > 0 && twips > 0) else {
+            return size;
+        };
+        let theirs = f64::from(pixels) / f64::from(twips);
+        let print = (sheet.columns.print(size.0, theirs), sheet.rows.print(size.1, theirs));
+        self.tile_of(print)
     }
 
     /// Where the scrolling pane starts, in print twips.

@@ -113,6 +113,8 @@ struct Slot {
     result: Option<(String, bool)>,
     /// The seq last pushed to the client.
     pushed: u64,
+    /// The client zoom last set: tile pixels, tile twips.
+    zoom: (i32, i32),
 }
 
 impl Slot {
@@ -445,6 +447,23 @@ pub fn wait_cropping(id: u64, timeout: Duration) -> bool {
             .expect("the events wait")
             .0;
     }
+}
+
+/// The client zoom last set on `id`, in tile units.
+pub fn zoom(id: u64) -> (i32, i32) {
+    slots().lock().expect("the events lock").get(&id).map_or((0, 0), |slot| slot.zoom)
+}
+
+/// A new client zoom resizes the document unannounced (Calc).
+pub fn rescaled(id: u64, zoom: (i32, i32)) {
+    if let Some(slot) = slots().lock().expect("the events lock").get_mut(&id)
+        && slot.zoom != zoom
+    {
+        slot.zoom = zoom;
+        slot.batch.resized += 1;
+        slot.batch.seq += 1;
+    }
+    signal().notify_all();
 }
 
 /// Seeds the a11y text from the kernel's snapshot (§7 tail).

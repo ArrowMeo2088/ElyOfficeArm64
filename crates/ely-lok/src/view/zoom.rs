@@ -54,7 +54,7 @@ impl LokView {
         let under = self.print_of((self.scroll.0 + self.geom.twips_of(sx), self.scroll.1 + self.geom.twips_of(sy)));
         self.fit = false;
         if (zoom - self.geom.zoom).abs() > 0.0001 {
-            self.geom.zoom = zoom;
+            self.carry_size(|view| view.geom.zoom = zoom);
             self.retire_tiles();
             self.failed.clear();
         }
