@@ -17,7 +17,6 @@ const en = {
   needs: "macOS 14 or later, Apple silicon.",
   unsigned: "Not notarized. If macOS blocks the app, open System Settings › Privacy & Security and click Open Anyway.",
   github: "Download from GitHub",
-  shot: "screenshot",
   other: "中文",
   roads: "Drag a file down the road.",
   fileDoc: "ElyDoc file",
@@ -54,7 +53,6 @@ const zh: typeof en = {
   needs: "macOS 14 或更新，Apple 芯片。",
   unsigned: "未经公证。macOS 拦下应用时，打开“系统设置 › 隐私与安全性”，点“仍要打开”。",
   github: "前往 GitHub 下载",
-  shot: "截图",
   other: "English",
   roads: "把文件沿着路拖过去。",
   fileDoc: "ElyDoc 文件",
@@ -90,8 +88,5 @@ export function speak(lang: Lang): void {
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
   for (const el of document.querySelectorAll<HTMLElement>("[data-t]")) {
     el.textContent = TEXT[lang][el.dataset.t as Key];
-  }
-  for (const el of document.querySelectorAll<SVGElement>("[data-shot]")) {
-    el.setAttribute("aria-label", `${el.dataset.shot} ${TEXT[lang].shot}`);
   }
 }
