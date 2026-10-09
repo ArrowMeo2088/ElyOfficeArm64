@@ -63,7 +63,7 @@ pub fn label(status: &str, cx: &App) -> SharedString {
         .map(|part| {
             let known = part.split_once(": ").and_then(|(name, value)| {
                 let (_, key) = FIGURES.iter().find(|(known, _)| *known == name)?;
-                Some(Book::text(cx, key, &[("value", value.trim())]).to_string())
+                Some(Book::text(cx, key, &[("value", &tidy(value.trim()))]).to_string())
             });
             known.unwrap_or_else(|| {
                 log::warn!("table: the kernel status {part:?} has no label");
@@ -74,8 +74,37 @@ pub fn label(status: &str, cx: &App) -> SharedString {
     parts.join("  ").into()
 }
 
+/// A plain General number at 10 significant digits, as Excel shows it.
+fn tidy(value: &str) -> String {
+    let plain = value.trim_start_matches('-');
+    if plain.is_empty() || !plain.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return value.to_string();
+    }
+    let Ok(number) = value.parse::<f64>() else {
+        return value.to_string();
+    };
+    let whole = plain.split('.').next().map_or(0, str::len);
+    let decimals = 10usize.saturating_sub(whole);
+    let shown = format!("{number:.decimals$}");
+    if shown.contains('.') {
+        shown.trim_end_matches('0').trim_end_matches('.').to_string()
+    } else {
+        shown
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn plain_figures_show_ten_significant_digits() {
+        assert_eq!(super::tidy("8128.33333333333"), "8128.333333");
+        assert_eq!(super::tidy("-0.125"), "-0.125");
+        assert_eq!(super::tidy("42"), "42");
+        assert_eq!(super::tidy("1.5"), "1.5");
+        assert_eq!(super::tidy("$1,234.50"), "$1,234.50", "a formatted value stays");
+        assert_eq!(super::tidy("12.5%"), "12.5%");
+    }
+
     #[test]
     fn kernel_status_takes_the_interface_language() {
         let cx = gpui::TestAppContext::single();
