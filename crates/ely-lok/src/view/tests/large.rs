@@ -202,6 +202,16 @@ fn a_sheet_brings_far_cut_and_frozen_cells_into_view() {
             let cut = (width - 200, 0, 1280, 256);
             view.show(cut, cx);
             assert!(view.scroll.0 > 0 && shows(view, cut), "a cell cut at the right edge comes into view");
+            let (x, _, w, _) = view.tile_rect(cut);
+            assert_eq!(view.scroll.0, x + w - width, "it scrolls no further than the cell's edge");
+            let before = view.scroll;
+            view.show((0, 0, view.print_of((x + w + width, 0)).0, 256), cx);
+            assert_eq!(view.scroll, before, "a cell wider than the view and covering it keeps still");
+            view.dragging = true;
+            let cell = crate::Cell { cursor: Some((1418, 90_000, 1280, 277)), ..crate::Cell::default() };
+            view.apply_batch(crate::Events { cell, ..crate::Events::default() }, None, cx);
+            assert_eq!(view.scroll, before, "a drag does not scroll under the pointer");
+            view.dragging = false;
             view.scroll = (0, 0);
             view.set_frozen((0, 600), cx);
             let frozen = view.place((0, 300)).y;

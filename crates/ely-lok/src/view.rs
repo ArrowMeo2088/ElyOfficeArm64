@@ -375,8 +375,9 @@ impl LokView {
         }
         if batch.cursor != self.cursor {
             self.moves += 1;
-            // A moved cursor stays in view.
+            // A moved cursor stays in view, but not mid-drag.
             if self.viewport.1 > 0.0
+                && !self.dragging
                 && let Some(cursor) = batch.cursor
             {
                 self.show(cursor, cx);
@@ -385,6 +386,7 @@ impl LokView {
         // A moved cell cursor stays in view too.
         if batch.cell.cursor != self.cell.cursor
             && self.viewport.1 > 0.0
+            && !self.dragging
             && let Some(cell) = batch.cell.cursor
         {
             self.show(cell, cx);

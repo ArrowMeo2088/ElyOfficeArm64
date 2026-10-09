@@ -61,11 +61,11 @@ impl LokView {
             let need = self.print_of((x + w + vw + fx, y + h + vh + fy));
             self.reach = (self.reach.0.max(need.0), self.reach.1.max(need.1));
         }
-        if x >= fx && (x < fx + self.scroll.0 || x + w > fx + self.scroll.0 + vw) {
-            self.scroll.0 = x - fx - vw / 2;
+        if x >= fx {
+            self.scroll.0 = least(x - fx, w, self.scroll.0, vw);
         }
-        if y >= fy && (y < fy + self.scroll.1 || y + h > fy + self.scroll.1 + vh) {
-            self.scroll.1 = y - fy - vh / 3;
+        if y >= fy {
+            self.scroll.1 = least(y - fy, h, self.scroll.1, vh);
         }
         self.clamp_scroll();
         cx.notify();
@@ -171,4 +171,11 @@ impl LokView {
             size: size((end.x - origin.x).max(px(self.geom.px_of(1))), end.y - origin.y),
         })
     }
+}
+
+/// The scroll nearest `scroll` that shows `start..start + len`.
+fn least(start: i32, len: i32, scroll: i32, view: i32) -> i32 {
+    // A span wider than the view keeps covering it.
+    let end = start + len - view;
+    scroll.clamp(start.min(end), start.max(end))
 }
