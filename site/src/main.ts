@@ -35,4 +35,4 @@ svg.classList.add("grow");
 svg.setAttribute("aria-hidden", "true");
 host.append(svg);
 app.append(title, host);
-touch(host, parts);
+touch(host, svg, parts);

@@ -80,6 +80,8 @@ too_long = []
 repeated = {}
 for pattern in PATTERNS:
     for path in sorted(root.glob(pattern)):
+        if "node_modules" in path.parts:
+            continue
         if path.suffix in SCANNED:
             last = None
             for first, final, said in scan(path.read_text(), SCANNED[path.suffix]):

@@ -36,9 +36,10 @@
   transition: translate 0.15s ease-out;
 }
 
-.block[data-part] {
+.hit-face {
+  fill: none;
+  pointer-events: all;
   cursor: pointer;
-  outline: none;
 }
 
 .block.lifted {

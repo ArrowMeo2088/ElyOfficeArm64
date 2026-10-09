@@ -29,6 +29,7 @@ h1 {
 .stage {
   max-width: 100%;
   height: auto;
+  overflow: visible;
 }
 
 .model {
