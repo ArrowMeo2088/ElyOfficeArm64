@@ -94,6 +94,8 @@ pub enum Dialog {
     Column {
         tab: u64,
         column: u32,
+        /// The button's row: its cell names the filtered range.
+        row: u32,
         entries: Vec<Entry>,
         picked: Vec<SharedString>,
     },

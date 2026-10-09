@@ -397,6 +397,7 @@ impl Book {
                     book.dialog = Some(Dialog::Column {
                         tab: id,
                         column,
+                        row,
                         entries: filter.entries,
                         picked,
                     });
@@ -413,12 +414,15 @@ impl Book {
         let Some(Dialog::Column {
             tab,
             column,
+            row,
             entries,
             picked,
         }) = self.dialog.take()
         else {
             return;
         };
+        // The kernel filters the cursor's range: go to the button.
+        self.run_in(Some(tab), "cell.goto", &[&sheet::address(column, row)], cx);
         match sort {
             Some(rising) => {
                 let key = SortKey {
