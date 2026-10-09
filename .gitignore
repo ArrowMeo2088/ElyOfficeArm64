@@ -7,18 +7,12 @@ node_modules/
 .DS_Store
 .ruff_cache/
 
-# Internal working files, kept local
-/agents.md
-/CLAUDE.md
-/PRD.md
-/tasks/
+# Local only
+/tasks/reviews/.pane
 /.pi/
 /markdown-sample.md
 /docs/engineering-risks.md
 /docs/qa.md
 /docs/acceptance.md
 /docs/test-map.md
-/scripts/review.sh
-/scripts/test-map.py
-/tests/scripts/agents_md.py
 /assets/papirus_icons-master.zip
