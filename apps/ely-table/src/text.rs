@@ -154,22 +154,20 @@ fn decode(bytes: &[u8], encoding: Encoding) -> Option<String> {
         .map(|text| text.into_owned())
 }
 
-/// Rows as Calc's text import reads them (impex.cxx).
-fn split(text: &str, how: &Import) -> Vec<Vec<String>> {
+/// Calc's text-import rows (impex.cxx), one at a time.
+fn split<'a>(text: &'a str, how: &'a Import) -> impl Iterator<Item = Vec<String>> + 'a {
     let mut chars = text.chars().peekable();
-    let mut rows = Vec::new();
-    while chars.peek().is_some() {
+    std::iter::from_fn(move || {
+        chars.peek()?;
         let mut row = Vec::new();
         loop {
             let (value, more) = field(&mut chars, how);
             row.push(value);
             if !more {
-                break;
+                return Some(row);
             }
         }
-        rows.push(row);
-    }
-    rows
+    })
 }
 
 /// One field, and whether the record goes on.
