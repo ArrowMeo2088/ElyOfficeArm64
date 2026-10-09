@@ -115,3 +115,40 @@ fn a_page_stays_centred_when_the_cursor_moves() {
         })
     });
 }
+
+#[test]
+fn zooming_keeps_the_left_page_edge_or_the_pointed_spot() {
+    let Some(install) = crate::client::tests::install() else {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    };
+    let cx = gpui::TestAppContext::single();
+    cx.update(|app| {
+        let (view, _) = live_view(app, &install);
+        view.update(app, |view, cx| {
+            let room = Bounds { origin: point(px(0.0), px(0.0)), size: size(px(1200.0), px(900.0)) };
+            view.prepare(room);
+            let page = *view.pages.first().expect("a laid out page");
+            // Unclamped, so a cut edge reads below zero.
+            let left = |view: &LokView| view.spare.0 + view.geom.px_of(view.tile_of((page.0, page.1)).0 - view.scroll.0);
+            for _ in 0..3 {
+                view.zoom_step(true, cx);
+                view.prepare(room);
+                assert!(left(view) >= 0.0, "at {}% the left edge is at {}", view.zoom() * 100.0, left(view));
+            }
+            view.set_zoom(1.0, cx);
+            view.prepare(room);
+            view.set_zoom(2.0, cx);
+            view.prepare(room);
+            assert!(left(view) >= 0.0, "a set zoom keeps the left edge: {}", left(view));
+            view.set_zoom(1.0, cx);
+            view.prepare(room);
+            let at = point(px(600.0), px(400.0));
+            let before = view.doc_point(at);
+            view.zoom_at(1.5, Some(at), cx);
+            view.prepare(room);
+            let after = view.doc_point(at);
+            assert!((after.0 - before.0).abs() < 30 && (after.1 - before.1).abs() < 30, "{before:?} moved to {after:?}");
+        })
+    });
+}

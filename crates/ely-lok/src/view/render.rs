@@ -249,6 +249,15 @@ impl LokView {
         }
     }
 
+    /// Room beside a narrow document, which sits centred.
+    pub(super) fn slack(&self) -> (f32, f32) {
+        let extent = self.extent();
+        let slack = |view: f32, doc: i32| (view - self.geom.px_of(doc)).max(0.0) / 2.0;
+        // A fitted page sits centred both ways.
+        let down = if self.fit { slack(self.viewport.1, extent.1) } else { 0.0 };
+        (slack(self.viewport.0, extent.0), down)
+    }
+
     /// The page mask and visible tiles; requests the missing ones.
     pub(super) fn prepare(&mut self, bounds: Bounds<Pixels>) -> Painted {
         self.viewport = (bounds.size.width.into(), bounds.size.height.into());
@@ -259,18 +268,8 @@ impl LokView {
         self.clamp_scroll();
         let geom = self.geom;
         let (sx, sy) = self.scroll;
-        // A narrow document sits centered.
         let extent = self.extent();
-        let slack = |view: f32, doc: i32| (view - geom.px_of(doc)).max(0.0) / 2.0;
-        // A fitted page sits centred both ways.
-        self.spare = (
-            slack(self.viewport.0, extent.0),
-            if self.fit {
-                slack(self.viewport.1, extent.1)
-            } else {
-                0.0
-            },
-        );
+        self.spare = self.slack();
         let pages = if self.pages.is_empty() {
             vec![self.tile_screen_rect((0, 0, extent.0, extent.1))]
         } else {
