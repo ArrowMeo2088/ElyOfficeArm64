@@ -5,8 +5,7 @@ import { ACCENT, model } from "../../src/model.ts";
 import { type Box, DESK, PAPER, SCREEN, SHEET, lamp, props, screens, tiles } from "./parts.ts";
 import { BAR, BEAT, glide, toward } from "./time.ts";
 import { DESK_END, type Moment, SEED, TURN, moment } from "./timeline.ts";
-import { film, montage, slabs, turnedBlock, turnedOrder } from "./turn.ts";
-import recs from "../montage/recs.json";
+import { film, montage, recording, turnedBlock, turnedOrder } from "./turn.ts";
 import { view } from "../opening/plan.ts";
 
 export const WIDTH = 1920;
@@ -167,7 +166,7 @@ const svg = document.querySelector<SVGSVGElement>("#frame");
 const world = document.querySelector<SVGGElement>("#world");
 if (!svg || !world) throw new Error("index.html lacks #frame or #world");
 
-/** Draws the moment; slabs carry the montage recordings at frame `f`. */
+/** Draws the moment; leaving slabs carry their recordings. */
 function draw(m: Moment, cam: Camera, f: number): Promise<void>[] {
   const page = mix(PAGE[0], PAGE[1], m.dark);
   document.body.style.background = page;
@@ -177,10 +176,9 @@ function draw(m: Moment, cam: Camera, f: number): Promise<void>[] {
   const groups = m.pieces.map(({ box, land, dark }) => {
     const toned = { ...box, tone: tone(box.tone, dark) };
     const g = m.angle ? turnedBlock(toned, m.angle) : block(toned);
-    const slab = slabs.indexOf(box);
-    if (slab >= 0 && land > 0) {
-      const index = String(f - recs.first + 1).padStart(5, "0");
-      const { el, ready } = film(box, m.angle, `rec/${recs.apps[slab].rec}/${index}.jpg`);
+    const href = recording(box, land, f);
+    if (href) {
+      const { el, ready } = film(box, m.angle, href);
       g.append(el);
       loads.push(ready);
     }
