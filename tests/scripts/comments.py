@@ -24,6 +24,7 @@ PATTERNS = [
     "site/src/**/*.ts",
     "site/src/**/*.css",
     "site/test/**/*.ts",
+    "site/e2e/**/*.ts",
     "site/video/**/*.py",
     "site/video/**/*.sh",
 ]

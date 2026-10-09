@@ -13,7 +13,7 @@ const top = (page: Page, name: string) =>
     return (document.querySelector(`.block[data-part="${n}"]`)!.getBoundingClientRect().top + scrollY) / scale;
   }, name);
 
-/** A point where the building is hit; `low` takes the lowest. */
+/** A point that hits the building; `low` picks the lowest. */
 const spot = (page: Page, name: string, low = false) =>
   page.evaluate(
     ([n, low]) => {
