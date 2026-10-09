@@ -269,3 +269,44 @@ fn the_clipboard_moves_html_tables_and_images() {
     let xml = std::fs::read_to_string(&out).expect("the save reads");
     assert!(xml.contains("<draw:image"), "the image lands");
 }
+
+/// Two slides, each with one line of text.
+const DECK: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+ office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.presentation">
+ <office:body><office:presentation>
+  <draw:page draw:name="one"><draw:frame svg:x="2cm" svg:y="2cm" svg:width="10cm" svg:height="3cm"><draw:text-box><text:p>One</text:p></draw:text-box></draw:frame></draw:page>
+  <draw:page draw:name="two"><draw:frame svg:x="2cm" svg:y="8cm" svg:width="10cm" svg:height="3cm"><draw:text-box><text:p>Two</text:p></draw:text-box></draw:frame></draw:page>
+ </office:presentation></office:body>
+</office:document>"#;
+
+#[test]
+fn switching_slides_repaints_the_shown_tiles() {
+    let Some(install) = crate::client::tests::install() else {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    };
+    let mut cx = TestAppContext::single();
+    let (view, _) = cx.update(|app| live_view_of(app, &install, "deck.fodp", DECK));
+    let before = cx.update(|app| {
+        view.update(app, |view, cx| {
+            let side = view.geom.tile_pixels() as usize;
+            let tile = crate::Tile { generation: view.generation, pixels: vec![0; side * side * 4] };
+            view.finish_tile((0, 0), view.geom, Ok(tile), cx);
+            let image = Arc::clone(&view.tiles[&(0, 0)].image);
+            view.show_part(1);
+            image
+        })
+    });
+    flush(&cx);
+    cx.update(|app| {
+        let entry = &view.read(app).tiles[&(0, 0)];
+        assert!(
+            entry.stale || !Arc::ptr_eq(&entry.image, &before),
+            "the first slide's tile must not stay"
+        );
+    });
+}
