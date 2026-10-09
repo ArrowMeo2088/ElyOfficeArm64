@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ElyShow slide show: on macOS it covers the menu bar and Dock.
+# ElyShow: on macOS the show covers menu bar and Dock.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
