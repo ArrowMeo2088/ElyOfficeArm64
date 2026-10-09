@@ -131,6 +131,7 @@ check quoted.md $'> |alpha|beta|\n> |---|---|\n> |1|2|\n' 'keystroke "x"' $'> |x
 check listed.md $'- item\n\n  |alpha|beta|\n  |---|---|\n  |1|2|\n' 'keystroke "x"' $'- xitem\n\n  |alpha|beta|\n  |-|-|\n  |1|2|\n'
 # Items open with a paragraph; a leading table stays raw.
 check leading.md $'- |alpha|beta|\n  |---|---|\n' 'keystroke "x"' $'x- |alpha|beta|\n  |---|---|\n'
+check short.md $'|a|b|c|\n|-|-|-|\n|1|2|\n' 'keystroke "x"' $'|xa|b|c|\n|-|-|-|\n|1|2||\n'
 # Cells Milkdown would rewrite keep the table raw.
 check wikicell.md $'|a|[[Wiki Link]]|\n|-|-|\n|1|2|\n' 'keystroke "x"' $'x|a|[[Wiki Link]]|\n|-|-|\n|1|2|\n'
 # Deleting forward at a hidden definition moves nothing.

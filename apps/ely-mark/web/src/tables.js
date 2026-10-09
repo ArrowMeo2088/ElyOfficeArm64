@@ -22,7 +22,12 @@ export function canon(text) {
   let out = text
   // Later tables first, so earlier offsets hold.
   for (const table of tables.reverse()) {
-    const rows = table.children.map((row) => row.children.map((node) => cell(text, node)).join('|'))
+    const width = table.children[0].children.length
+    // GFM fills a short row with empty cells.
+    const rows = table.children.map((row) => {
+      const cells = row.children.map((node) => cell(text, node))
+      return [...cells, ...Array(Math.max(0, width - cells.length)).fill('')].join('|')
+    })
     const shape = [table.align.join(','), ...rows].join('\n')
     out = `${out.slice(0, table.position.start.offset)}\u0000${shape}\u0000${out.slice(table.position.end.offset)}`
   }
