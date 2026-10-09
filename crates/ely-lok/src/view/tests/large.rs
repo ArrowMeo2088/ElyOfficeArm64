@@ -174,3 +174,44 @@ fn zooming_far_down_a_sheet_keeps_the_rows_in_view() {
     let after = middle(&mut cx);
     assert!(before.abs_diff(after) <= 1, "row {before} became {after}");
 }
+
+#[test]
+fn a_sheet_brings_far_cut_and_frozen_cells_into_view() {
+    let Some(install) = crate::client::tests::install() else {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    };
+    let cx = gpui::TestAppContext::single();
+    cx.update(|app| {
+        let (view, worker) = live_view_of(app, &install, "short.fods", SHORT_ROWS);
+        let json = worker.lock().expect("the worker lock").values(&view.read(app).doc, crate::sheet::GEOMETRY).expect("geometry");
+        view.update(app, |view, cx| {
+            view.set_geometry(crate::sheet::geometry(&json).expect("parsed"), cx);
+            view.viewport = (800.0, 200.0);
+            let (width, height) = (view.geom.twips_of(view.viewport.0), view.geom.twips_of(view.viewport.1));
+            let shows = |view: &LokView, rect: crate::Rect| {
+                let (x, y, w, h) = view.tile_rect(rect);
+                let (fx, fy) = view.frozen_tiles();
+                x + w <= fx + view.scroll.0 + width && y >= fy + view.scroll.1 && y + h <= fy + view.scroll.1 + height
+            };
+            let far = (1418, view.doc_size.1 + 20_000, 1280, 277);
+            let cell = crate::Cell { cursor: Some(far), ..crate::Cell::default() };
+            view.apply_batch(crate::Events { cell, ..crate::Events::default() }, None, cx);
+            assert!(shows(view, far), "a cell past the kernel's size still comes into view");
+            view.scroll = (0, 0);
+            let cut = (width - 200, 0, 1280, 256);
+            view.show(cut, cx);
+            assert!(view.scroll.0 > 0 && shows(view, cut), "a cell cut at the right edge comes into view");
+            view.scroll = (0, 0);
+            view.set_frozen((0, 600), cx);
+            let frozen = view.place((0, 300)).y;
+            view.show((1418, 300, 1280, 277), cx);
+            assert_eq!(view.scroll.1, 0, "a frozen row needs no scroll");
+            view.show((1418, 9000, 1280, 277), cx);
+            assert!(view.scroll.1 > 0, "a far row scrolls the rest");
+            assert_eq!(view.place((0, 300)).y, frozen, "the frozen row stays");
+            let back = view.twips_at(view.place((0, 9000)));
+            assert!((back.1 - 9000).abs() <= 15, "a scrolled row maps back: {back:?}");
+        });
+    });
+}
