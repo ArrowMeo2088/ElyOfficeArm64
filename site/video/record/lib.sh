@@ -42,8 +42,10 @@ launch() {
   rm -rf "$home"
   local data="$home/Library/Application Support/ElyOffice/$app"
   mkdir -p "$data"
+  local panels=
+  [ -z "${PANEL_LEFT:-}" ] || panels=",\"panels\":{\"left\":$PANEL_LEFT}"
   printf '{"version":1,"window":{"mode":"windowed","x":%s,"y":%s,"width":%s,"height":%s}%s}\n' \
-    "$win_x" "$win_y" "$win_w" "$win_h" "${PANEL_LEFT:+,\"panels\":{\"left\":$PANEL_LEFT}}" >"$data/settings.json"
+    "$win_x" "$win_y" "$win_w" "$win_h" "$panels" >"$data/settings.json"
   env HOME="$home" ELY_APPEARANCE=light ELY_LOCALE=en ELY_NO_DIALOG=1 ELY_LOG=info ELY_REDUCE_MOTION=0 \
     ${EXTRA_ENV:-} "$root/target/release/$app" "$@" >"$out/logs/$app.out" 2>"$out/logs/$app.err" &
   app_pid=$!

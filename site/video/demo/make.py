@@ -256,15 +256,15 @@ climbs to the lighthouse and comes back through the dunes.
 
 ## Route at a glance
 
-| Section | Distance | Time |
-| --- | --- | --- |
-| Sea wall | 1.2 km | 15 min |
-| Lighthouse climb | 0.8 km | 20 min |
-| Dune path | 2.1 km | 30 min |
+| Section          | Distance | Time   |
+| ---------------- | -------- | ------ |
+| Sea wall         | 1.2 km   | 15 min |
+| Lighthouse climb | 0.8 km   | 20 min |
+| Dune path        | 2.1 km   | 30 min |
 
 ## Pace
 
-Walking time is distance over pace, plus a minute for every ten metres of climb:
+Walking time is distance over pace, plus a minute for every ten meters of climb:
 
 $$
 t = \frac{d}{v} + \frac{h}{10}

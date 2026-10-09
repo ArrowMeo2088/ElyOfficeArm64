@@ -11,3 +11,22 @@
 .face.right {
   fill: color-mix(in oklab, var(--tone), black 20%);
 }
+
+/* Each block drops one step and lands on its beat. */
+.grow .block {
+  animation: land 0.2s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: calc(var(--land) - 0.2s);
+}
+
+@keyframes land {
+  from {
+    transform: translateY(-28px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grow .block {
+    animation: none;
+  }
+}

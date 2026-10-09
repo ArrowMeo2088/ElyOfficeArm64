@@ -12,5 +12,21 @@ body {
 #app {
   min-height: 100vh;
   display: grid;
-  place-items: center;
+  place-content: center;
+  justify-items: center;
+  gap: 6rem;
+  padding: 9rem 1.5rem;
+  box-sizing: border-box;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.stage {
+  max-width: 100%;
+  height: auto;
 }
