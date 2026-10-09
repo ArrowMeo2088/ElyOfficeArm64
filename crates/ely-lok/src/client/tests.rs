@@ -282,30 +282,16 @@ fn a_production_worker_refuses_run_macro() {
 #[cfg(target_os = "macos")]
 #[test]
 fn an_unpatched_build_is_rejected() {
-    let dmg = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../engines/LibreOffice_26.2.6_MacOS_aarch64.dmg");
-    if !dmg.try_exists().expect("the dmg check") {
-        eprintln!("SKIP: no official dmg");
+    // A plain folder: a mounted .app would be registered.
+    let frameworks = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../engines/lo-official/Contents/Frameworks");
+    if !frameworks.try_exists().expect("the folder check") {
+        eprintln!("SKIP: run scripts/extract-official-lo.sh");
         return;
     }
-    let mount = tempfile::tempdir().expect("a temp dir");
-    let attached = std::process::Command::new("hdiutil")
-        .args(["attach", "-nobrowse", "-readonly", "-mountpoint"])
-        .arg(mount.path())
-        .arg(&dmg)
-        .status()
-        .expect("hdiutil runs");
-    assert!(attached.success(), "the official dmg mounts");
-    let frameworks = mount.path().join("LibreOffice.app/Contents/Frameworks");
     let dir = tempfile::tempdir().expect("a temp dir");
     let outcome = Worker::spawn(&frameworks, &dir.path().join("profile"));
     assert!(outcome.is_err(), "the unpatched build must be rejected");
-    let detached = std::process::Command::new("hdiutil")
-        .args(["detach", "-quiet"])
-        .arg(mount.path())
-        .status()
-        .expect("hdiutil detaches");
-    assert!(detached.success());
 }
 
 #[test]

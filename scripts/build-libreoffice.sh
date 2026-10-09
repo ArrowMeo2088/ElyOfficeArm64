@@ -83,3 +83,5 @@ done
 echo "build-libreoffice.sh: dictionaries kept: $(ls "$extensions" | tr '\n' ' ')"
 # Ely's kernel defaults: Excel A1 formulas.
 cp "$root/packaging/libreoffice/ely.xcd" "$src/instdir/LibreOffice.app/Contents/Resources/registry/"
+
+"$root/scripts/inert-lo.sh" "$src/instdir/LibreOffice.app"

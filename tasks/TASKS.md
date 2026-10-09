@@ -192,3 +192,4 @@
 - [ ] R2.12 ElyTree：差异按文件类型着色，Markdown 不按代码高亮
 - [ ] R2.13 ElyMark：紧凑写法的 GFM 表格（无对齐空格）在可视模式显示为表格
 - [ ] R2.14 ElyMark：任务列表的勾选框与正文同大、对齐首行
+- [ ] R2.15 “打开方式”里不得出现 LibreOffice（用户 2026-10-09 加急，先于 R2.2 收尾）：构建出的 LibreOffice.app 去掉文档类型与快速查看插件并注销；任何测试不挂载官方镜像（官方内核解到无包的文件夹）；`tests/scripts/lo-unregistered.sh` 核对
