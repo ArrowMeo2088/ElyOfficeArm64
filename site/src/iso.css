@@ -1,56 +1,13 @@
-/* True isometric: tilt 54.7356°, turn 45°, no perspective. */
-:root {
-  --u: 28px;
-  --hu: 28px;
-}
-
-.stage {
-  position: relative;
-  width: calc(var(--w) * var(--u));
-  height: calc(var(--d) * var(--u));
-  transform: rotateX(54.7356deg) rotateZ(45deg);
-  transform-style: preserve-3d;
-}
-
-.block {
-  position: absolute;
-  left: calc(var(--x) * var(--u));
-  top: calc(var(--y) * var(--u));
-  width: calc(var(--w) * var(--u));
-  height: calc(var(--d) * var(--u));
-  transform: translateZ(calc(var(--z) * var(--hu)));
-  transform-style: preserve-3d;
-}
-
-.face {
-  position: absolute;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-/* One colour, three tones; sides overlap seams by 1px. */
+/* One colour, three tones; no shadows. */
 .face.top {
-  inset: 0;
-  background: var(--tone);
-  transform: translateZ(calc(var(--h) * var(--hu)));
+  fill: var(--tone);
 }
 
-.face.left {
-  left: 0;
-  top: calc(var(--d) * var(--u));
-  width: calc(var(--w) * var(--u) + 1px);
-  height: calc(var(--h) * var(--hu) + 1px);
-  background: color-mix(in oklab, var(--tone), black 9%);
-  transform-origin: top;
-  transform: rotateX(90deg);
+.face.left,
+.face.outline {
+  fill: color-mix(in oklab, var(--tone), black 9%);
 }
 
 .face.right {
-  left: calc(var(--w) * var(--u));
-  top: 0;
-  width: calc(var(--h) * var(--hu) + 1px);
-  height: calc(var(--d) * var(--u) + 1px);
-  background: color-mix(in oklab, var(--tone), black 20%);
-  transform-origin: left;
-  transform: rotateY(-90deg);
+  fill: color-mix(in oklab, var(--tone), black 20%);
 }

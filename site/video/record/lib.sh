@@ -74,7 +74,14 @@ wait_ax() {
 
 # Center of the first AX element whose line has $1, as "x y".
 where() {
-  "$bin/ax-values" "$app_pid" | grep -F -- "$1" | grep -oE 'at=[0-9]+,[0-9]+' | head -n 1 | sed 's/at=//; s/,/ /'
+  local i at
+  for i in $(seq 20); do
+    at=$("$bin/ax-values" "$app_pid" | grep -F -- "$1" | grep -oE 'at=[0-9]+,[0-9]+' | head -n 1 | sed 's/at=//; s/,/ /' || true)
+    [ -n "$at" ] && { echo "$at"; return 0; }
+    sleep 0.25
+  done
+  echo "no AX element: $1" >&2
+  return 1
 }
 
 front() {
@@ -114,13 +121,32 @@ function run(argv) {
 JS
 }
 
+# Saves the window as $1.png in the check folder.
+snap() {
+  local id
+  id=$("$root/tests/scripts/shot.sh" --id "$app_pid")
+  screencapture -x -o -l"$id" "$check/$1.png"
+}
+
+# First x (points, window-relative) on row $2 brighter than $3.
+first_bright() {
+  python3 - "$check/$1.png" "$2" "$3" "${4:-0}" <<'PY'
+import sys
+from PIL import Image
+im = Image.open(sys.argv[1]).convert("L")
+scale = im.size[0] / 1600
+y, level, start = int(float(sys.argv[2]) * scale), int(sys.argv[3]), int(float(sys.argv[4]) * scale)
+print(next(round(x / scale) for x in range(start, im.size[0]) if im.getpixel((x, y)) >= level))
+PY
+}
+
 # Starts capturing the window region of the main screen.
 record_start() {
   local x y w h
   read -r x y w h < <(frame)
   [ "$w" = "$win_w" ] && [ "$h" = "$win_h" ] || echo "note: window is ${w}x${h}, not ${win_w}x${win_h}" >&2
   rm -f "$out/rec/$1.mov"
-  ffmpeg -hide_banner -loglevel error -f avfoundation -capture_cursor 1 -framerate 60 -i "0:none" \
+  ffmpeg -hide_banner -loglevel error -f avfoundation -capture_cursor 1 -framerate 60 -pixel_format nv12 -i "0:none" \
     -vf "crop=$((w * 2)):$((h * 2)):$((x * 2)):$((y * 2))" -c:v h264_videotoolbox -b:v 80M -r 60 \
     "$out/rec/$1.mov" </dev/null &
   cap_pid=$!
