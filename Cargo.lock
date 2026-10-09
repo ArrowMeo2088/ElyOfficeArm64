@@ -1964,7 +1964,7 @@ dependencies = [
 [[package]]
 name = "ely-gpui-component"
 version = "0.1.1"
-source = "git+https://github.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=f834f55c16b38d86fbc243b2d7719667503f4b01#f834f55c16b38d86fbc243b2d7719667503f4b01"
+source = "git+https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=5d6efd46ec0c93b381ec7578561a1273c366025b#5d6efd46ec0c93b381ec7578561a1273c366025b"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -2207,6 +2207,7 @@ dependencies = [
  "gpui-pre-platform",
  "log",
  "notify",
+ "semver",
  "serde_json",
  "tempfile",
 ]

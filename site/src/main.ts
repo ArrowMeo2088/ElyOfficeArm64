@@ -10,7 +10,7 @@ import { film } from "./film.ts";
 import { said, speak, type Lang } from "./text.ts";
 import { RELEASES, VERSION } from "./release.ts";
 
-const REPO = "https://github.com/ZacharyZhang-NY/ElyOffice";
+const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("index.html has no #app");
@@ -18,10 +18,10 @@ if (!app) throw new Error("index.html has no #app");
 const hero = document.createElement("header");
 const title = document.createElement("h1");
 title.textContent = "Ely Office";
-const github = document.createElement("a");
-github.href = REPO;
-github.textContent = "GitHub";
-hero.append(title, said("p", "tagline"), said("p", "platforms"), github);
+const source = document.createElement("a");
+source.href = REPO;
+source.textContent = "Source";
+hero.append(title, said("p", "tagline"), said("p", "platforms"), source);
 const { section, host, svg } = tour(hero);
 rhythm(host, svg);
 
@@ -31,7 +31,7 @@ const footer = document.createElement("footer");
 footer.id = "download";
 const version = document.createElement("h2");
 version.textContent = `Ely Office ${VERSION}`;
-const get = said("a", "github");
+const get = said("a", "get");
 get.href = RELEASES;
 footer.append(version, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), get);
 

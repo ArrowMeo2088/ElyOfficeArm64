@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { TEXT, type Key, type Lang } from "../src/text.ts";
 
-const REPO = "https://github.com/ZacharyZhang-NY/ElyOffice";
+const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
 const RELEASES = `${REPO}/releases/latest`;
 
@@ -78,13 +78,13 @@ test.describe("English locale", () => {
     await expect(lang).toHaveText("中文");
   });
 
-  test("downloads go to the GitHub release page, never to a file", async ({ page }) => {
+  test("downloads go to the release page, never to a file", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".tour .get")).toHaveCount(APPS.length);
     for (const i of APPS.keys()) await expect(page.locator(".tour .get").nth(i)).toHaveAttribute("href", RELEASES);
     await expect(page.locator("#download a")).toHaveCount(1);
-    await expect(page.locator("#download [data-t=github]")).toHaveAttribute("href", RELEASES);
-    await expect(page.locator(".hero > a")).toHaveText("GitHub");
+    await expect(page.locator("#download [data-t=get]")).toHaveAttribute("href", RELEASES);
+    await expect(page.locator(".hero > a")).toHaveText("Source");
     await expect(page.locator(".hero > a")).toHaveAttribute("href", REPO);
     const files = await page.locator("a[href]").evaluateAll((as) =>
       as.map((a) => (a as HTMLAnchorElement).href).filter((h) => /\.(dmg|tar\.gz|zip|exe|AppImage)$/.test(h)),

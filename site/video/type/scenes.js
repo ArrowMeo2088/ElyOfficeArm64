@@ -163,7 +163,7 @@ function end(ctx, t) {
   const line = { x: left, align: "left", a };
   text(ctx, { ...line, s: "macOS now · Windows and Linux soon", y, size: 34, color: "#c4c2c0" });
   text(ctx, { ...line, s: "macOS 现已推出 · Windows 与 Linux 即将推出", y: y + 46, size: 28, color: "#acaaa8" });
-  const url = "github.com/ZacharyZhang-NY/ElyOffice";
+  const url = "git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
   text(ctx, { ...line, s: url, y: y + 122, size: 30, color: "#f5f5f7", a: fade(t0 + BAR), weight: 400 });
 }
 
