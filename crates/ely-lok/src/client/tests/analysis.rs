@@ -347,14 +347,7 @@ fn blocks(filled: &[(std::ops::RangeInclusive<usize>, std::ops::RangeInclusive<u
             format!("<table:table-row>{cells}</table:table-row>")
         })
         .collect();
-    format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
- xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
- xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
- <office:body><office:spreadsheet><table:table table:name="S">{rows}</table:table></office:spreadsheet></office:body>
-</office:document>"#
-    )
+    sheet(&rows)
 }
 
 /// Charts `source` and checks it clears each data block.
@@ -380,6 +373,20 @@ fn charted(sheet: &str, visible: (i32, i32, i32, i32), source: &str, data: &[(&s
     }
 }
 
+/// A sheet body as flat XML.
+fn sheet(rows: &str) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
+ <office:body><office:spreadsheet><table:table table:name="S">{rows}</table:table></office:spreadsheet></office:body>
+</office:document>"#
+    )
+}
+
+const ONE: &str = r#"<table:table-cell office:value-type="float" office:value="1"><text:p>1</text:p></table:table-cell>"#;
+
 #[test]
 fn a_new_chart_lands_beside_its_data() {
     if skip() {
@@ -391,4 +398,14 @@ fn a_new_chart_lands_beside_its_data() {
     charted(&blocks(&[(0..=15, 1..=50)]), (0, 0, 15000, 10000), "A1:P50", &[("A1", "P50")]);
     // A view narrower than the chart.
     charted(&blocks(&[(0..=2, 1..=5)]), (0, 0, 6000, 3500), "A1:C5", &[("A1", "C5")]);
+    // A merged block beside the data is taken, not free.
+    let merged = format!(
+        r#"<table:table-row>{ONE}{ONE}{ONE}<table:table-cell table:number-columns-spanned="13" table:number-rows-spanned="20"><text:p>MERGED</text:p></table:table-cell></table:table-row><table:table-row table:number-rows-repeated="4">{ONE}{ONE}{ONE}</table:table-row>"#
+    );
+    charted(&sheet(&merged), (0, 0, 15000, 10000), "A1:C5", &[("A1", "C5"), ("D1", "D1")]);
+    // Data in the last cells: left or above.
+    let corner = format!(
+        r#"<table:table-row table:number-rows-repeated="1048574"><table:table-cell table:number-columns-repeated="16384"/></table:table-row><table:table-row table:number-rows-repeated="2"><table:table-cell table:number-columns-repeated="16382"/>{ONE}{ONE}</table:table-row>"#
+    );
+    charted(&sheet(&corner), (0, 0, 15000, 10000), "XFC1048575:XFD1048576", &[("XFC1048575", "XFD1048576")]);
 }
