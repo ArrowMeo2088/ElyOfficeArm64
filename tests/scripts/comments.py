@@ -65,7 +65,7 @@ for pattern in PATTERNS:
             if line.startswith("#!"):
                 continue
             # A block comment left open spans lines.
-            if path.suffix in (".c", ".h", ".js") and re.search(r"/\*(?!.*\*/)", line):
+            if path.suffix in (".c", ".h", ".js", ".ts", ".css") and re.search(r"/\*(?!.*\*/)", line):
                 repeated.setdefault(path, number)
             match = comment.match(line)
             said = match and next(group for group in match.groups() if group is not None)

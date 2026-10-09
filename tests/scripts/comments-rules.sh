@@ -20,6 +20,16 @@ printf 'const a = 1 /* A comment\n   spanning lines. */\n' >"$work/apps/a/web/sr
 printf '// One two three four five six seven eight nine ten eleven.\n' >"$work/apps/a/web/src/a.js"
 ! check || fail "an eleven-word JS comment passed"
 rm "$work/apps/a/web/src/a.js"
+mkdir -p "$work/site/src"
+for ext in ts css; do
+  printf '/* A comment\n   spanning lines. */\n' >"$work/site/src/a.$ext"
+  ! check || fail "a multi-line .$ext block comment passed"
+  printf '/* One two three four five six seven eight nine ten eleven. */\n' >"$work/site/src/a.$ext"
+  ! check || fail "an eleven-word .$ext comment passed"
+  printf '/* One short line. */\n' >"$work/site/src/a.$ext"
+  check || fail "a short .$ext comment failed"
+  rm "$work/site/src/a.$ext"
+done
 printf '// One two three four five six seven eight nine ten eleven.\n' >"$work/tests/scripts/a.swift"
 ! check || fail "an eleven-word Swift comment passed"
 echo "ok: comment rules"
