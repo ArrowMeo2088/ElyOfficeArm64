@@ -42,8 +42,8 @@ def piecewise(points, var):
 
 
 def frames_expr(values):
-    """Per-frame value by input frame count."""
-    return "+".join(f"eq(in,{k})*{v:.3f}" for k, v in enumerate(values))
+    """Per-frame value; perspective counts input frames from one."""
+    return "+".join(f"eq(in,{k + 1})*{v:.3f}" for k, v in enumerate(values))
 
 
 def piece_chain(label, piece, start, f0, f1, out):
@@ -109,7 +109,7 @@ def plate_chain(scene, rec, k, out):
     return (
         f"{rec},scale=800:450:flags=area,scale=1912:1072:flags=bicubic,format=rgba,"
         f"pad=1920:1080:4:4:color=black@0,setsar=1,perspective={pins}:sense=destination:eval=frame:interpolation=cubic"
-        f"{fades}[pin];[{k}:v]format=rgba[bg];[bg][pin]overlay=format=rgb:shortest=1,format=rgb24,setsar=1[{out}]"
+        f"{fades}[pin];[{k}:v]format=rgba[bg];[bg][pin]overlay=format=rgb:eof_action=repeat,format=rgb24,setsar=1[{out}]"
     )
 
 

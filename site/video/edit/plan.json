@@ -35,7 +35,7 @@
   },
   {
    "app": "tree", "title": "ElyTree", "en": "Stage. Commit. Look back.", "zh": "暂存，提交，回看历史。",
-   "focus": [960, 420],
+   "focus": [830, 420],
    "pieces": [
     { "src": "tree", "anchors": [[0, 0.8], [4, 3.6], [5, 4.1], [7, 7.2]] },
     { "src": "tree", "anchors": [[7, 10.4], [8, 11.4], [9, 13.2], [11, 15.5], [16, 19.9]] }
