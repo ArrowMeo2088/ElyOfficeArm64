@@ -1,0 +1,125 @@
+//! One background lane per view: inputs first, then tiles (LOK-03).
+
+use std::{
+    io,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
+
+use futures::{StreamExt, channel::mpsc, select_biased};
+use gpui::Context;
+
+use super::{Geom, LokError, LokView, Reported, TILE_TWIPS, input::Input};
+use crate::{Doc, Tile, Worker};
+
+/// An input slower than this is logged as a warning.
+const SLOW_MS: u128 = 100;
+
+/// A tile to paint at `key` for `geom`.
+pub(super) struct Job {
+    pub key: (i32, i32),
+    pub geom: Geom,
+}
+
+/// What came back from the lane.
+enum Landed {
+    Input(u64, bool, (io::Result<Option<String>>, Option<u64>)),
+    Tile(Job, io::Result<Tile>),
+}
+
+/// The lane's two queues.
+pub(super) struct Lane {
+    pub inputs: mpsc::UnboundedSender<(u64, Input, Instant)>,
+    pub tiles: mpsc::UnboundedSender<Job>,
+}
+
+impl LokView {
+    /// Starts the lane; it ends with the view.
+    pub(super) fn lane(worker: Arc<Mutex<Worker>>, doc: Doc, cx: &mut Context<Self>) -> Lane {
+        let (inputs, mut input_queue) = mpsc::unbounded::<(u64, Input, Instant)>();
+        let (tiles, mut tile_queue) = mpsc::unbounded::<Job>();
+        let (landing, mut landed) = mpsc::unbounded::<Landed>();
+        cx.background_executor()
+            .spawn(async move {
+                loop {
+                    let done = select_biased! {
+                        input = input_queue.next() => {
+                            let Some((seq, input, sent)) = input else { break };
+                            let (waited, edits) = (sent.elapsed().as_millis(), input.edits());
+                            let outcome = super::input::run(&worker, &doc, input);
+                            let took = sent.elapsed().as_millis();
+                            if took > SLOW_MS {
+                                log::warn!("lok: input {seq} waited {waited}, took {took} ms");
+                            } else {
+                                log::debug!("lok: input {seq} waited {waited}, took {took} ms");
+                            }
+                            Landed::Input(seq, edits, outcome)
+                        }
+                        job = tile_queue.next() => {
+                            let Some(job) = job else { break };
+                            let started = Instant::now();
+                            let side = job.geom.tile_pixels();
+                            let (x, y) = (job.key.0 * TILE_TWIPS, job.key.1 * TILE_TWIPS);
+                            let tile = doc.paint_tile(
+                                &mut worker.lock().expect("the worker lock"),
+                                (x, y, TILE_TWIPS, TILE_TWIPS),
+                                (side, side),
+                            );
+                            let key = job.key;
+                            log::debug!("lok: tile {key:?} in {} ms", started.elapsed().as_millis());
+                            Landed::Tile(job, tile)
+                        }
+                    };
+                    if landing.unbounded_send(done).is_err() {
+                        break;
+                    }
+                }
+            })
+            .detach();
+        cx.spawn(async move |this, cx| {
+            while let Some(first) = landed.next().await {
+                let mut batch = vec![first];
+                while let Ok(more) = landed.try_recv() {
+                    batch.push(more);
+                }
+                let taken = this.update(cx, |view, cx| view.take_landed(batch, cx));
+                if taken.is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+        Lane { inputs, tiles }
+    }
+
+    fn take_landed(&mut self, batch: Vec<Landed>, cx: &mut Context<Self>) {
+        let mut reported = false;
+        for landed in batch {
+            match landed {
+                Landed::Input(seq, edits, outcome) => {
+                    self.applied = seq;
+                    self.edited += u64::from(edits);
+                    let (outcome, now) = outcome;
+                    if edits {
+                        self.clock.landed(now);
+                    }
+                    self.seen_revision(now.unwrap_or(0));
+                    match outcome {
+                        Ok(Some(copied)) => self.copied = Some(copied),
+                        Ok(None) => {}
+                        Err(error) => {
+                            log::error!("lok: input failed ({:?})", error.kind());
+                            cx.emit(LokError(error.to_string()));
+                        }
+                    }
+                    reported = true;
+                }
+                Landed::Tile(job, tile) => self.finish_tile(job.key, job.geom, tile, cx),
+            }
+        }
+        if reported {
+            cx.emit(Reported);
+        }
+        cx.notify();
+    }
+}
