@@ -12,6 +12,6 @@ trap 'rm -rf "$work"' EXIT
 7zz x -y -snld -o"$work" "$dmg" "LibreOffice/LibreOffice.app/Contents/Frameworks/*" "LibreOffice/LibreOffice.app/Contents/Resources/*" >/dev/null
 rm -rf "$out"
 mkdir -p "$out"
-# A plain folder, not a bundle: nothing for macOS to register.
+# A plain folder, not a bundle, so nothing registers.
 mv "$work/LibreOffice/LibreOffice.app/Contents" "$out/Contents"
 echo "extract-official-lo.sh: $out/Contents/Frameworks"
