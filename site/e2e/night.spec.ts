@@ -66,19 +66,27 @@ for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await open(page);
     const worst = await page.evaluate(() => {
-      const parse = (c: string) => c.match(/[\d.]+/g)!.slice(0, 3).map(Number);
-      const lum = (c: string) => {
-        const [r, g, b] = parse(c).map((v) => {
+      const parse = (c: string) => {
+        const [r, g, b, a = 1] = c.match(/[\d.]+/g)!.map(Number);
+        return { rgb: [r, g, b], a };
+      };
+      const lum = (rgb: number[]) => {
+        const [r, g, b] = rgb.map((v) => {
           const s = v / 255;
           return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
         });
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
       };
-      const page = lum(getComputedStyle(document.documentElement).backgroundColor);
+      const ground = parse(getComputedStyle(document.documentElement).backgroundColor).rgb;
+      const page = lum(ground);
+      const shown = (c: string) => {
+        const { rgb, a } = parse(c);
+        return rgb.map((v, i) => v * a + ground[i] * (1 - a));
+      };
       const ratios = [...document.querySelectorAll<HTMLElement>("h1, h2, h3, p, a, li, button")]
         .filter((el) => el.textContent?.trim() && getComputedStyle(el).color !== "rgba(0, 0, 0, 0)")
         .map((el) => {
-          const text = lum(getComputedStyle(el).color);
+          const text = lum(shown(getComputedStyle(el).color));
           return { ratio: (Math.max(text, page) + 0.05) / (Math.min(text, page) + 0.05), text: el.textContent };
         });
       return ratios.sort((a, b) => a.ratio - b.ratio)[0];

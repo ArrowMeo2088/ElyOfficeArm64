@@ -126,3 +126,20 @@ test.describe("English locale", () => {
     }
   });
 });
+
+test("the download area tells how to open an unnotarized app", async ({ browser }) => {
+  for (const [locale, words] of [
+    ["en-US", ["System Settings", "Privacy & Security", "Open Anyway"]],
+    ["zh-CN", ["系统设置", "隐私与安全性", "仍要打开"]],
+  ] as const) {
+    const page = await browser.newPage({ locale, reducedMotion: "reduce" });
+    await page.goto("/");
+    const steps = page.locator("#download [data-t=unsigned]");
+    await expect(steps).toBeVisible();
+    for (const word of words) await expect(steps).toContainText(word);
+    await page.locator(".lang").click();
+    await expect(steps).toBeVisible();
+    await expect(steps).not.toContainText(words[0]);
+    await page.close();
+  }
+});
