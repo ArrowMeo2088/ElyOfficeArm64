@@ -19,7 +19,7 @@ import { keymap } from '@milkdown/kit/prose/keymap'
 import { liftListItem, sinkListItem } from '@milkdown/kit/prose/schema-list'
 import { redo, redoDepth, undoDepth } from '@milkdown/kit/prose/history'
 import { $prose, callCommand } from '@milkdown/kit/utils'
-import { insertTableCommand } from '@milkdown/kit/preset/gfm'
+import { insertTableCommand, remarkGFMPlugin } from '@milkdown/kit/preset/gfm'
 import {
   addColumnAfter,
   addColumnBefore,
@@ -87,7 +87,9 @@ export async function visual(root, markdown, editable, texts, changed, edge) {
     .config((ctx) => {
       ctx.set(rootCtx, root)
       ctx.set(defaultValueCtx, markdown)
-      ctx.update(remarkStringifyOptionsCtx, (prev) => ({ ...prev, ...style(markdown) }))
+      const { tableCellPadding, tablePipeAlign, ...marks } = style(markdown)
+      ctx.update(remarkStringifyOptionsCtx, (prev) => ({ ...prev, ...marks }))
+      ctx.set(remarkGFMPlugin.options.key, { tableCellPadding, tablePipeAlign })
       ctx.update(editorViewOptionsCtx, (prev) => ({ ...prev, editable: () => editable }))
     })
     .use(commonmark)
