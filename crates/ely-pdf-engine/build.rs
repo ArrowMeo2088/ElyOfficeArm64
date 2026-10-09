@@ -13,6 +13,7 @@ fn main() {
         "shim/ely_insert.c",
         "shim/ely_text.c",
         "shim/ely_write.c",
+        "shim/ely_pen.c",
         "shim/ely_place.c",
         "shim/ely_annot.c",
         "shim/ely_form.c",
@@ -68,6 +69,7 @@ fn main() {
         .file("shim/ely_insert.c")
         .file("shim/ely_text.c")
         .file("shim/ely_write.c")
+        .file("shim/ely_pen.c")
         .file("shim/ely_place.c")
         .file("shim/ely_annot.c")
         .file("shim/ely_form.c")

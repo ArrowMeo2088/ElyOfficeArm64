@@ -5,24 +5,6 @@
 
 #include "ely_shim.h"
 
-typedef enum
-{
-	PEN_CID,
-	PEN_SIMPLE,
-	PEN_CJK
-} pen_kind;
-
-/* A font to write with and its resource. */
-typedef struct
-{
-	pen_kind kind;
-	fz_font *font;
-	int ordering;
-	pdf_obj *ref;
-	/* For the page's own font: Unicode and glyph pairs. */
-	int *map, mapped;
-} pen;
-
 /* What to write, where, in what. */
 typedef struct
 {
@@ -33,188 +15,6 @@ typedef struct
 	/* Page space: left, top, width. */
 	float box[3];
 } text_args;
-
-/* The script face for typed signatures, from the worker. */
-static const unsigned char *script_data;
-static size_t script_len;
-
-void ely_script_font(const unsigned char *data, size_t len)
-{
-	script_data = data;
-	script_len = len;
-}
-
-/* Unicode to glyph for the page font drawn as `own`. */
-static void own_glyphs(fz_context *ctx, pdf_page *page, fz_font *own, pen *p)
-{
-	pdf_obj *res = pdf_page_resources(ctx, page);
-	pdf_resource_stack stack = { NULL, res };
-	pdf_obj *fonts = pdf_dict_get(ctx, res, PDF_NAME(Font));
-	int i, n = pdf_dict_len(ctx, fonts);
-	for (i = 0; i < n && !p->map; i++)
-	{
-		pdf_font_desc *desc = pdf_load_font(ctx, page->doc, &stack, pdf_dict_get_val(ctx, fonts, i));
-		fz_try(ctx)
-		{
-			int cid, end = desc->to_unicode ? 65536 : (int)desc->cid_to_ucs_len;
-			if (desc->font == own)
-			{
-				p->map = fz_malloc_array(ctx, 2 * end + 2, int);
-				for (cid = 0; cid < end; cid++)
-				{
-					int u = desc->to_unicode ? pdf_lookup_cmap(desc->to_unicode, cid) : desc->cid_to_ucs[cid];
-					int gid = u > 0 ? pdf_font_cid_to_gid(ctx, desc, cid) : 0;
-					if (gid > 0)
-						p->map[2 * p->mapped] = u, p->map[2 * p->mapped + 1] = gid, p->mapped++;
-				}
-			}
-		}
-		fz_always(ctx)
-			pdf_drop_font(ctx, desc);
-		fz_catch(ctx)
-			fz_rethrow(ctx);
-	}
-	if (!p->map)
-		fz_throw(ctx, FZ_ERROR_ARGUMENT, "the block's font is not a font of its page");
-}
-
-/* The pen named `choice`; "original" writes in `own`. */
-static void choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page *page, pen *p)
-{
-	static const struct { const char *choice, *name; } latin[] = {
-		{ "helvetica", "Helvetica" }, { "times", "Times-Roman" }, { "courier", "Courier" } };
-	static const struct { const char *choice; int ordering; } cjk[] = {
-		{ "cjk-sc", FZ_ADOBE_GB }, { "cjk-tc", FZ_ADOBE_CNS }, { "cjk-jp", FZ_ADOBE_JAPAN }, { "cjk-kr", FZ_ADOBE_KOREA } };
-	size_t i;
-	if (!strcmp(choice, "script"))
-	{
-		if (!script_data)
-			fz_throw(ctx, FZ_ERROR_ARGUMENT, "no script font was given");
-		p->kind = PEN_CID;
-		p->font = fz_new_font_from_memory(ctx, "GreatVibes", script_data, (int)script_len, 0, 0);
-		return;
-	}
-	if (!strcmp(choice, "original"))
-	{
-		if (!own || !pdf_font_writing_supported(ctx, own))
-			fz_throw(ctx, FZ_ERROR_ARGUMENT, "the document's font cannot write new text");
-		p->kind = PEN_CID;
-		p->font = fz_keep_font(ctx, own);
-		own_glyphs(ctx, page, own, p);
-		return;
-	}
-	for (i = 0; i < nelem(latin); i++)
-		if (!strcmp(choice, latin[i].choice))
-		{
-			p->kind = PEN_SIMPLE;
-			p->font = fz_new_base14_font(ctx, latin[i].name);
-			return;
-		}
-	for (i = 0; i < nelem(cjk); i++)
-		if (!strcmp(choice, cjk[i].choice))
-		{
-			p->kind = PEN_CJK;
-			p->ordering = cjk[i].ordering;
-			p->font = fz_new_cjk_font(ctx, cjk[i].ordering);
-			return;
-		}
-	fz_throw(ctx, FZ_ERROR_ARGUMENT, "no font %s", choice);
-}
-
-/* A ToUnicode CMap from the pen's map. */
-static pdf_obj *map_to_unicode(fz_context *ctx, pdf_document *pdf, pen *p)
-{
-	fz_buffer *buf = fz_new_buffer(ctx, 256);
-	pdf_obj *ref = NULL;
-	fz_var(ref);
-	fz_try(ctx)
-	{
-		int i, j, block = 0;
-		fz_append_string(ctx, buf, "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
-			"/CIDSystemInfo <</Registry(Adobe)/Ordering(UCS)/Supplement 0>> def\n"
-			"/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n"
-			"1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n");
-		for (i = 0; i < p->mapped; i++)
-		{
-			int u = p->map[2 * i], gid = p->map[2 * i + 1], seen = 0;
-			for (j = 0; j < i && !seen; j++)
-				seen = p->map[2 * j + 1] == gid;
-			if (seen)
-				continue;
-			if (block % 100 == 0)
-				fz_append_printf(ctx, buf, "%sbeginbfchar\n", block ? "endbfchar\n" : "");
-			if (u > 0xffff)
-				fz_append_printf(ctx, buf, "<%04x> <%04x%04x>\n", gid, 0xd800 + ((u - 0x10000) >> 10), 0xdc00 + ((u - 0x10000) & 0x3ff));
-			else
-				fz_append_printf(ctx, buf, "<%04x> <%04x>\n", gid, u);
-			block++;
-		}
-		/* Each beginbfchar holds 100 entries at most. */
-		fz_append_printf(ctx, buf, "%sendcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n",
-			block ? "endbfchar\n" : "");
-		ref = pdf_add_stream(ctx, pdf, buf, NULL, 0);
-	}
-	fz_always(ctx)
-		fz_drop_buffer(ctx, buf);
-	fz_catch(ctx)
-		fz_rethrow(ctx);
-	return ref;
-}
-
-/* The pen's font as a resource of `pdf`. */
-static void add_pen(fz_context *ctx, pdf_document *pdf, pen *p)
-{
-	switch (p->kind)
-	{
-	case PEN_CID:
-		p->ref = pdf_add_cid_font(ctx, pdf, p->font);
-		/* Subset fonts carry bogus tables; the page's codes are true. */
-		if (p->map)
-			pdf_dict_put_drop(ctx, p->ref, PDF_NAME(ToUnicode), map_to_unicode(ctx, pdf, p));
-		break;
-	case PEN_SIMPLE:
-		p->ref = pdf_add_simple_font(ctx, pdf, p->font, PDF_SIMPLE_ENCODING_LATIN);
-		break;
-	case PEN_CJK:
-		p->ref = pdf_add_cjk_font(ctx, pdf, p->font, p->ordering, 0, 0);
-		break;
-	}
-}
-
-/* The pen's glyph for `u`; 0 when it has none. */
-static int glyph(fz_context *ctx, pen *p, int u)
-{
-	int i;
-	if (p->kind == PEN_SIMPLE && fz_windows_1252_from_unicode(u) < 0)
-		return 0;
-	/* The page's own codes beat a subset font's tables. */
-	for (i = 0; i < p->mapped; i++)
-		if (p->map[2 * i] == u)
-			return p->map[2 * i + 1];
-	if (p->map)
-		return 0;
-	return fz_encode_character(ctx, p->font, u);
-}
-
-/* `u` as the pen's code, in hex. */
-static void code(fz_context *ctx, fz_buffer *buf, pen *p, int u, int gid)
-{
-	switch (p->kind)
-	{
-	case PEN_CID:
-		fz_append_printf(ctx, buf, "%04x", gid);
-		break;
-	case PEN_SIMPLE:
-		fz_append_printf(ctx, buf, "%02x", fz_windows_1252_from_unicode(u));
-		break;
-	case PEN_CJK:
-		if (u > 0xffff)
-			fz_append_printf(ctx, buf, "%04x%04x", 0xd800 + ((u - 0x10000) >> 10), 0xdc00 + ((u - 0x10000) & 0x3ff));
-		else
-			fz_append_printf(ctx, buf, "%04x", u);
-		break;
-	}
-}
 
 /* `text` as code points; the count is returned. */
 static int runes(fz_context *ctx, const char *text, int **out)
@@ -229,13 +29,8 @@ static int runes(fz_context *ctx, const char *text, int **out)
 	return n;
 }
 
-static float advance(fz_context *ctx, pen *p, int u, float size)
-{
-	return fz_advance_glyph(ctx, p->font, glyph(ctx, p, u), 0) * size;
-}
-
 /* Lines no wider than `width`: [from, to) each. */
-static int lay_out(fz_context *ctx, pen *p, const int *u, int n, float size, float width, int *from, int *to,
+static int lay_out(fz_context *ctx, ely_pen *p, const int *u, int n, float size, float width, int *from, int *to,
 	float *widest)
 {
 	int i = 0, lines = 0;
@@ -246,8 +41,9 @@ static int lay_out(fz_context *ctx, pen *p, const int *u, int n, float size, flo
 		float run = 0, before = 0;
 		for (j = i; j < n && u[j] != '\n'; j++)
 		{
-			float w = advance(ctx, p, u[j], size);
-			if (run + w > width && j > i)
+			float w = ely_pen_advance(ctx, p, u[j], size);
+			/* A box measured from these widths fits them. */
+			if (run + w > width + 0.01f && j > i)
 				break;
 			if (u[j] == ' ')
 				space = j, before = run;
@@ -344,7 +140,7 @@ pdf_obj *ely_append_content(fz_context *ctx, pdf_document *pdf, pdf_obj *page, f
 /* Text laid out: the pen, code points, lines, placement. */
 typedef struct
 {
-	pen p;
+	ely_pen p;
 	int *u, n;
 	int *from, *to, lines;
 	float widest;
@@ -354,9 +150,7 @@ typedef struct
 
 static void drop_laid(fz_context *ctx, laid *l)
 {
-	fz_drop_font(ctx, l->p.font);
-	pdf_drop_obj(ctx, l->p.ref);
-	fz_free(ctx, l->p.map);
+	ely_drop_pen(ctx, &l->p);
 	fz_free(ctx, l->u);
 	fz_free(ctx, l->from);
 	fz_free(ctx, l->to);
@@ -366,10 +160,10 @@ static void drop_laid(fz_context *ctx, laid *l)
 static int lay_text(fz_context *ctx, text_args *a, fz_font *own, pdf_page *page, fz_point first, float gap, laid *l)
 {
 	int i;
-	choose_pen(ctx, a->font, own, page, &l->p);
+	ely_choose_pen(ctx, a->font, own, page, &l->p);
 	l->n = runes(ctx, a->text, &l->u);
 	for (i = 0; i < l->n; i++)
-		if (l->u[i] != '\n' && !glyph(ctx, &l->p, l->u[i]))
+		if (l->u[i] != '\n' && !ely_pen_has(ctx, &l->p, l->u[i]))
 			return l->u[i];
 	l->from = fz_malloc_array(ctx, l->n + 2, int);
 	l->to = fz_malloc_array(ctx, l->n + 2, int);
@@ -395,10 +189,7 @@ static void draw_laid(fz_context *ctx, pdf_document *pdf, pdf_page *page, laid *
 		fz_matrix to_user = ely_to_user(ctx, page);
 		char name[32];
 		int i, line;
-		pdf_drop_obj(ctx, l->p.ref);
-		l->p.ref = NULL;
-		add_pen(ctx, pdf, &l->p);
-		ely_add_resource(ctx, pdf, page->obj, PDF_NAME(Font), "ElyF", l->p.ref, name, sizeof name);
+		ely_pen_resource(ctx, pdf, page, &l->p, name, sizeof name);
 		buf = fz_new_buffer(ctx, 256);
 		fz_append_string(ctx, buf, "q\n");
 		for (line = 0; line < l->lines; line++)
@@ -408,7 +199,7 @@ static void draw_laid(fz_context *ctx, pdf_document *pdf, pdf_page *page, laid *
 				((a->rgb >> 16) & 255) / 255.0f, ((a->rgb >> 8) & 255) / 255.0f, (a->rgb & 255) / 255.0f,
 				tm.a, tm.b, tm.c, tm.d, tm.e, tm.f);
 			for (i = l->from[line]; i < l->to[line]; i++)
-				code(ctx, buf, &l->p, l->u[i], glyph(ctx, &l->p, l->u[i]));
+				ely_pen_code(ctx, buf, &l->p, l->u[i]);
 			fz_append_string(ctx, buf, "> Tj ET\n");
 		}
 		fz_append_string(ctx, buf, "Q\n");
@@ -476,11 +267,12 @@ int ely_put_text(fz_context *ctx, fz_document *doc, int number, int block, const
 	pdf_document *pdf = NULL;
 	pdf_page *page = NULL;
 	ely_shape shape = { NULL };
-	laid l = { { PEN_SIMPLE, NULL, 0, NULL } };
+	laid l;
 	int begun = 0;
 	fz_var(pdf);
 	fz_var(page);
 	fz_var(begun);
+	memset(&l, 0, sizeof l);
 	*pixels = NULL;
 	*grew = 0;
 	fz_try(ctx)

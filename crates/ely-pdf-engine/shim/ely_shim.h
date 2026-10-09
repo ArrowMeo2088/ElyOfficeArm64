@@ -53,4 +53,34 @@ int ely_watch_end(fz_context *ctx);
 const char *ely_open_warnings(void);
 void ely_drop_alt(fz_context *ctx, pdf_document *pdf, pdf_page *page);
 
+/* A font to write with: new, or the page's own. */
+typedef enum
+{
+	PEN_CID,
+	PEN_SIMPLE,
+	PEN_CJK,
+	PEN_OWN
+} ely_pen_kind;
+
+typedef struct
+{
+	ely_pen_kind kind;
+	fz_font *font;
+	int ordering;
+	pdf_obj *ref;
+	/* The page's own font: object number, description, code width. */
+	int num;
+	pdf_font_desc *desc;
+	int bytes;
+	/* Unicode and code pairs of the own font. */
+	int *map, mapped;
+} ely_pen;
+
+void ely_choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page *page, ely_pen *p);
+const char *ely_pen_resource(fz_context *ctx, pdf_document *pdf, pdf_page *page, ely_pen *p, char *name, size_t room);
+int ely_pen_has(fz_context *ctx, ely_pen *p, int u);
+float ely_pen_advance(fz_context *ctx, ely_pen *p, int u, float size);
+void ely_pen_code(fz_context *ctx, fz_buffer *buf, ely_pen *p, int u);
+void ely_drop_pen(fz_context *ctx, ely_pen *p);
+
 #endif
