@@ -326,3 +326,31 @@ fn old_tiles_are_painted_and_freed_with_their_tab() {
     cx.update(|_, app| view.update(app, |view, _| view.retire_all()));
     assert!(cx.update(|_, app| view.read(app).backdrop.is_empty()), "closing hands every old tile over");
 }
+
+#[test]
+fn an_edit_keeps_page_pictures_until_they_repaint() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let (viewer, cx) = windowed(&mut cx, dir.path(), &[file(dir.path(), "one.pdf", &[(612.0, 792.0, &["Hello"])])], true);
+    let view = shown(cx, &viewer);
+    let dark = cx.update(|_, app| ely_gpui_component::theme::ActiveTheme::theme(app).is_dark());
+    settle(cx, |app| view.read(app).picture(0, dark).is_some() && repainted(view.read(app)));
+    let old = cx.update(|_, app| view.read(app).picture(0, dark).expect("a picture"));
+    // A picture on its way holds back the repaint.
+    cx.update(|_, app| view.update(app, |view, _| view.thumbing = true));
+    cx.update(|_, app| view.update(app, |view, cx| view.annotate("adding a note", vec![note()], cx)));
+    settle(cx, |app| view.read(app).edited == 1 && repainted(view.read(app)));
+    // Dropped from the atlas, it returns only if drawn.
+    cx.update(|window, _| window.drop_image(old.clone())).expect("drops");
+    super::frames(cx);
+    assert!(cx.update(|window, _| window.has_image_atlas_entry(&old)), "the old picture shows meanwhile");
+    cx.update(|_, app| view.update(app, |view, cx| {
+        view.thumbing = false;
+        cx.notify()
+    }));
+    settle(cx, |app| view.read(app).thumbs_stale.is_empty());
+    let new = cx.update(|_, app| view.read(app).picture(0, dark).expect("a picture"));
+    assert!(!std::sync::Arc::ptr_eq(&new, &old), "the new picture replaces it");
+    super::frames(cx);
+    assert!(cx.update(|window, _| window.has_image_atlas_entry(&new)), "and is drawn");
+}

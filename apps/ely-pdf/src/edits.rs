@@ -115,9 +115,14 @@ impl PdfView {
             // A page may now stand where another stood.
             self.retire_tiles();
             self.sizes = measured;
+            self.thumbs_stale.clear();
+            for (_, image) in self.thumbs.drain() {
+                self.retired.push(image);
+            }
         } else {
-            // Same pages: old tiles stay under them until repainted.
+            // Same pages: old pictures stay until repainted.
             self.keep_all();
+            self.thumbs_stale.extend(self.thumbs.keys().copied());
             let read = fresh.first.len();
             self.sizes[..read].copy_from_slice(&measured[..read]);
         }
@@ -125,9 +130,6 @@ impl PdfView {
         self.failed.clear();
         self.text.clear();
         self.asking_text.clear();
-        for (_, image) in self.thumbs.drain() {
-            self.retired.push(image);
-        }
         self.thumbs_failed.clear();
         // Indices shift with any edit; aims start over.
         (self.layers, self.aim, self.drag) = (Default::default(), None, None);

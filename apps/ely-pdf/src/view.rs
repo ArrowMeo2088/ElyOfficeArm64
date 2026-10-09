@@ -71,6 +71,8 @@ pub struct PdfView {
     /// Page pictures for the side panel, by page and darkness.
     pub thumbs: HashMap<(usize, bool), Arc<RenderImage>>,
     pub thumbs_failed: HashSet<usize>,
+    /// Pictures from before an edit; shown until repainted.
+    pub thumbs_stale: HashSet<(usize, bool)>,
     /// A picture is on its way from the worker.
     pub thumbing: bool,
     /// Pages picked in the side panel, and the anchor.
@@ -188,6 +190,7 @@ impl PdfView {
             mark: loaded.mark,
             thumbs: HashMap::new(),
             thumbs_failed: HashSet::new(),
+            thumbs_stale: HashSet::new(),
             thumbing: false,
             picked: BTreeSet::new(),
             anchor: None,
