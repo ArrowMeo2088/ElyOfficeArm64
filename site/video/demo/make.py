@@ -7,7 +7,8 @@ from xml.sax.saxutils import escape
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.util import Emu, Pt
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.util import Emu, Inches, Pt
 
 OUT = Path(sys.argv[1])
 OUT.mkdir(parents=True, exist_ok=True)
@@ -200,11 +201,23 @@ def pptx(path):
             for r in p.runs:
                 r.font.size, r.font.color.rgb, r.font.bold, r.font.name = Pt(size), color, bold, "Helvetica Neue"
 
+    def place(shape, left, top, width, height):
+        shape.left, shape.top, shape.width, shape.height = Inches(left), Inches(top), Inches(width), Inches(height)
+
+    def bar(slide, left, top, width, height):
+        shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(height))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = accent
+        shape.line.fill.background()
+
     title = deck.slides.add_slide(deck.slide_layouts[0])
     title.shapes.title.text = "Coastal Trails 2027"
     title.placeholders[1].text = "Spring edition · Planning review"
+    place(title.shapes.title, 1.0, 2.2, 11.33, 1.4)
+    place(title.placeholders[1], 1.0, 3.7, 11.33, 0.8)
     paint(title.shapes.title.text_frame, 54, ink, True)
     paint(title.placeholders[1].text_frame, 24, accent)
+    bar(title, 0, 6.9, 13.333, 0.6)
     slides = [
         ("What is new", ["Twelve new routes on the northern cliffs", "A fold-out overview map",
                           "Tide tables for every harbor walk", "Water-resistant, lay-flat binding"]),
@@ -216,12 +229,15 @@ def pptx(path):
     for heading, bullets in slides:
         slide = deck.slides.add_slide(deck.slide_layouts[1])
         slide.shapes.title.text = heading
+        place(slide.shapes.title, 1.3, 0.6, 10.73, 1.1)
         paint(slide.shapes.title.text_frame, 40, ink, True)
-        body = slide.placeholders[1].text_frame
-        body.text = bullets[0]
+        bar(slide, 1.0, 0.75, 0.12, 0.8)
+        body = slide.placeholders[1]
+        place(body, 1.3, 2.0, 10.73, 4.6)
+        body.text_frame.text = bullets[0]
         for line in bullets[1:]:
-            body.add_paragraph().text = line
-        paint(body, 26, RGBColor(0x2B, 0x33, 0x30))
+            body.text_frame.add_paragraph().text = line
+        paint(body.text_frame, 28, RGBColor(0x2B, 0x33, 0x30))
     deck.core_properties.author = "Coastal Trails"
     deck.save(path)
 

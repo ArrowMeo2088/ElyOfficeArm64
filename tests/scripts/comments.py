@@ -33,10 +33,41 @@ LINE_COMMENT = {
     ".h": re.compile(r"^\s*(?://[!/]?\s?(.*)|/\*\s?(.*?)\s*\*/)$"),
     ".nsi": re.compile(r"^\s*;\s?(.*)$"),
     ".swift": re.compile(r"^\s*//\s?(.*)$"),
-    ".js": re.compile(r"^\s*(?://\s?(.*)|/\*\*?\s?(.*?)\s*\*/)$"),
-    ".ts": re.compile(r"^\s*(?://\s?(.*)|/\*\*?\s?(.*?)\s*\*/)$"),
-    ".css": re.compile(r"^\s*/\*\s?(.*?)\s*\*/$"),
 }
+
+# Scanned by tokens: strings skipped, trailing comments found.
+SCANNED = {".js": True, ".ts": True, ".css": False}
+
+
+def scan(text, slashes):
+    """Comments as (first line, last line, text); strings skipped."""
+    found, i, line, n = [], 0, 1, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'`":
+            i += 1
+            while i < n and text[i] != c:
+                if text[i] == "\\":
+                    i += 1
+                elif text[i] == "\n":
+                    line += 1
+                i += 1
+        elif text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            end = n if end < 0 else end
+            body = text[i + 2:end]
+            found.append((line, line + body.count("\n"), body.strip("* \n")))
+            line += body.count("\n")
+            i = end + 1
+        elif slashes and text.startswith("//", i):
+            end = text.find("\n", i)
+            end = n if end < 0 else end
+            found.append((line, line, text[i + 2:end].lstrip("/!").strip()))
+            i = end - 1
+        elif c == "\n":
+            line += 1
+        i += 1
+    return found
 
 
 def comment_re(path):
@@ -49,6 +80,15 @@ too_long = []
 repeated = {}
 for pattern in PATTERNS:
     for path in sorted(root.glob(pattern)):
+        if path.suffix in SCANNED:
+            last = None
+            for first, final, said in scan(path.read_text(), SCANNED[path.suffix]):
+                if len(said.split()) > 10:
+                    too_long.append(f"{path.relative_to(root)}:{first}: {said[:60]}")
+                if final > first or last == first - 1:
+                    repeated.setdefault(path, first)
+                last = final
+            continue
         comment = comment_re(path)
         previous = None
         lines = path.read_text().split("\n")
@@ -65,7 +105,7 @@ for pattern in PATTERNS:
             if line.startswith("#!"):
                 continue
             # A block comment left open spans lines.
-            if path.suffix in (".c", ".h", ".js", ".ts", ".css") and re.search(r"/\*(?!.*\*/)", line):
+            if path.suffix in (".c", ".h") and re.search(r"/\*(?!.*\*/)", line):
                 repeated.setdefault(path, number)
             match = comment.match(line)
             said = match and next(group for group in match.groups() if group is not None)

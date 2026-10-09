@@ -42,9 +42,9 @@ launch() {
   rm -rf "$home"
   local data="$home/Library/Application Support/ElyOffice/$app"
   mkdir -p "$data"
-  printf '{"version":1,"window":{"mode":"windowed","x":%s,"y":%s,"width":%s,"height":%s}}\n' \
-    "$win_x" "$win_y" "$win_w" "$win_h" >"$data/settings.json"
-  HOME=$home ELY_APPEARANCE=light ELY_LOCALE=en ELY_NO_DIALOG=1 ELY_LOG=info ELY_REDUCE_MOTION=0 \
+  printf '{"version":1,"window":{"mode":"windowed","x":%s,"y":%s,"width":%s,"height":%s}%s}\n' \
+    "$win_x" "$win_y" "$win_w" "$win_h" "${PANEL_LEFT:+,\"panels\":{\"left\":$PANEL_LEFT}}" >"$data/settings.json"
+  env HOME="$home" ELY_APPEARANCE=light ELY_LOCALE=en ELY_NO_DIALOG=1 ELY_LOG=info ELY_REDUCE_MOTION=0 \
     ${EXTRA_ENV:-} "$root/target/release/$app" "$@" >"$out/logs/$app.out" 2>"$out/logs/$app.err" &
   app_pid=$!
 }
@@ -72,7 +72,7 @@ wait_ax() {
   return 1
 }
 
-# Center of the first AX element whose line has $1, as "x y".
+# Center "x y" of the first AX line matching $1.
 where() {
   local i at
   for i in $(seq 20); do
@@ -140,11 +140,15 @@ print(next(round(x / scale) for x in range(start, im.size[0]) if im.getpixel((x,
 PY
 }
 
-# Starts capturing the window region of the main screen.
+# Captures the window, or a given region in points.
 record_start() {
   local x y w h
-  read -r x y w h < <(frame)
-  [ "$w" = "$win_w" ] && [ "$h" = "$win_h" ] || echo "note: window is ${w}x${h}, not ${win_w}x${win_h}" >&2
+  if [ $# -eq 5 ]; then
+    x=$2 y=$3 w=$4 h=$5
+  else
+    read -r x y w h < <(frame)
+    [ "$w" = "$win_w" ] && [ "$h" = "$win_h" ] || echo "note: window is ${w}x${h}" >&2
+  fi
   rm -f "$out/rec/$1.mov"
   cap_name=$1
   ffmpeg -hide_banner -loglevel error -f avfoundation -capture_cursor 1 -framerate 60 -pixel_format nv12 -i "0:none" \

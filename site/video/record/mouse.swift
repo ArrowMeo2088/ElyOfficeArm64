@@ -1,4 +1,4 @@
-// Human-paced mouse: move, click, double, drag, scroll.
+// Human-paced mouse: move, click, double, drag, path, scroll.
 import CoreGraphics
 import Foundation
 
@@ -55,6 +55,19 @@ case "drag":
     glide(to: b, seconds: n.count > 4 ? n[4] : 0.7, dragging: true)
     usleep(120_000)
     post(.leftMouseUp, b)
+case "path":
+    // Seconds, then x y pairs; drags through them.
+    let seconds = n[0]
+    let points = stride(from: 1, to: n.count - 1, by: 2).map { CGPoint(x: n[$0], y: n[$0 + 1]) }
+    glide(to: points[0], seconds: pace(points[0]))
+    usleep(150_000)
+    post(.leftMouseDown, points[0])
+    for p in points.dropFirst() {
+        post(.leftMouseDragged, p)
+        usleep(useconds_t(seconds / Double(points.count) * 1_000_000))
+    }
+    usleep(100_000)
+    post(.leftMouseUp, points[points.count - 1])
 case "scroll":
     // Pixel deltas, spread over time; negative scrolls down.
     let total = n[0], seconds = n.count > 1 ? n[1] : 1.0

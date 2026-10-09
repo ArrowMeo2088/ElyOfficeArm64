@@ -15,7 +15,7 @@ day=0
 # Commits all changes as $1 with message $2.
 commit() {
   day=$((day + 1))
-  local when="2027-02-$(printf %02d "$day")T$((9 + day % 8)):$((10 + day * 7 % 50)):00"
+  local when="2026-09-$(printf %02d "$day")T$((9 + day % 8)):$((10 + day * 7 % 50)):00"
   git add -A
   GIT_AUTHOR_NAME="$1" GIT_COMMITTER_NAME="$1" GIT_AUTHOR_EMAIL="$(tr 'A-Z ' 'a-z.' <<<"$1")@coastaltrails.example" \
     GIT_COMMITTER_EMAIL="$(tr 'A-Z ' 'a-z.' <<<"$1")@coastaltrails.example" \
@@ -106,7 +106,7 @@ commit "Ines Okafor" "Survey Dune Meadows"
 sed -i '' 's/Two steep descents/Two steep, short descents/' routes/cliff-path-north.md
 commit "Ines Okafor" "Copy edit Cliff Path North"
 day=$((day + 1))
-GIT_AUTHOR_DATE="2027-02-$(printf %02d "$day")T16:20:00" GIT_COMMITTER_DATE="2027-02-$(printf %02d "$day")T16:20:00" \
+GIT_AUTHOR_DATE="2026-09-$(printf %02d "$day")T16:20:00" GIT_COMMITTER_DATE="2026-09-$(printf %02d "$day")T16:20:00" \
   git merge -q --no-ff maps -m "Merge the map key"
 
 git switch -q -c tide-tables
