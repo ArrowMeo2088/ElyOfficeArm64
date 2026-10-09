@@ -4,7 +4,7 @@ use std::path::Path;
 
 use ely_pdf_engine::{
     Doc, Worker, Writing, Wrote,
-    sample::{Extras, pdf_with},
+    sample::{Extras, one_page, pdf_with},
 };
 
 fn worker() -> Worker {
@@ -371,4 +371,65 @@ fn a_partial_to_unicode_falls_back_as_reading_does() {
     worker.save(doc, &out).expect("saves");
     let doc = worker.open(&out).expect("reopens").doc;
     assert_eq!(page_text(&mut worker, doc), "BA", "saved and read again");
+}
+
+#[test]
+fn a_dense_page_lists_its_blocks_in_one_pass() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut content = String::new();
+    for col in 0..10 {
+        for row in 0..100 {
+            content.push_str(&format!("BT /F1 2 Tf {} {} Td (Cell {col} {row}) Tj ET\n", 20 + col * 58, 780 - row * 7));
+        }
+    }
+    let font = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string();
+    let path = dir.path().join("dense.pdf");
+    std::fs::write(&path, one_page("", " /Resources << /Font << /F1 5 0 R >> >>", &content, &[font])).expect("writes");
+    let mut worker = worker();
+    let doc = worker.open(&path).expect("opens").doc;
+    let started = std::time::Instant::now();
+    let blocks = worker.text_blocks(doc, 0).expect("blocks");
+    let took = started.elapsed();
+    assert_eq!((blocks.len(), blocks.iter().filter(|b| b.editable).count()), (1000, 1000));
+    // Per block took 1.5 s here; one pass 0.1 s.
+    assert!(took < std::time::Duration::from_millis(750), "{took:?}");
+}
+
+/// One page: `content`, font F1, and form Fm1 drawing `form`.
+fn layered(dir: &Path, content: &str, form: &str) -> (Worker, Doc) {
+    let objects = [
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+        format!("<< /Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Length {} >>\nstream\n{form}\nendstream", form.len()),
+    ];
+    let page = " /Resources << /Font << /F1 5 0 R >> /XObject << /Fm1 6 0 R >> >>";
+    let path = dir.join("layered.pdf");
+    std::fs::write(&path, one_page("", page, content, &objects)).expect("writes");
+    let mut worker = worker();
+    let doc = worker.open(&path).expect("opens").doc;
+    (worker, doc)
+}
+
+fn editable(worker: &mut Worker, doc: Doc) -> Vec<(String, bool)> {
+    let blocks = worker.text_blocks(doc, 0).expect("blocks");
+    blocks.into_iter().map(|b| (b.text, b.editable)).collect()
+}
+
+#[test]
+fn turned_text_first_leaves_the_later_blocks_their_own_answer() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let content = "BT /F1 18 Tf 0 1 -1 0 50 500 Tm (ROTATED) Tj ET q 1 0 0 1 300 400 cm /Fm1 Do Q BT /F1 18 Tf 72 200 Td (OWN) Tj ET";
+    let (mut worker, doc) = layered(dir.path(), content, "BT /F1 12 Tf 0 10 Td (STAMP) Tj ET");
+    let mut got = editable(&mut worker, doc);
+    got.sort();
+    assert_eq!(got, [("OWN".into(), true), ("ROTATED".into(), false), ("STAMP".into(), false)]);
+}
+
+#[test]
+fn blocks_that_share_a_glyph_origin_each_count_it() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let content = "q /Fm1 Do Q BT /F1 18 Tf 72 300 Td (BREAK) Tj ET BT /F1 18 Tf 72 700 Td (AB) Tj ET";
+    let (mut worker, doc) = layered(dir.path(), content, "BT /F1 36 Tf 72 700 Td (AX) Tj ET");
+    let got = editable(&mut worker, doc);
+    assert!(got.contains(&("AB".into(), true)), "{got:?}");
+    assert!(got.contains(&("AX".into(), false)), "{got:?}");
 }

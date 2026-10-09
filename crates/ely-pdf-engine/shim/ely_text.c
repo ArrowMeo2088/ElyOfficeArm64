@@ -29,6 +29,12 @@ typedef struct
 	int *c;
 	int n;
 	int hit;
+	/* Page-wide: each target's block, and hits per block. */
+	int *owner;
+	int *hits;
+	/* The glyph each block last counted, so once each. */
+	int *seen;
+	int glyph;
 } targets;
 
 /* The glyphs of `block` with their user-space origins. */
@@ -58,19 +64,32 @@ static int take_glyph(fz_context *ctx, void *opaque, int *ucs, int ucslen, fz_ma
 {
 	targets *t = opaque;
 	fz_point at = fz_transform_point(fz_transform_point(fz_make_point(0, 0), trm), ctm);
-	int i, k;
+	int i, k, found = 0;
+	t->glyph++;
 	for (i = 0; i < t->n; i++)
 	{
+		int match = 0;
 		if (fabsf(at.x - t->at[i].x) > 0.5f || fabsf(at.y - t->at[i].y) > 0.5f)
 			continue;
-		for (k = 0; k < ucslen; k++)
-			if (ucs[k] == t->c[i] || t->c[i] == FZ_REPLACEMENT_CHARACTER)
-			{
-				t->hit++;
-				return 1;
-			}
+		for (k = 0; k < ucslen && !match; k++)
+			match = ucs[k] == t->c[i] || t->c[i] == FZ_REPLACEMENT_CHARACTER;
+		if (!match)
+			continue;
+		if (!t->owner)
+		{
+			t->hit++;
+			return 1;
+		}
+		/* Every block this glyph matches counts it once. */
+		if (t->seen[t->owner[i]] != t->glyph)
+		{
+			t->seen[t->owner[i]] = t->glyph;
+			t->hits[t->owner[i]]++;
+		}
+		found = 1;
 	}
-	return 0;
+	t->hit += found;
+	return found;
 }
 
 /* Runs the glyph filter over the page; `dry` changes nothing. */
@@ -99,7 +118,7 @@ fz_matrix ely_to_user(fz_context *ctx, pdf_page *page)
 /* Whether all of `block` sits in the page's own content. */
 static int reachable(fz_context *ctx, pdf_document *pdf, pdf_page *page, fz_stext_block *block)
 {
-	targets t = { NULL, NULL, 0, 0 };
+	targets t = { NULL, NULL, 0, 0, NULL, NULL, NULL, 0 };
 	int ok = 0;
 	fz_var(t.at);
 	fz_var(t.c);
@@ -120,6 +139,70 @@ static int reachable(fz_context *ctx, pdf_document *pdf, pdf_page *page, fz_stex
 	fz_catch(ctx)
 		fz_rethrow(ctx);
 	return ok;
+}
+
+/* Each text block's glyphs found in page content, one pass. */
+static void reachable_all(fz_context *ctx, pdf_document *pdf, pdf_page *page, fz_stext_page *text, int n, int *ok)
+{
+	targets t = { NULL, NULL, 0, 0, NULL, NULL, NULL, 0 };
+	int *count = NULL, all = 0, b;
+	fz_matrix to_user = ely_to_user(ctx, page);
+	fz_stext_block *block;
+	fz_stext_line *line;
+	fz_stext_char *ch;
+	fz_var(t.at);
+	fz_var(t.c);
+	fz_var(t.owner);
+	fz_var(t.hits);
+	fz_var(t.seen);
+	fz_var(count);
+	pdf_begin_operation(ctx, pdf, "Look at text");
+	fz_try(ctx)
+	{
+		for (block = text->first_block; block; block = block->next)
+			if (block->type == FZ_STEXT_BLOCK_TEXT)
+				for (line = block->u.t.first_line; line; line = line->next)
+					for (ch = line->first_char; ch; ch = ch->next)
+						all++;
+		t.at = fz_malloc_array(ctx, all + 1, fz_point);
+		t.c = fz_malloc_array(ctx, all + 1, int);
+		t.owner = fz_malloc_array(ctx, all + 1, int);
+		t.hits = fz_calloc(ctx, n + 1, sizeof(int));
+		t.seen = fz_calloc(ctx, n + 1, sizeof(int));
+		count = fz_calloc(ctx, n + 1, sizeof(int));
+		b = 0;
+		for (block = text->first_block; block; block = block->next)
+		{
+			if (block->type != FZ_STEXT_BLOCK_TEXT)
+				continue;
+			for (line = block->u.t.first_line; line; line = line->next)
+				for (ch = line->first_char; ch; ch = ch->next)
+					if (!(ch->flags & FZ_STEXT_SYNTHETIC))
+					{
+						t.at[t.n] = fz_transform_point(ch->origin, to_user);
+						t.c[t.n] = ch->c;
+						t.owner[t.n++] = b;
+						count[b]++;
+					}
+			b++;
+		}
+		filter_glyphs(ctx, pdf, page, &t, 1);
+		for (b = 0; b < n; b++)
+			ok[b] = count[b] > 0 && t.hits[b] == count[b];
+	}
+	fz_always(ctx)
+	{
+		pdf_abandon_operation(ctx, pdf);
+		ely_forget_resources(ctx, pdf);
+		fz_free(ctx, t.at);
+		fz_free(ctx, t.c);
+		fz_free(ctx, t.owner);
+		fz_free(ctx, t.hits);
+		fz_free(ctx, t.seen);
+		fz_free(ctx, count);
+	}
+	fz_catch(ctx)
+		fz_rethrow(ctx);
 }
 
 /* The text of `block`, lines on lines. */
@@ -153,18 +236,24 @@ int ely_text_blocks(fz_context *ctx, fz_document *doc, int number, unsigned char
 	pdf_page *page = NULL;
 	fz_buffer *buf = NULL, *words = NULL;
 	fz_output *out = NULL;
+	int *reached = NULL;
 	fz_var(text);
 	fz_var(page);
 	fz_var(buf);
 	fz_var(words);
 	fz_var(out);
+	fz_var(reached);
 	fz_try(ctx)
 	{
 		pdf_document *pdf = ely_pdf_of(ctx, doc);
 		fz_stext_block *block;
-		int first = 1;
+		int first = 1, n = 0, at = 0;
 		text = read_text(ctx, doc, number);
 		page = pdf_load_page(ctx, pdf, number);
+		for (block = text->first_block; block; block = block->next)
+			n += block->type == FZ_STEXT_BLOCK_TEXT;
+		reached = fz_calloc(ctx, n + 1, sizeof(int));
+		reachable_all(ctx, pdf, page, text, n, reached);
 		buf = fz_new_buffer(ctx, 1024);
 		out = fz_new_output_with_buffer(ctx, buf);
 		fz_write_string(ctx, out, "[");
@@ -175,7 +264,8 @@ int ely_text_blocks(fz_context *ctx, fz_document *doc, int number, unsigned char
 			if (block->type != FZ_STEXT_BLOCK_TEXT)
 				continue;
 			ch = block->u.t.first_line->first_char;
-			editable = upright(block) && reachable(ctx, pdf, page, block);
+			editable = reached[at++];
+			editable = editable && upright(block);
 			fz_drop_buffer(ctx, words);
 			words = NULL;
 			words = fz_new_buffer(ctx, 256);
@@ -198,6 +288,7 @@ int ely_text_blocks(fz_context *ctx, fz_document *doc, int number, unsigned char
 		fz_drop_buffer(ctx, words);
 		fz_drop_page(ctx, (fz_page *)page);
 		fz_drop_stext_page(ctx, text);
+		fz_free(ctx, reached);
 	}
 	fz_catch(ctx)
 		return ely_fail(ctx);
