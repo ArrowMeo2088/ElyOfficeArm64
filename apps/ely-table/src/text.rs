@@ -231,7 +231,8 @@ impl Book {
 
     pub(crate) fn ask_import(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         let reading = path.clone();
-        let chinese = ely_ui::i18n::resolve(&ely_platform::locale::system()) == "zh-CN";
+        // The language the app shows, not the system's.
+        let chinese = cx.global::<ely_gpui_component::i18n::I18n>().locale().tag == "zh-CN";
         cx.spawn(async move |this, cx| {
             // Guessing checks the whole file: off the window thread.
             let pending = cx
