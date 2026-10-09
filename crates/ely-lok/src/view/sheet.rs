@@ -48,6 +48,14 @@ impl LokView {
         self.tile_of(self.frozen)
     }
 
+    /// Rescales, keeping the scrolling pane's start in place.
+    pub(super) fn keep_scroll(&mut self, change: impl FnOnce(&mut Self)) {
+        let start = self.scrolled_start();
+        change(self);
+        let ((x, y), (fx, fy)) = (self.tile_of(start), self.frozen_tiles());
+        self.scroll = (x - fx, y - fy);
+    }
+
     /// Where the scrolling pane starts, in print twips.
     pub fn scrolled_start(&self) -> (i32, i32) {
         let (fx, fy) = self.frozen_tiles();

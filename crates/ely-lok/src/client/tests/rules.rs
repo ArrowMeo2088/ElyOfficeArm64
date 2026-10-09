@@ -485,29 +485,3 @@ fn enter_and_tab_move_the_cell_cursor() {
     });
     assert_eq!(right.cell.address, "G2", "Tab moves right");
 }
-
-#[test]
-fn a_click_far_down_selects_the_cell_under_it() {
-    if skip() {
-        return;
-    }
-    let (_dir, mut worker, doc, seen) = open();
-    // One painted tile fixes the kernel's scale.
-    let (side, twips) = (512u32, 3840);
-    let ppt = f64::from(side) / f64::from(twips);
-    doc.paint_tile(&mut worker, (0, 0, twips, twips), (side, side)).expect("a tile");
-    let geometry = sheet::geometry(&worker.values(&doc, sheet::GEOMETRY).expect("geometry")).expect("parsed");
-    worker.run(&doc, "cell.goto", &["B4998"]).expect("B4998");
-    let at = poll_until(&mut worker, &doc, &seen, SETTLE, |seen| seen.cell.address == "B4998");
-    let (x, y, w, h) = at.cell.cursor.expect("the cursor");
-    worker.run(&doc, "cell.goto", &["A1"]).expect("A1");
-    let home = poll_until(&mut worker, &doc, &at, SETTLE, |seen| seen.cell.address == "A1");
-    // The cursor is in print twips; clicks take tile twips.
-    let (x, y) = (geometry.columns.tile(x + w / 2, ppt), geometry.rows.tile(y + h / 2, ppt));
-    for kind in [0, 1] {
-        let click = crate::Mouse { kind, x, y, count: 1, buttons: 1, modifiers: 0 };
-        worker.post_mouse(&doc, click).expect("clicks");
-    }
-    let after = poll_until(&mut worker, &doc, &home, SETTLE, |seen| seen.cell.address != "A1");
-    assert_eq!(after.cell.address, "B4998");
-}

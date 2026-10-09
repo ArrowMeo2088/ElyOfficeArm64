@@ -40,7 +40,7 @@ impl Render for LokView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let dpi = window.scale_factor();
         if dpi != self.geom.dpi {
-            self.geom.dpi = dpi;
+            self.keep_scroll(|view| view.geom.dpi = dpi);
             self.retire_tiles();
         }
         self.follow_theme(cx.theme().is_dark());
@@ -210,7 +210,7 @@ impl LokView {
         let down = self.viewport.1 * TWIPS_PER_PIXEL / h as f32;
         let zoom = (across.min(down) * MARGIN).min(4.0);
         if (zoom - self.geom.zoom).abs() > 0.001 {
-            self.geom.zoom = zoom;
+            self.keep_scroll(|view| view.geom.zoom = zoom);
             self.retire_tiles();
             self.failed.clear();
         }

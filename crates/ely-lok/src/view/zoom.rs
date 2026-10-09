@@ -47,13 +47,15 @@ impl LokView {
             Some(at) => (f32::from(at.x - self.origin.x), f32::from(at.y - self.origin.y)),
             None => (self.viewport.0 / 2.0, self.viewport.1 / 2.0),
         };
-        let under = (self.scroll.0 + self.geom.twips_of(ax), self.scroll.1 + self.geom.twips_of(ay));
+        // Anchored in print twips: tile twips change with the zoom.
+        let under = self.print_of((self.scroll.0 + self.geom.twips_of(ax), self.scroll.1 + self.geom.twips_of(ay)));
         self.fit = false;
         if (zoom - self.geom.zoom).abs() > 0.0001 {
             self.geom.zoom = zoom;
             self.retire_tiles();
             self.failed.clear();
         }
+        let under = self.tile_of(under);
         self.scroll = (under.0 - self.geom.twips_of(ax), under.1 - self.geom.twips_of(ay));
         self.clamp_scroll();
         log::debug!("lok: zoom {:.0}%", zoom * 100.0);
