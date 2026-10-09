@@ -6,6 +6,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 fail() { echo "FAIL: $*" >&2; exit 1; }
 app=$root/engines/lo-src/instdir/LibreOffice.app
 if [ -d "$app" ]; then
+  plutil -lint -s "$app/Contents/Info.plist" || fail "$app has no readable Info.plist"
   for key in CFBundleDocumentTypes CFBundleURLTypes UTExportedTypeDeclarations UTImportedTypeDeclarations; do
     ! /usr/libexec/PlistBuddy -c "Print :$key" "$app/Contents/Info.plist" >/dev/null 2>&1 || fail "$app claims $key"
   done
@@ -20,6 +21,7 @@ for path in CommandLine.arguments.dropFirst() {
   for app in NSWorkspace.shared.urlsForApplications(toOpen: URL(fileURLWithPath: path)) { print(app.path) }
 }
 SWIFT
-found=$(swift "$work/open.swift" "$work"/sample.* | grep -i libreoffice || true)
+apps=$(swift "$work/open.swift" "$work"/sample.*) || fail "the Open With query failed"
+found=$(grep -i libreoffice <<<"$apps" || true)
 [ -z "$found" ] || fail "Open With lists LibreOffice: $found"
 echo "ok: no LibreOffice in Open With"

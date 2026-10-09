@@ -11,7 +11,10 @@ for key in CFBundleDocumentTypes CFBundleURLTypes UTExportedTypeDeclarations UTI
   fi
 done
 rm -rf "$app/Contents/PlugIns" "$app/Contents/Library/Spotlight"
-"$lsregister" -u "$app"
+# -10814: not registered, which is the goal.
+if ! said=$("$lsregister" -u "$app" 2>&1); then
+  grep -q -- "-10814" <<<"$said" || { echo "inert-lo.sh: $said" >&2; exit 1; }
+fi
 # Spotlight would find the bundle and register it again.
 touch "$(cd "$app/../../.." && pwd)/.metadata_never_index"
 echo "inert-lo.sh: $app claims no files and is unregistered"

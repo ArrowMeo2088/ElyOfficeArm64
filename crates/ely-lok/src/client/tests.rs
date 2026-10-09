@@ -290,8 +290,14 @@ fn an_unpatched_build_is_rejected() {
         return;
     }
     let dir = tempfile::tempdir().expect("a temp dir");
-    let outcome = Worker::spawn(&frameworks, &dir.path().join("profile"));
-    assert!(outcome.is_err(), "the unpatched build must be rejected");
+    let Err(error) = Worker::spawn(&frameworks, &dir.path().join("profile")) else {
+        panic!("the unpatched build must be rejected");
+    };
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidData, "{error}");
+    assert!(
+        error.to_string().contains("does not paint tiles (unpatched)"),
+        "rejected for the tile check, not {error}"
+    );
 }
 
 #[test]
