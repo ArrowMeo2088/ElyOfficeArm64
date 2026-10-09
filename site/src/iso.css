@@ -1,15 +1,24 @@
 /* One colour, three tones; no shadows. */
+.block {
+  --ink: var(--tone);
+}
+
+/* At night a block takes its dark tone. */
+:root[data-theme="dark"] .block {
+  --ink: var(--tone-dark, var(--tone));
+}
+
 .face.top {
-  fill: var(--tone);
+  fill: var(--ink);
 }
 
 .face.left,
 .face.outline {
-  fill: color-mix(in oklab, var(--tone), black 9%);
+  fill: color-mix(in oklab, var(--ink), black 9%);
 }
 
 .face.right {
-  fill: color-mix(in oklab, var(--tone), black 20%);
+  fill: color-mix(in oklab, var(--ink), black 20%);
 }
 
 /* Each block drops one step and lands on its beat. */

@@ -5,12 +5,13 @@ const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
 
 test.use({ reducedMotion: "reduce" });
 
-/** Screen top of the building's first block, in SVG pixels. */
+/** Building top over the desk top, in SVG pixels; camera-free. */
 const top = (page: Page, name: string) =>
   page.evaluate((n) => {
-    const svg = document.querySelector<SVGSVGElement>(".hero .stage")!;
+    const svg = document.querySelector<SVGSVGElement>(".model .stage")!;
     const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
-    return (document.querySelector(`.block[data-part="${n}"]`)!.getBoundingClientRect().top + scrollY) / scale;
+    const at = (sel: string) => document.querySelector(sel)!.getBoundingClientRect().top;
+    return (at(`.block[data-part="${n}"]`) - at('.block[data-part=""]')) / scale;
   }, name);
 
 /** A point that hits the building; `low` picks the lowest. */
@@ -38,7 +39,7 @@ const spot = (page: Page, name: string, low = false) =>
     [name, low] as const,
   );
 
-const caption = (page: Page, name: string) => page.locator(".caption", { hasText: name });
+const caption = (page: Page, name: string) => page.locator(".tour .caption", { hasText: name });
 
 let errors: string[] = [];
 
@@ -46,7 +47,7 @@ test.beforeEach(async ({ page }) => {
   errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto("/");
-  await expect(page.locator(".hero .hit-face:not(.ground)").first()).toBeAttached();
+  await expect(page.locator(".model .hit-face:not(.ground)").first()).toBeAttached();
 });
 
 test.afterEach(() => expect(errors).toEqual([]));
@@ -59,7 +60,7 @@ test("six links in reading order; reduced motion skips growth", async ({ page })
 
 test("focus lifts one cell, shows the name, survives the mouse", async ({ page }) => {
   const rest = await top(page, "ElyDoc");
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Tab");
+  await page.locator(".doors a").first().focus();
   await expect(page.locator(".doors a").first()).toBeFocused();
   expect(rest - (await top(page, "ElyDoc"))).toBeCloseTo(CELL, 0);
   await expect(caption(page, "ElyDoc")).toHaveCSS("opacity", "1");
@@ -89,7 +90,7 @@ test("hover at the bottom edge holds still", async ({ page }) => {
 
 test("the hit owner is the block you see", async ({ page }) => {
   const wrong = await page.evaluate(() => {
-    const r = document.querySelector(".hero .stage")!.getBoundingClientRect();
+    const r = document.querySelector(".model .stage")!.getBoundingClientRect();
     const out: string[] = [];
     const owner = (x: number, y: number) => {
       const face = document.elementsFromPoint(x, y).find((e) => e.classList.contains("face"));
@@ -120,6 +121,8 @@ test("a primary press sinks one cell; only a click starting on it opens", async 
 
   await page.evaluate(() => history.replaceState(null, "", "/"));
   await page.evaluate(() => scrollTo(0, 0));
+  // The camera settles on the next frame.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const again = await spot(page, "ElyShow");
   await page.mouse.click(again.x, again.y, { button: "right" });
   await page.mouse.move(5, 5);
@@ -131,7 +134,7 @@ test("a primary press sinks one cell; only a click starting on it opens", async 
 
 test("holding Enter sinks the focused building until release", async ({ page }) => {
   const rest = await top(page, "ElyDoc");
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Tab");
+  await page.locator(".doors a").first().focus();
   await page.keyboard.down("Enter");
   expect(await top(page, "ElyDoc")).toBeCloseTo(rest, 0);
   await expect(page).toHaveURL(/#elydoc$/);

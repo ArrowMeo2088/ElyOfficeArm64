@@ -2,9 +2,11 @@
   color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif;
   color: #1d1d1f;
-  background: #fbfbfa;
+  --page: #fbfbfa;
+  background: var(--page);
   --quiet: #6e6e73;
   --accent: #3d7fe5;
+  --link: #2a6ad0;
 }
 
 body {
@@ -35,7 +37,7 @@ p {
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
   text-decoration: none;
 }
 
@@ -50,16 +52,12 @@ button:focus-visible {
   display: grid;
   justify-items: center;
   gap: 1.25rem;
-  padding: 10rem 1.5rem 9rem;
+  padding: 7rem 1.5rem 0;
   text-align: center;
 }
 
 .hero a {
   font-size: 1.0625rem;
-}
-
-.hero .model {
-  margin-top: 6rem;
 }
 
 .stage {
@@ -72,51 +70,6 @@ button:focus-visible {
 .model {
   position: relative;
   max-width: 100%;
-}
-
-.region {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  align-items: center;
-  gap: 6rem;
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 9rem 1.5rem;
-}
-
-.region > svg {
-  width: 100%;
-}
-
-.region:nth-child(even) {
-  grid-template-columns: 1fr 1.6fr;
-}
-
-.region:nth-child(even) > svg {
-  order: 2;
-}
-
-.region div {
-  display: grid;
-  gap: 1rem;
-  justify-items: start;
-}
-
-.get {
-  font-size: 1.0625rem;
-  opacity: 0;
-  transition: opacity 0.15s ease-out;
-}
-
-.region:hover .get,
-.region:focus-within .get {
-  opacity: 1;
-}
-
-@media (hover: none) {
-  .get {
-    opacity: 1;
-  }
 }
 
 .props {
@@ -186,23 +139,14 @@ body:has(.hero:hover) .lang {
 }
 
 @media (max-width: 760px) {
-  .region,
   .props {
     grid-template-columns: 1fr;
     gap: 3rem;
     padding: 6rem 1.5rem;
   }
 
-  .region:nth-child(even) {
-    grid-template-columns: 1fr;
-  }
-
-  .region:nth-child(even) > svg {
-    order: 0;
-  }
-
   .hero {
-    padding: 7rem 1.5rem 6rem;
+    padding-top: 5rem;
   }
 }
 
@@ -235,7 +179,6 @@ body:has(.hero:hover) .lang {
 
 @media (prefers-reduced-motion: reduce) {
   .caption,
-  .get,
   .lang {
     transition: none;
   }

@@ -61,6 +61,7 @@ test.describe("English locale", () => {
     await page.mouse.move(5, 500);
     await expect(lang).toHaveCSS("opacity", "0");
     await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
     await expect(lang).toBeFocused();
     await expect(lang).toHaveCSS("opacity", "1");
   });
@@ -79,9 +80,9 @@ test.describe("English locale", () => {
 
   test("links point at the release and the repository", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".region .get")).toHaveCount(APPS.length);
-    for (const app of APPS) {
-      await expect(page.locator(`#${app.toLowerCase()} .get`)).toHaveAttribute("href", dmg(app));
+    await expect(page.locator(".tour .get")).toHaveCount(APPS.length);
+    for (const [i, app] of APPS.entries()) {
+      await expect(page.locator(".tour .get").nth(i)).toHaveAttribute("href", dmg(app));
     }
     await expect(page.locator("#download ul a")).toHaveText([...APPS, TEXT.en.source]);
     for (const [i, app] of APPS.entries()) {
@@ -103,17 +104,19 @@ test.describe("English locale", () => {
     }
   });
 
-  test("region downloads show on hover or focus", async ({ page }) => {
-    await page.goto("/");
-    for (const app of APPS) {
-      const region = page.locator(`#${app.toLowerCase()}`);
-      const get = region.locator(".get");
-      await region.scrollIntoViewIfNeeded();
-      await page.mouse.move(0, 0);
+  test("each app's copy arrives at its anchor; its download shows on intent", async ({ page }) => {
+    for (const [i, app] of APPS.entries()) {
+      await page.goto(`/#${app.toLowerCase()}`);
+      const article = page.locator(".copy article").nth(i);
+      await expect(article).toHaveClass(/current/);
+      await expect(page.locator(".copy article.current")).toHaveCount(1);
+      await expect(page.locator(".rail a").nth(i)).toHaveAttribute("aria-current", "step");
+      const get = article.locator(".get");
+      await page.mouse.move(1000, 5);
       await expect(get).toHaveCSS("opacity", "0");
-      await region.locator("h2").hover();
+      await article.locator("h2").hover();
       await expect(get).toHaveCSS("opacity", "1");
-      await page.locator(".lang").hover();
+      await page.mouse.move(1000, 5);
       await expect(get).toHaveCSS("opacity", "0");
       await get.focus();
       await expect(get).toHaveCSS("opacity", "1");

@@ -1,38 +1,10 @@
-// One region per app, then the three props.
-import { block, screen, stage, type Block } from "./iso.ts";
+// Three props: offline, open source, local files.
+import { block, stage } from "./iso.ts";
 import { grow } from "./beat.ts";
-import { model, type Part } from "./model.ts";
 import { said, type Key } from "./text.ts";
-
-const RELEASE = "https://github.com/ZacharyZhang-NY/ElyOffice/releases/download/v0.1.0";
 
 const PAPER = "#f4f4f2";
 const DESK = "#e6e6e2";
-const SCREEN = "#3a3a3c";
-const SHOT = [1440, 810];
-
-/** A part's blocks moved to corner (x, y). */
-function moved(part: Part, x: number, y: number): Required<Block>[] {
-  const left = Math.min(...part.blocks.map((b) => b.x));
-  const back = Math.min(...part.blocks.map((b) => b.y));
-  const floor = Math.min(...part.blocks.map((b) => b.z));
-  const snap = (v: number) => Math.round(v * 1000) / 1000;
-  return part.blocks.map((b) => ({ ...b, x: snap(b.x - left + x), y: snap(b.y - back + y), z: snap(b.z - floor + 0.4) }));
-}
-
-/** A plinth, the app's screen, and its building. */
-function scene(part: Part): SVGSVGElement {
-  const plinth = block({ x: 0, y: 0, w: 11.6, d: 5, h: 0.4, tone: DESK });
-  const slab = block({ x: 0.4, y: 1.2, z: 0.4, w: 7.2, d: 0.25, h: 4.05, tone: SCREEN });
-  screen(slab, `/shots/${part.name.slice(3).toLowerCase()}.jpg`, SHOT[0], SHOT[1]);
-  const house = moved(part, 8.4, 1.2).map(block);
-  grow([[plinth], [slab], house]);
-  const svg = stage([plinth, slab, ...house]);
-  svg.classList.add("grow");
-  svg.setAttribute("role", "img");
-  svg.dataset.shot = part.name;
-  return svg;
-}
 
 const t = (x: number, y: number, z: number, w: number, d: number, h: number, tone = PAPER) =>
   block({ x, y, z, w, d, h, tone });
@@ -78,30 +50,12 @@ function prop(blocks: SVGGElement[], line: Key): HTMLElement {
   return cell;
 }
 
-/** The app regions and the props row. */
-export function regions(): HTMLElement[] {
-  const apps = model.slice(1, -1).map((part) => {
-    const section = document.createElement("section");
-    section.id = part.name.toLowerCase();
-    section.className = "region";
-    const h2 = document.createElement("h2");
-    h2.textContent = part.name;
-    const get = said("a", "download");
-    get.className = "get";
-    get.href = `${RELEASE}/${part.name}-0.1.0-arm64.dmg`;
-    const text = document.createElement("div");
-    text.append(h2, said("p", part.name as Key), get);
-    section.append(scene(part), text);
-    return section;
-  });
-  const props = document.createElement("section");
-  props.className = "props";
-  props.append(
-    prop(cable(), "offline"),
-    prop(box(), "open"),
-    prop(folder(), "local"),
-  );
-  return [...apps, props];
+/** The props row. */
+export function props(): HTMLElement {
+  const row = document.createElement("section");
+  row.className = "props";
+  row.append(prop(cable(), "offline"), prop(box(), "open"), prop(folder(), "local"));
+  return row;
 }
 
 /** Starts each model's growth when it scrolls near. */

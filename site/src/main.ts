@@ -1,50 +1,43 @@
 import "./style.css";
 import "./iso.css";
-import { block, stage } from "./iso.ts";
-import { grow } from "./beat.ts";
+import "./tour.css";
+import { tour } from "./tour.ts";
+import { props, reveal } from "./regions.ts";
+import { night } from "./night.ts";
+import { rhythm } from "./rhythm.ts";
+import { playground } from "./play.ts";
+import { film } from "./film.ts";
 import { model } from "./model.ts";
-import { touch } from "./touch.ts";
-import { regions, reveal } from "./regions.ts";
 import { said, speak, type Lang } from "./text.ts";
 
 const REPO = "https://github.com/ZacharyZhang-NY/ElyOffice";
 const RELEASE = `${REPO}/releases/download/v0.1.0`;
+const APPS = model.slice(1, -1).map((p) => p.name);
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("index.html has no #app");
 
-const apps = model.slice(1, -1);
-const built = model.map((part) => part.blocks.map(block));
-grow(built);
-const parts = new Map(apps.map((p) => [p.name, built[model.indexOf(p)]]));
-
 const hero = document.createElement("header");
-hero.className = "hero";
 const title = document.createElement("h1");
 title.textContent = "Ely Office";
-const host = document.createElement("div");
-host.className = "model";
-const svg = stage(built.flat());
-svg.classList.add("grow", "seen");
-svg.setAttribute("aria-hidden", "true");
-host.append(svg);
 const github = document.createElement("a");
 github.href = REPO;
 github.textContent = "GitHub";
-hero.append(title, said("p", "tagline"), said("p", "platforms"), github, host);
-touch(host, svg, parts);
+hero.append(title, said("p", "tagline"), said("p", "platforms"), github);
+const { section, host, svg } = tour(hero);
+rhythm(host, svg);
 
-const sections = regions();
+const shelf = props();
 
 const footer = document.createElement("footer");
 footer.id = "download";
 const version = document.createElement("h2");
 version.textContent = "Ely Office 0.1.0";
 const list = document.createElement("ul");
-for (const p of apps) {
+for (const name of APPS) {
   const a = document.createElement("a");
-  a.href = `${RELEASE}/${p.name}-0.1.0-arm64.dmg`;
-  a.textContent = p.name;
+  a.href = `${RELEASE}/${name}-0.1.0-arm64.dmg`;
+  a.textContent = name;
   const li = document.createElement("li");
   li.append(a);
   list.append(li);
@@ -59,13 +52,16 @@ footer.append(version, said("p", "platforms"), said("p", "needs"), said("p", "un
 const toggle = said("button", "other");
 toggle.className = "lang";
 let lang: Lang = navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
-toggle.addEventListener("click", () => {
-  lang = lang === "en" ? "zh" : "en";
+/** Writes the page in `next`; the toggle names the other. */
+const say = (next: Lang) => {
+  lang = next;
   speak(lang);
-});
+  toggle.lang = lang === "en" ? "zh-CN" : "en";
+};
+toggle.addEventListener("click", () => say(lang === "en" ? "zh" : "en"));
 
 const main = document.createElement("main");
-main.append(...sections);
-app.append(toggle, hero, main, footer);
-speak(lang);
-reveal(sections);
+main.append(section, playground(), shelf, film());
+app.append(night(), toggle, main, footer);
+say(lang);
+reveal([shelf]);
