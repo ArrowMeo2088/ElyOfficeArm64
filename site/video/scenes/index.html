@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Ely Office film scenes</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      }
+      svg {
+        position: absolute;
+        inset: 0;
+      }
+      .tile .face.top {
+        stroke: var(--tone);
+        stroke-width: 1.2;
+      }
+      .words > * {
+        position: absolute;
+        left: 0;
+        right: 0;
+        margin: 0;
+        text-align: center;
+        white-space: nowrap;
+      }
+      h1 {
+        top: 104px;
+        font-size: 104px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1;
+      }
+      .version {
+        top: 232px;
+        font-size: 40px;
+        font-weight: 300;
+      }
+      .url {
+        top: 292px;
+        font-size: 28px;
+        font-weight: 300;
+        letter-spacing: 0.01em;
+      }
+    </style>
+  </head>
+  <body>
+    <svg id="frame" width="1920" height="1080" viewBox="0 0 1920 1080"><g id="world"></g></svg>
+    <div class="words">
+      <h1 data-text="title">Ely Office</h1>
+      <h1 data-text="name">Ely Office</h1>
+      <p class="version" data-text="version" data-soft>0.1.0 · macOS</p>
+      <p class="url" data-text="url" data-soft>github.com/ZacharyZhang-NY/ElyOffice/releases</p>
+    </div>
+    <script type="module" src="./page.ts"></script>
+  </body>
+</html>

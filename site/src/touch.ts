@@ -10,12 +10,13 @@ export function touch(host: HTMLElement, svg: SVGSVGElement, parts: Map<string, 
   nav.className = "doors";
   host.append(nav);
 
+  const owner = new Map([...parts].flatMap(([name, blocks]) => blocks.map((b) => [b, name] as const)));
+  const hits = still(svg, owner);
+
   for (const [name, blocks] of parts) {
     const target = `#${name.toLowerCase()}`;
     const state = { hover: false, focus: false, press: false };
-    for (const b of blocks) b.dataset.part = name;
-    const hit = area(blocks, name);
-    svg.append(hit);
+    const hit = hits.filter((h) => h.dataset.part === name);
     const caption = document.createElement("p");
     caption.className = "caption";
     caption.textContent = name;
@@ -29,19 +30,22 @@ export function touch(host: HTMLElement, svg: SVGSVGElement, parts: Map<string, 
         b.classList.toggle("pressed", up && state.press);
       }
       caption.classList.toggle("shown", up);
-      if (up) place(caption, host, hit);
+      if (up) place(caption, host, svg, blocks);
     };
     const set = (change: Partial<typeof state>) => {
       Object.assign(state, change);
       show();
     };
 
-    hit.addEventListener("pointerenter", () => set({ hover: true }));
-    hit.addEventListener("pointerleave", () => set({ hover: false, press: false }));
-    hit.addEventListener("pointerdown", (e) => e.button === 0 && set({ press: true }));
-    hit.addEventListener("pointerup", () => set({ press: false }));
-    hit.addEventListener("pointercancel", () => set({ press: false }));
-    hit.addEventListener("click", () => (location.hash = target));
+    const own = (node: EventTarget | null) => node instanceof SVGElement && node.dataset.part === name;
+    for (const h of hit) {
+      h.addEventListener("pointerenter", () => set({ hover: true }));
+      h.addEventListener("pointerleave", (e) => own(e.relatedTarget) || set({ hover: false, press: false }));
+      h.addEventListener("pointerdown", (e) => e.button === 0 && set({ press: true }));
+      h.addEventListener("pointerup", () => set({ press: false }));
+      h.addEventListener("pointercancel", () => set({ press: false }));
+      h.addEventListener("click", () => (location.hash = target));
+    }
 
     const door = document.createElement("a");
     door.href = target;
@@ -54,28 +58,34 @@ export function touch(host: HTMLElement, svg: SVGSVGElement, parts: Map<string, 
   }
 }
 
-/** A still hit area over the building, resting and lifted. */
-function area(blocks: SVGGElement[], name: string): SVGGElement {
-  const hit = document.createElementNS(SVG, "g");
-  hit.setAttribute("class", "hit");
-  hit.dataset.part = name;
-  for (const b of blocks) {
+/** Resting outlines over the model, layered as drawn. */
+function still(svg: SVGSVGElement, owner: Map<SVGGElement, string>): SVGPolygonElement[] {
+  const layer = document.createElementNS(SVG, "g");
+  layer.setAttribute("class", "hits");
+  const hits: SVGPolygonElement[] = [];
+  for (const b of svg.querySelectorAll<SVGGElement>(".block")) {
     const outline = b.querySelector(".outline");
     if (!outline) throw new Error("block has no outline");
-    for (const dy of [0, -UNIT]) {
-      const face = outline.cloneNode() as SVGPolygonElement;
-      face.setAttribute("class", "hit-face");
-      face.setAttribute("transform", `translate(0 ${dy})`);
-      hit.append(face);
-    }
+    const name = owner.get(b);
+    b.dataset.part = name ?? "";
+    const face = outline.cloneNode() as SVGPolygonElement;
+    face.setAttribute("class", name ? "hit-face" : "hit-face ground");
+    face.dataset.part = name ?? "";
+    layer.append(face);
+    if (name) hits.push(face);
   }
-  return hit;
+  svg.append(layer);
+  return hits;
 }
 
-/** Puts the caption above the lifted building. */
-function place(caption: HTMLElement, host: HTMLElement, hit: SVGGElement) {
+/** Puts the caption one step above the building's top. */
+function place(caption: HTMLElement, host: HTMLElement, svg: SVGSVGElement, blocks: SVGGElement[]) {
   const origin = host.getBoundingClientRect();
-  const r = hit.getBoundingClientRect();
-  caption.style.left = `${r.left + r.width / 2 - origin.left}px`;
-  caption.style.top = `${r.top - origin.top}px`;
+  const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+  const rects = blocks.map((b) => b.querySelector(".outline")!.getBoundingClientRect());
+  const left = Math.min(...rects.map((r) => r.left));
+  const right = Math.max(...rects.map((r) => r.right));
+  const top = Math.min(...rects.map((r) => r.top));
+  caption.style.left = `${(left + right) / 2 - origin.left}px`;
+  caption.style.top = `${top - origin.top - UNIT * scale}px`;
 }

@@ -42,6 +42,10 @@
   cursor: pointer;
 }
 
+.hit-face.ground {
+  cursor: auto;
+}
+
 .block.lifted {
   translate: 0 calc(-1 * var(--step));
 }
@@ -54,4 +58,9 @@
   .block {
     transition: none;
   }
+}
+
+/* Off-screen models wait until they scroll near. */
+.grow:not(.seen) .block {
+  animation-play-state: paused;
 }
