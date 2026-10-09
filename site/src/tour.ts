@@ -319,6 +319,7 @@ export function tour(hero: HTMLElement): { section: HTMLElement; host: HTMLEleme
     const tx = cam.ax - cam.s * (cam.cx - origin[0]);
     const ty = cam.ay - cam.s * (cam.cy - origin[1]);
     world.style.transform = `matrix(${cam.s}, 0, 0, ${cam.s}, ${tx}, ${ty})`;
+    host.dispatchEvent(new Event("moved"));
     const fade = still() ? (p < 0.5 ? 1 : 0) : Math.max(0, 1 - p / HOLD);
     hero.style.opacity = String(fade);
     hero.style.visibility = fade > 0 ? "" : "hidden";

@@ -23,6 +23,7 @@ export function touch(host: HTMLElement, svg: SVGSVGElement, parts: Map<string, 
     caption.setAttribute("aria-hidden", "true");
     host.append(caption);
 
+    const follow = () => place(caption, host, svg, blocks);
     const show = () => {
       const up = state.hover || state.focus;
       for (const b of blocks) {
@@ -30,7 +31,10 @@ export function touch(host: HTMLElement, svg: SVGSVGElement, parts: Map<string, 
         b.classList.toggle("pressed", up && state.press);
       }
       caption.classList.toggle("shown", up);
-      if (up) place(caption, host, svg, blocks);
+      // The camera announces each move on the host.
+      if (up) host.addEventListener("moved", follow);
+      else host.removeEventListener("moved", follow);
+      if (up) follow();
     };
     const set = (change: Partial<typeof state>) => {
       Object.assign(state, change);

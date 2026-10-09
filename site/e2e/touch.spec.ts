@@ -46,6 +46,9 @@ let errors: string[] = [];
 test.beforeEach(async ({ page }) => {
   errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("requestfailed", (r) => errors.push(`${r.url()} ${r.failure()?.errorText}`));
+  page.on("response", (r) => r.status() >= 400 && errors.push(`${r.url()} ${r.status()}`));
   await page.goto("/");
   await expect(page.locator(".model .hit-face:not(.ground)").first()).toBeAttached();
 });
@@ -140,4 +143,24 @@ test("holding Enter sinks the focused building until release", async ({ page }) 
   await expect(page).toHaveURL(/#elydoc$/);
   await page.keyboard.up("Enter");
   await expect(page.locator(".block.pressed")).toHaveCount(0);
+});
+
+test("a focused name follows the model when the window narrows", async ({ page }) => {
+  await page.setViewportSize({ width: 760, height: 1000 });
+  await page.locator(".doors a").nth(3).focus();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth))
+    .toBe(0);
+  const where = () => page.evaluate(() => {
+    const name = document.querySelector<HTMLElement>(".tour .caption.shown")!.getBoundingClientRect();
+    const tops = [...document.querySelectorAll('.block[data-part="ElyPDF"] .outline')].map((o) => o.getBoundingClientRect());
+    const left = Math.min(...tops.map((r) => r.left));
+    const right = Math.max(...tops.map((r) => r.right));
+    return { centre: name.left + name.width / 2, left, right, inside: name.left >= 0 && name.right <= innerWidth };
+  });
+  await expect.poll(async () => (await where()).inside).toBe(true);
+  const placed = await where();
+  expect(placed.centre).toBeGreaterThanOrEqual(placed.left);
+  expect(placed.centre).toBeLessThanOrEqual(placed.right);
 });
