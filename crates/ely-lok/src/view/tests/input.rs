@@ -283,6 +283,25 @@ const DECK: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
  </office:presentation></office:body>
 </office:document>"#;
 
+/// Paints until tile (0, 0) is fresh, then its bytes.
+fn fresh_corner(view: &Entity<LokView>, cx: &mut TestAppContext, not: Option<&[u8]>) -> Vec<u8> {
+    let bounds = Bounds { origin: point(px(0.0), px(0.0)), size: size(px(800.0), px(600.0)) };
+    for _ in 0..400 {
+        let bytes = cx.update(|app| {
+            view.update(app, |view, _| view.prepare(bounds));
+            let read = view.read(app);
+            let entry = read.tiles.get(&(0, 0)).filter(|entry| !entry.stale)?;
+            let bytes = entry.image.as_bytes(0).expect("a frame").to_vec();
+            (Some(bytes.as_slice()) != not).then_some(bytes)
+        });
+        if let Some(bytes) = bytes {
+            return bytes;
+        }
+        cx.executor().tick();
+    }
+    panic!("tile (0, 0) never repainted");
+}
+
 #[test]
 fn switching_slides_repaints_the_shown_tiles() {
     let Some(install) = crate::client::tests::install() else {
@@ -290,23 +309,15 @@ fn switching_slides_repaints_the_shown_tiles() {
         return;
     };
     let mut cx = TestAppContext::single();
-    let (view, _) = cx.update(|app| live_view_of(app, &install, "deck.fodp", DECK));
-    let before = cx.update(|app| {
-        view.update(app, |view, cx| {
-            let side = view.geom.tile_pixels() as usize;
-            let tile = crate::Tile { generation: view.generation, pixels: vec![0; side * side * 4] };
-            view.finish_tile((0, 0), view.geom, Ok(tile), cx);
-            let image = Arc::clone(&view.tiles[&(0, 0)].image);
-            view.show_part(1);
-            image
-        })
+    let (view, worker) = cx.update(|app| live_view_of(app, &install, "deck.fodp", DECK));
+    let one = fresh_corner(&view, &mut cx, None);
+    cx.update(|app| view.update(app, |view, _| view.show_part(1)));
+    let two = fresh_corner(&view, &mut cx, Some(&one));
+    let painted = cx.update(|app| {
+        let read = view.read(app);
+        let side = read.geom.tile_pixels();
+        let mut worker = worker.lock().expect("the worker lock");
+        read.doc.paint_tile(&mut worker, (0, 0, TILE_TWIPS, TILE_TWIPS), (side, side)).expect("paints")
     });
-    flush(&cx);
-    cx.update(|app| {
-        let entry = &view.read(app).tiles[&(0, 0)];
-        assert!(
-            entry.stale || !Arc::ptr_eq(&entry.image, &before),
-            "the first slide's tile must not stay"
-        );
-    });
+    assert_eq!(two, painted.pixels, "the corner shows slide two");
 }
