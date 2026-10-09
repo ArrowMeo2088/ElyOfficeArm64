@@ -97,9 +97,15 @@ impl PdfView {
         self.version += 1;
         self.edited += 1;
         (self.doc, self.mark) = (fresh.doc, fresh.mark);
-        self.sizes = sizes(fresh.pages, &fresh.first);
+        let sizes = sizes(fresh.pages, &fresh.first);
+        // Same pages: old tiles stay until repainted, so nothing flashes.
+        if sizes == self.sizes {
+            self.stale.extend(self.tiles.keys().copied());
+        } else {
+            self.retire_tiles();
+        }
+        self.sizes = sizes;
         self.marks = fresh.marks;
-        self.retire_tiles();
         self.failed.clear();
         self.text.clear();
         self.asking_text.clear();

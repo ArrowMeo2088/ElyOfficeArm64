@@ -41,6 +41,8 @@ pub struct PdfView {
     pub drawn: bool,
     /// Tiles the worker could not draw; not asked again.
     pub failed: HashSet<TileKey>,
+    /// Tiles from before an edit: shown until their repaint lands.
+    pub stale: HashSet<TileKey>,
     pub text: HashMap<usize, Arc<Vec<Char>>>,
     pub asking_text: HashSet<usize>,
     pub marks: Vec<Bookmark>,
@@ -166,6 +168,7 @@ impl PdfView {
             retired: Default::default(),
             drawn: false,
             failed: HashSet::new(),
+            stale: HashSet::new(),
             text: HashMap::new(),
             asking_text: HashSet::new(),
             marks: loaded.marks,
@@ -311,6 +314,7 @@ impl PdfView {
 
     /// Every page tile goes; images are freed next render.
     pub fn retire_tiles(&mut self) {
+        self.stale.clear();
         for (_, image) in self.tiles.drain() {
             self.retired.push(image);
         }

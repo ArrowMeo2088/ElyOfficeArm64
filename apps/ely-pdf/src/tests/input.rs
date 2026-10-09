@@ -185,3 +185,42 @@ fn tiles_beside_the_view_are_neither_asked_nor_kept() {
     }));
     settle(cx, |app| columns(app).contains(&last) && !columns(app).contains(&0));
 }
+
+#[test]
+fn an_edit_keeps_the_page_drawn_until_its_repaint_lands() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let (viewer, cx) = windowed(&mut cx, dir.path(), &[file(dir.path(), "one.pdf", &[(612.0, 792.0, &["Hello"])])], true);
+    let view = shown(cx, &viewer);
+    settle(cx, |app| !view.read(app).tiles.is_empty() && !view.read(app).painting);
+    let before: Vec<_> = cx.update(|_, app| view.read(app).tiles.values().cloned().collect());
+    let note = ely_pdf_engine::NewAnnot {
+        page: 0,
+        shape: ely_pdf_engine::Shape::Note((100.0, 500.0)),
+        rgb: None,
+        contents: "Look".into(),
+        author: String::new(),
+    };
+    // Watches every notify, the edit's own included, before repaints.
+    let blank = std::rc::Rc::new(std::cell::Cell::new(false));
+    let seen = blank.clone();
+    let _watch = cx.update(|_, app| {
+        app.observe(&view, move |view, app| {
+            let read = view.read(app);
+            if read.edited == 1 && read.tiles.is_empty() {
+                seen.set(true);
+            }
+        })
+    });
+    cx.update(|_, app| view.update(app, |view, cx| view.annotate("adding a note", vec![note], cx)));
+    settle(cx, |app| {
+        let read = view.read(app);
+        read.edited == 1 && read.stale.is_empty() && !read.painting
+    });
+    assert!(!blank.get(), "the page never goes blank");
+    let after = cx.update(|_, app| view.read(app).tiles.values().cloned().collect::<Vec<_>>());
+    assert!(
+        after.iter().all(|image| before.iter().all(|old| !std::sync::Arc::ptr_eq(old, image))),
+        "every tile was painted again"
+    );
+}

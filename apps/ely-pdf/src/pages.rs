@@ -164,6 +164,9 @@ impl PdfView {
                     let key = TileKey { page: place.page, scale, rotate: self.rotate, dark, tx, ty };
                     let rect = [tx * TILE, ty * TILE, TILE.min(dw - tx * TILE), TILE.min(dh - ty * TILE)];
                     seen.insert(key);
+                    if self.stale.contains(&key) && !self.failed.contains(&key) {
+                        wanted.push((key, rect));
+                    }
                     match self.tiles.get(&key) {
                         Some(image) => tiles.push(
                             drawn_tile(image.clone(), place.page, cx.entity())
@@ -190,6 +193,7 @@ impl PdfView {
             }
             kept
         });
+        self.stale.retain(|key| seen.contains(key));
         let pages_shown: Vec<usize> = shown.iter().map(|place| place.page).collect();
         self.ask_layers(&pages_shown, cx);
         self.ask_notes(pages_shown.iter().copied(), cx);
@@ -295,6 +299,7 @@ impl PdfView {
                 match painted.map(|bgra| picture((rect[2] as u32, rect[3] as u32), bgra)) {
                     Ok(Some(image)) => {
                         log::debug!("pdf: a tile of page {} came", key.page);
+                        view.stale.remove(&key);
                         if let Some(old) = view.tiles.insert(key, image) {
                             view.retired.push(old);
                         }
