@@ -79,14 +79,19 @@ for (const scheme of ["light", "dark"] as const) {
       };
       const ground = parse(getComputedStyle(document.documentElement).backgroundColor).rgb;
       const page = lum(ground);
-      const shown = (c: string) => {
-        const { rgb, a } = parse(c);
-        return rgb.map((v, i) => v * a + ground[i] * (1 - a));
+      const alpha = (el: HTMLElement) => {
+        let a = parse(getComputedStyle(el).color).a;
+        for (let at: Element | null = el; at; at = at.parentElement) a *= Number(getComputedStyle(at).opacity);
+        return a;
+      };
+      const shown = (el: HTMLElement) => {
+        const a = alpha(el);
+        return parse(getComputedStyle(el).color).rgb.map((v, i) => v * a + ground[i] * (1 - a));
       };
       const ratios = [...document.querySelectorAll<HTMLElement>("h1, h2, h3, p, a, li, button")]
-        .filter((el) => el.textContent?.trim() && getComputedStyle(el).color !== "rgba(0, 0, 0, 0)")
+        .filter((el) => el.textContent?.trim() && alpha(el) > 0)
         .map((el) => {
-          const text = lum(shown(getComputedStyle(el).color));
+          const text = lum(shown(el));
           return { ratio: (Math.max(text, page) + 0.05) / (Math.min(text, page) + 0.05), text: el.textContent };
         });
       return ratios.sort((a, b) => a.ratio - b.ratio)[0];
