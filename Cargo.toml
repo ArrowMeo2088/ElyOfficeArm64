@@ -17,7 +17,7 @@ encoding_rs = "0.8"
 jiff = "0.2"
 anyhow = "1"
 directories = "6"
-ely-gpui-component = { git = "https://github.com/ZacharyZhang-NY/Ely-GPUI-Components", rev = "69265b4fd4da888e2d8e1268021af4d358e67afb" }
+ely-gpui-component = { git = "https://github.com/ZacharyZhang-NY/Ely-GPUI-Components", rev = "7f2ac3e4eb7eb4e1e9d0bf1b0d4032548b6b970a" }
 env_logger = "0.11"
 gpui = { package = "gpui-pre", version = "=0.3.8", default-features = false, features = ["stacker"] }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.8", features = ["font-kit"] }
