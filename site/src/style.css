@@ -54,6 +54,10 @@ button:focus-visible {
   text-align: center;
 }
 
+.hero a {
+  font-size: 1.0625rem;
+}
+
 .hero .model {
   margin-top: 6rem;
 }
@@ -126,7 +130,9 @@ button:focus-visible {
 
 .prop {
   display: grid;
+  grid-template-rows: 1fr auto;
   justify-items: center;
+  align-items: end;
   gap: 2rem;
   text-align: center;
 }

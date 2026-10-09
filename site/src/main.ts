@@ -7,7 +7,8 @@ import { touch } from "./touch.ts";
 import { regions, reveal } from "./regions.ts";
 import { said, speak, type Lang } from "./text.ts";
 
-const RELEASE = "https://github.com/ZacharyZhang-NY/ElyOffice/releases/download/v0.1.0";
+const REPO = "https://github.com/ZacharyZhang-NY/ElyOffice";
+const RELEASE = `${REPO}/releases/download/v0.1.0`;
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("index.html has no #app");
@@ -27,7 +28,10 @@ const svg = stage(built.flat());
 svg.classList.add("grow", "seen");
 svg.setAttribute("aria-hidden", "true");
 host.append(svg);
-hero.append(title, said("p", "tagline"), said("p", "platforms"), host);
+const github = document.createElement("a");
+github.href = REPO;
+github.textContent = "GitHub";
+hero.append(title, said("p", "tagline"), said("p", "platforms"), github, host);
 touch(host, svg, parts);
 
 const sections = regions();
@@ -46,7 +50,7 @@ for (const p of apps) {
   list.append(li);
 }
 const source = said("a", "source");
-source.href = `${RELEASE}/ElyOffice-0.1.0-source.tar.gz`;
+source.href = REPO;
 const li = document.createElement("li");
 li.append(source);
 list.append(li);

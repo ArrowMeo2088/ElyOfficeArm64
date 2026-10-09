@@ -59,8 +59,7 @@ test("six links in reading order; reduced motion skips growth", async ({ page })
 
 test("focus lifts one cell, shows the name, survives the mouse", async ({ page }) => {
   const rest = await top(page, "ElyDoc");
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Tab");
   await expect(page.locator(".doors a").first()).toBeFocused();
   expect(rest - (await top(page, "ElyDoc"))).toBeCloseTo(CELL, 0);
   await expect(caption(page, "ElyDoc")).toHaveCSS("opacity", "1");
@@ -132,8 +131,7 @@ test("a primary press sinks one cell; only a click starting on it opens", async 
 
 test("holding Enter sinks the focused building until release", async ({ page }) => {
   const rest = await top(page, "ElyDoc");
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Tab");
   await page.keyboard.down("Enter");
   expect(await top(page, "ElyDoc")).toBeCloseTo(rest, 0);
   await expect(page).toHaveURL(/#elydoc$/);

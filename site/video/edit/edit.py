@@ -19,7 +19,7 @@ RGB_IN = "scale=in_color_matrix=bt709:in_range=tv,format=rgb24"
 
 def run(args):
     print("+", " ".join(str(a) for a in args[:6]), "...", flush=True)
-    subprocess.run(["ffmpeg", "-hide_banner", "-v", "warning", "-y", *map(str, args)], check=True)
+    subprocess.run(["ffmpeg", "-hide_banner", "-v", "error", "-y", *map(str, args)], check=True)
 
 
 def lerp(points, x):
@@ -58,7 +58,7 @@ def piece_chain(label, piece, start, f0, f1, out):
         f"[{label}:v]trim=start={u0:.4f}:end={u1:.4f},setpts=PTS-STARTPTS,"
         f"setpts='({pts}-{f0 / FPS:.6f})/TB',fps={FPS}:start_time=0,"
         f"trim=end_frame={n},tpad=stop_mode=clone:stop={n},trim=end_frame={n},setpts=N/{FPS}/TB,"
-        f"{RGB_IN}[{out}]"
+        f"{RGB_IN},setsar=1[{out}]"
     )
 
 
@@ -108,8 +108,8 @@ def plate_chain(scene, rec, k, out):
     )
     return (
         f"{rec},scale=800:450:flags=area,scale=1912:1072:flags=bicubic,format=rgba,"
-        f"pad=1920:1080:4:4:color=black@0,perspective={pins}:sense=destination:eval=frame:interpolation=cubic"
-        f"{fades}[pin];[{k}:v]format=rgba[bg];[bg][pin]overlay=format=auto:shortest=1,format=rgb24,setsar=1[{out}]"
+        f"pad=1920:1080:4:4:color=black@0,setsar=1,perspective={pins}:sense=destination:eval=frame:interpolation=cubic"
+        f"{fades}[pin];[{k}:v]format=rgba[bg];[bg][pin]overlay=format=rgb:shortest=1,format=rgb24,setsar=1[{out}]"
     )
 
 
@@ -126,10 +126,10 @@ def full_chain(s, plan, rec, n, k, out):
     rise = "round(12*pow(max(0,1-t/0.2),2))"
     return (
         f"{rec},perspective={quad}:sense=source:eval=frame:interpolation=cubic,"
-        f"scale={w['w']}:{w['h']}:flags=lanczos,pad=1920:1080:{w['x']}:{w['y']}:color=0xfbfbfa,format=rgba[lb];"
-        f"[{k + 1}:v]format=rgba[fr];[lb][fr]overlay=format=auto:shortest=0[lf];"
+        f"scale={w['w']}:{w['h']}:flags=lanczos,pad=1920:1080:{w['x']}:{w['y']}:color=0xfbfbfa,setsar=1,format=rgba[lb];"
+        f"[{k + 1}:v]format=rgba[fr];[lb][fr]overlay=format=rgb:shortest=0[lf];"
         f"[{k + 2}:v]format=rgba,fade=in:st=0:d=0.2:alpha=1[cap];"
-        f"[lf][cap]overlay=x=0:y='{rise}':format=auto:eval=frame,trim=end_frame={n},format=rgb24,setsar=1[{out}]"
+        f"[lf][cap]overlay=x=0:y='{rise}':format=rgb:eval=frame,trim=end_frame={n},format=rgb24,setsar=1[{out}]"
     )
 
 
