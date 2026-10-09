@@ -73,9 +73,16 @@ pub struct Doc {
     id: u64,
     /// The document's revision when this handle was taken.
     pub(crate) rev: u64,
+    /// LOK_DOCTYPE: 0 text, 1 spreadsheet, 2 presentation.
+    kind: u64,
 }
 
 impl Doc {
+    /// Whether this is a spreadsheet.
+    pub fn is_sheet(&self) -> bool {
+        self.kind == 1
+    }
+
     /// Whether this handle saw a later state than `other`.
     pub fn newer_than(&self, other: &Doc) -> bool {
         self.rev > other.rev
@@ -217,9 +224,10 @@ impl Worker {
             pack.u64(at(COLUMNS.iter().position(|c| c == column)))
         });
         let payload = self.request(tag::IMPORT, &pack.bytes())?;
-        let id = Unpack::new(&payload).u64()?;
+        let mut reply = Unpack::new(&payload);
+        let (id, kind) = (reply.u64()?, reply.u64()?);
         self.feed.opened(id);
-        Ok(Doc { worker: self.session, id, rev: 0 })
+        Ok(Doc { worker: self.session, id, rev: 0, kind })
     }
 
     /// Loads `url` with its password; a locked one is PermissionDenied.
@@ -232,9 +240,10 @@ impl Worker {
                 error
             }
         })?;
-        let id = Unpack::new(&payload).u64()?;
+        let mut reply = Unpack::new(&payload);
+        let (id, kind) = (reply.u64()?, reply.u64()?);
         self.feed.opened(id);
-        Ok(Doc { worker: self.session, id, rev: 0 })
+        Ok(Doc { worker: self.session, id, rev: 0, kind })
     }
 
     /// Runs a macro by its URL (LOK-11 probe).

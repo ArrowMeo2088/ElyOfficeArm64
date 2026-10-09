@@ -251,6 +251,10 @@ impl LokView {
 
     /// Room beside a narrow document, which sits centred.
     pub(super) fn slack(&self) -> (f32, f32) {
+        // A sheet's grid grows with the view; it starts left.
+        if self.doc.is_sheet() {
+            return (0.0, 0.0);
+        }
         let extent = self.extent();
         let slack = |view: f32, doc: i32| (view - self.geom.px_of(doc)).max(0.0) / 2.0;
         // A fitted page sits centred both ways.

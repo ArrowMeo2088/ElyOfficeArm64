@@ -186,7 +186,12 @@ fn a_sheet_brings_far_cut_and_frozen_cells_into_view() {
         let (view, worker) = live_view_of(app, &install, "short.fods", SHORT_ROWS);
         let json = worker.lock().expect("the worker lock").values(&view.read(app).doc, crate::sheet::GEOMETRY).expect("geometry");
         view.update(app, |view, cx| {
+            let wide = Bounds { origin: point(px(0.0), px(0.0)), size: size(px(6000.0), px(200.0)) };
+            view.prepare(wide);
+            assert_eq!(view.spare, (0.0, 0.0), "before its geometry a sheet starts left");
             view.set_geometry(crate::sheet::geometry(&json).expect("parsed"), cx);
+            view.prepare(wide);
+            assert_eq!(view.spare, (0.0, 0.0), "and stays left after it");
             view.viewport = (800.0, 200.0);
             let (width, height) = (view.geom.twips_of(view.viewport.0), view.geom.twips_of(view.viewport.1));
             let shows = |view: &LokView, rect: crate::Rect| {

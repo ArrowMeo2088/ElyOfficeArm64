@@ -187,8 +187,8 @@ fn answer(lok: &Lok, tag: u8, id: u64, payload: &[u8]) {
             .str()
             .and_then(|url| Ok((url, unpack.str()?)))
             .and_then(|(url, password)| load(lok, &url, password, ""))
-            .map(|id| Pack::new().u64(id).bytes()),
-        tag::IMPORT => text::import(lok, unpack).map(|id| Pack::new().u64(id).bytes()),
+            .and_then(loaded),
+        tag::IMPORT => text::import(lok, unpack).and_then(loaded),
         tag::EXPORT_TEXT => text::export(unpack).map(|()| Vec::new()),
         tag::DOC_SIZE => unpack
             .u64()
@@ -337,6 +337,12 @@ fn load(lok: &Lok, url: &str, password: String, filter: &str) -> io::Result<u64>
     drop(docs);
     log::info!("lok-worker: loaded {url}, filter options {filter:?}");
     Ok(id)
+}
+
+/// The reply to a load: the number and LOK_DOCTYPE.
+fn loaded(id: u64) -> io::Result<Vec<u8>> {
+    let kind = with_doc(id, |doc| doc.kind())?;
+    Ok(Pack::new().u64(id).u64(kind as u64).bytes())
 }
 
 /// Stops watching and frees document `id`.
