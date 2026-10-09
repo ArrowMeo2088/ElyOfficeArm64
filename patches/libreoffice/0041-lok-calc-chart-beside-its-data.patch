@@ -61,7 +61,7 @@ index b0169d0..2a6a2e9 100644
 +    const auto at = [&](SCCOL nCol, SCROW nRow) { return rDoc.GetMMRect(nCol, nRow, nCol, nRow, nTab).TopLeft(); };
 +    const SCROW nTop = rData.aStart.Row();
 +    const SCCOL nLeft = rData.aStart.Col();
-+    // Sideways the rows are fixed; up and down the columns are.
++    // Sideways scans share rows; vertical scans share columns.
 +    if (const auto oBottom = lcl_Down(rDoc, nTab, nTop, nHeight))
 +    {
 +        for (SCCOL nCol = rData.aEnd.Col() + 2; nCol <= rDoc.MaxCol(); ++nCol)
