@@ -227,10 +227,10 @@ impl PdfView {
     pub fn fail(&self, what: &str, error: &io::Error, cx: &mut Context<Self>) {
         // Engine text may quote the document: the user sees it.
         log::error!("pdf: {what} failed ({:?})", error.kind());
-        let text = match error.kind() {
+        let text = match ely_pdf_engine::refused(error) {
             _ if ely_pdf_engine::is_stale(error) => ely_ui::i18n::text(cx, "pdf.object.changed", &[]),
-            io::ErrorKind::PermissionDenied => restricted(&error.to_string(), cx),
-            _ => ely_ui::i18n::text(cx, "pdf.failed", &[("what", what), ("error", &error.to_string())]),
+            Some(needed) => restricted(needed, cx),
+            None => ely_ui::i18n::text(cx, "pdf.failed", &[("what", what), ("error", &error.to_string())]),
         };
         cx.emit(Failed(text.to_string()));
     }

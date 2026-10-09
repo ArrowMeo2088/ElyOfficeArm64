@@ -33,6 +33,39 @@ fn pages_export_as_images_and_text() {
     assert!(text.contains("First") && text.contains("Second"), "{text}");
 }
 
+#[cfg(unix)]
+#[test]
+fn a_write_the_system_refuses_reports_it_without_a_crash() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let path = file(dir.path(), "doc.pdf", &[(612.0, 792.0, &["First"])]);
+    let (viewer, cx) = windowed(&mut cx, dir.path(), &[path], true);
+    shown(cx, &viewer);
+    let locked = dir.path().join("locked");
+    std::fs::create_dir(&locked).expect("a folder");
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o500)).expect("read-only");
+    let id = cx.update(|_, app| viewer.read(app).core.tabs[0].id);
+    let txt = locked.join("doc.txt");
+    let how = Optimizing { compress: true, from: 300, to: 0 };
+    // The window's toasts live on its root.
+    let root = cx.update(|window, app| {
+        let root = ely_ui::document_root(ely_platform::AppId::Pdf, viewer.clone().into(), &ely_ui::commands::FILE, Vec::new(), window, app);
+        viewer.update(app, |viewer, _| viewer.core.root = root.downgrade());
+        root
+    });
+    cx.update(|_, app| viewer.update(app, |viewer, cx| viewer.write_export(id, Kind::Text, how, txt.clone(), cx)));
+    let failed = |app: &gpui::App| {
+        let toasts = root.read(app).toasts(app);
+        toasts.iter().any(|(text, severity)| {
+            *severity == Some(ely_gpui_component::primitives::Severity::Danger) && text.contains("Permission denied")
+        })
+    };
+    settle(cx, failed);
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).expect("writable again");
+    assert!(!txt.exists(), "nothing is written");
+}
+
 #[test]
 fn a_damaged_file_opens_repaired_and_saves_as_a_new_file() {
     let dir = tempfile::tempdir().expect("a temp dir");

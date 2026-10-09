@@ -39,7 +39,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 
 ## 组件映射
 
-依赖 `ely-gpui-component`（pin b0dbfd4，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
+依赖 `ely-gpui-component`（pin f834f55，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
 
 | 需要 | 用 |
 | --- | --- |
@@ -184,7 +184,7 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 
 ## 决策
 
-- 2026-10-01：上游版本以 `scripts/fetch-references.sh` 为准。LibreOffice 26.2.6（8221e31）、MuPDF 1.28.5（8ad45e9）、gpui 为 `gpui-pre` =0.3.8 与 `gpui-pre-platform` =0.3.8（crates.io，2026-10-07 起，随组件库 K01）、组件库 b0dbfd4（2026-10-09 起）。
+- 2026-10-01：上游版本以 `scripts/fetch-references.sh` 为准。LibreOffice 26.2.6（8221e31）、MuPDF 1.28.5（8ad45e9）、gpui 为 `gpui-pre` =0.3.8 与 `gpui-pre-platform` =0.3.8（crates.io，2026-10-07 起，随组件库 K01）、组件库 f834f55（2026-10-09 起）。
 - 2026-10-02：组件库 7380afb 起：对话框与面板的 Enter 提交改走字段的 key-down 动作（macOS IME 天然守卫，不再提前提交）；面板族文案经组件 `i18n::text`（内建 en/zh-CN，应用目录可覆盖）；核心控件带 role/aria；对话框带角色、名称与说明，Cancel/Close 与禁用说明本地化。同仓库 `~/Documents/GitHub/Ely-GPUI-Components` 修复并经 SSH 推送（本机 HTTPS keychain 令牌失效）。2026-10-04 组件库 b6cb94c：`NumberInput::on_commit` 只在 Enter、失焦、步进、拖动时触发，键入不触发；改文档的数值框用它，否则每个键入数字都成一条内核命令与一步撤销。同批带入上游的 Checkbox、Switch、Select 等 role/aria 与 RenderSurface。c0f17ee：`ToggleButton::disabled`（不可按、无 Tab 停靠、说明不可用，提示可写原因）。967d1e4：`ContextMenu::manual`（按属主编号的请求在某点打开，右键不开），供行在按下之后才到的菜单，如内核给的拼写建议。
 - 2026-10-06：审查者为探针复制的源码树须用自己的 `CARGO_TARGET_DIR`（`scripts/review.sh` 写明）；写完结论前删掉这些副本与其构建目录（曾积到 /tmp 近 900 GB，磁盘写满、链接失败）：曾编进本仓库 `target/`，ely-lok 里烘焙的源码路径指向已删的副本，单测找不到 worker。
 - 2026-10-03：每条任务由 `scripts/review.sh` 在 herdr 分栏里交给 codex（gpt-6.1-sol，effort high；本机 `codex` 别名已带 `--yolo`，重复传参会报错）审查，最多三轮。此前各轮用 gpt-6-astra xhigh。

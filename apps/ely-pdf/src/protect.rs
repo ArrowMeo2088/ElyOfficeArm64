@@ -46,9 +46,9 @@ fn masked(window: &mut Window, cx: &mut Context<Viewer>) -> Entity<TextInput> {
 impl Viewer {
     /// A refusal names what is missing.
     pub(crate) fn failed(&self, error: &io::Error, cx: &mut App) {
-        match error.kind() {
-            io::ErrorKind::PermissionDenied => self.toast(crate::view::restricted(&error.to_string(), cx), Severity::Warning, cx),
-            _ => self.panel_failed(&error.to_string(), cx),
+        match ely_pdf_engine::refused(error) {
+            Some(needed) => self.toast(crate::view::restricted(needed, cx), Severity::Warning, cx),
+            None => self.panel_failed(&error.to_string(), cx),
         }
     }
 

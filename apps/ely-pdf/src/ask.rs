@@ -136,7 +136,7 @@ impl Viewer {
     }
 
     fn failed_write(&self, name: &str, error: &io::Error, cx: &mut App) {
-        if error.kind() == io::ErrorKind::PermissionDenied {
+        if ely_pdf_engine::refused(error).is_some() {
             return self.failed(error, cx);
         }
         let text = Self::text(cx, "office.error.save", &[("name", name), ("error", &error.to_string())]);

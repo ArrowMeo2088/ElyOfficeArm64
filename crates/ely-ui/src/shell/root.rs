@@ -154,6 +154,11 @@ impl Root {
         });
     }
 
+    /// The toasts on show: title and severity, oldest first.
+    pub fn toasts(&self, cx: &gpui::App) -> Vec<(SharedString, Option<Severity>)> {
+        self.toaster.read(cx).shown()
+    }
+
     /// A toast whose button opens the output `path` (§16).
     pub fn toast_output(
         &mut self,
