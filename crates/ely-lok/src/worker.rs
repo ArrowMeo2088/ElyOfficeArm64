@@ -347,6 +347,7 @@ fn close(id: u64) {
     }
     docs.remove(&id);
     revision::forget(id);
+    slides::forget(id);
     log::info!("lok-worker: {} documents open", docs.len());
 }
 

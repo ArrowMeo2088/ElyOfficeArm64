@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, io};
+use std::{
+    collections::HashMap,
+    io,
+    sync::{LazyLock, Mutex, MutexGuard},
+};
 
 use super::with_doc;
 use crate::ipc::{Pack, Unpack};
@@ -6,9 +10,20 @@ use crate::ipc::{Pack, Unpack};
 /// The most a slide's layers may take in memory.
 const LAYER_MEMORY: usize = 512 * 1024 * 1024;
 
-// Rendered layers wait here; each leaves on its own request.
-thread_local! {
-    static WAITING: RefCell<HashMap<u64, Vec<Option<Vec<u8>>>>> = RefCell::new(HashMap::new());
+/// The most pixel bytes one reply carries.
+const CHUNK: usize = 16 * 1024 * 1024;
+
+/// Rendered layers by document; each leaves as it is read.
+type Waiting = HashMap<u64, Vec<Option<Vec<u8>>>>;
+
+fn waiting() -> MutexGuard<'static, Waiting> {
+    static WAITING: LazyLock<Mutex<Waiting>> = LazyLock::new(Mutex::default);
+    WAITING.lock().expect("the layers lock")
+}
+
+/// Drops document `id`'s waiting layers.
+pub(super) fn forget(id: u64) {
+    waiting().remove(&id);
 }
 
 /// Slide `part`'s layers, its pixels held back.
@@ -38,23 +53,36 @@ pub(super) fn slide_layers(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
             body = body.str(&layer.json).u64(u64::from(layer.pixels.is_some()));
             pixels.push(layer.pixels);
         }
-        WAITING.with(|waiting| waiting.borrow_mut().insert(id, pixels));
+        waiting().insert(id, pixels);
         Ok(body.bytes())
     })?
 }
 
-/// Hands over layer `index`'s pixels once, then frees them.
+/// Hands over layer `index` from byte `from`; read layers free.
 pub(super) fn slide_layer(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
-    let (id, index) = (unpack.u64()?, unpack.u64()?);
-    let taken = WAITING.with(|waiting| {
-        let mut waiting = waiting.borrow_mut();
-        let layers = waiting.get_mut(&id)?;
-        let pixels = layers.get_mut(usize::try_from(index).ok()?)?.take();
-        if layers.iter().all(Option::is_none) {
-            waiting.remove(&id);
-        }
-        pixels
-    });
-    let pixels = taken.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, format!("no layer {index} waits")))?;
-    Ok(Pack::new().blob(&pixels).bytes())
+    let (id, index, from) = (unpack.u64()?, unpack.u64()?, unpack.u64()?);
+    let mut waiting = waiting();
+    let Some((total, bytes)) = piece(waiting.get_mut(&id), index, from) else {
+        // A request off the batch ends it.
+        waiting.remove(&id);
+        let what = format!("no layer {index} from byte {from} waits");
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, what));
+    };
+    if waiting.get(&id).is_some_and(|layers| layers.iter().all(Option::is_none)) {
+        waiting.remove(&id);
+    }
+    Ok(Pack::new().u64(total).blob(&bytes).bytes())
+}
+
+/// Up to `CHUNK` bytes of a layer and its length.
+fn piece(layers: Option<&mut Vec<Option<Vec<u8>>>>, index: u64, from: u64) -> Option<(u64, Vec<u8>)> {
+    let slot = layers?.get_mut(usize::try_from(index).ok()?)?;
+    let pixels = slot.as_ref()?;
+    let from = usize::try_from(from).ok().filter(|from| *from < pixels.len() || *from == 0)?;
+    let to = (from + CHUNK).min(pixels.len());
+    let read = (pixels.len() as u64, pixels[from..to].to_vec());
+    if to == pixels.len() {
+        *slot = None;
+    }
+    Some(read)
 }

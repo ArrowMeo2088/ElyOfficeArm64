@@ -183,18 +183,35 @@ impl Doc {
         let head = worker.request(tag::SLIDE_LAYERS, &request)?;
         let mut unpack = Unpack::new(&head);
         let (width, height, count) = (unpack.u64()?, unpack.u64()?, unpack.u64()?);
-        // One layer per reply keeps each frame small.
+        // Layers arrive in pieces that keep each frame small.
         let mut whole = Pack::new().u64(width).u64(height).u64(count);
         for index in 0..count {
             let (json, painted) = (unpack.str()?, unpack.u64()?);
             whole = whole.str(&json).u64(painted);
             if painted != 0 {
-                let id = worker.doc_id(self)?;
-                let reply = worker.request(tag::SLIDE_LAYER, &Pack::new().u64(id).u64(index).bytes())?;
-                whole = whole.blob(&Unpack::new(&reply).blob()?);
+                whole = whole.blob(&self.slide_layer(worker, index)?);
             }
         }
         crate::show::layers(&whole.bytes())
+    }
+
+    /// Layer `index` of the last layers read, piece by piece.
+    fn slide_layer(&self, worker: &mut Worker, index: u64) -> io::Result<Vec<u8>> {
+        let id = worker.doc_id(self)?;
+        let mut pixels = Vec::new();
+        loop {
+            let ask = Pack::new().u64(id).u64(index).u64(pixels.len() as u64).bytes();
+            let reply = worker.request(tag::SLIDE_LAYER, &ask)?;
+            let mut unpack = Unpack::new(&reply);
+            let (total, piece) = (unpack.u64()?, unpack.blob()?);
+            pixels.extend_from_slice(&piece);
+            if pixels.len() as u64 >= total {
+                return Ok(pixels);
+            }
+            if piece.is_empty() {
+                return Err(io::Error::other(format!("layer {index} stopped at byte {}", pixels.len())));
+            }
+        }
     }
 
     /// Saves to `url` as `format`; failure surfaces (LOK-09).

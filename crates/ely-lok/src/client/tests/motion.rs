@@ -238,3 +238,34 @@ fn layers_larger_than_one_frame_arrive_one_by_one() {
     assert!(layers.list.len() * bytes > crate::ipc::MAX_FRAME, "{} layers of {bytes}", layers.list.len());
     assert!(layers.list.iter().all(|layer| layer.pixels.len() == bytes), "every layer arrives whole");
 }
+
+#[test]
+fn a_layer_larger_than_one_frame_arrives_in_pieces() {
+    if install().is_none() {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    }
+    let (_dir, mut worker, doc) = open_deck();
+    worker.run(&doc, "slide.size", &["10000", "120000", "true"]).expect("a tall slide");
+    worker.run(&doc, "draw.shape", &["rectangle", "true"]).expect("draws");
+    let layers = doc.slide_layers(&mut worker, 0, (1280, 15360)).expect("layers");
+    let (w, h) = layers.size;
+    let bytes = w as usize * h as usize * 4;
+    assert!(bytes > crate::ipc::MAX_FRAME, "one layer of {bytes} bytes");
+    assert!(layers.list.iter().all(|layer| layer.pixels.len() == bytes), "every layer arrives whole");
+}
+
+#[test]
+fn closing_a_deck_drops_its_waiting_layers() {
+    if install().is_none() {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    }
+    let (_dir, mut worker, doc) = open_deck();
+    let id = worker.doc_id(&doc).expect("the id");
+    let ask = crate::ipc::Pack::new().u64(id).u64(0).u64(1920).u64(1080).bytes();
+    worker.request(crate::ipc::tag::SLIDE_LAYERS, &ask).expect("layers wait");
+    worker.close_doc(doc).expect("closes");
+    let late = crate::ipc::Pack::new().u64(id).u64(0).u64(0).bytes();
+    assert!(worker.request(crate::ipc::tag::SLIDE_LAYER, &late).is_err(), "no layer outlives its deck");
+}
