@@ -89,6 +89,11 @@ mod tests {
                 super::Book::text(app, "table.figure.sum", &[("value", "42")])
             );
             assert_eq!(label.as_ref(), expect, "known names relabel, others stay");
+            // The kernel's formatted values pass through untouched.
+            ely_ui::i18n::install_as("en-US", app);
+            for value in ["8128.00", "8128.33333333333", "0.0000000001", "1234567890.25", "$1,234.50"] {
+                assert_eq!(super::label(&format!("Sum: {value}"), app).as_ref(), format!("Sum {value}"));
+            }
             for (english, key) in super::ERRORS {
                 assert_eq!(super::label(english, app), super::Book::text(app, key, &[]));
             }

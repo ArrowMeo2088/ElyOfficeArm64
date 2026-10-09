@@ -149,6 +149,16 @@ fn zooming_keeps_the_left_page_edge_or_the_pointed_spot() {
             view.prepare(room);
             let after = view.doc_point(at);
             assert!((after.0 - before.0).abs() < 30 && (after.1 - before.1).abs() < 30, "{before:?} moved to {after:?}");
+            // Wheel steps that land within one frame.
+            view.set_zoom(1.0, cx);
+            view.prepare(room);
+            let before = view.doc_point(at);
+            for zoom in [1.25, 1.5, 2.0] {
+                view.zoom_at(zoom, Some(at), cx);
+            }
+            view.prepare(room);
+            let after = view.doc_point(at);
+            assert!((after.0 - before.0).abs() < 30 && (after.1 - before.1).abs() < 30, "bunched: {before:?} moved to {after:?}");
         })
     });
 }

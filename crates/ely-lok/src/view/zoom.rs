@@ -47,8 +47,10 @@ impl LokView {
             Some(at) => (f32::from(at.x - self.origin.x), f32::from(at.y - self.origin.y)),
             None => (self.viewport.0 / 2.0, self.viewport.1 / 2.0),
         };
+        // The offset now, not the last frame's: zooms may bunch.
+        let spare = self.slack();
+        let (sx, sy) = (ax - spare.0, ay - spare.1);
         // Anchored in print twips: tile twips change with the zoom.
-        let (sx, sy) = (ax - self.spare.0, ay - self.spare.1);
         let under = self.print_of((self.scroll.0 + self.geom.twips_of(sx), self.scroll.1 + self.geom.twips_of(sy)));
         self.fit = false;
         if (zoom - self.geom.zoom).abs() > 0.0001 {
