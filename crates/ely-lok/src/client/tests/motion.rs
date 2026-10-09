@@ -253,6 +253,16 @@ fn a_layer_larger_than_one_frame_arrives_in_pieces() {
     let bytes = w as usize * h as usize * 4;
     assert!(bytes > crate::ipc::MAX_FRAME, "one layer of {bytes} bytes");
     assert!(layers.list.iter().all(|layer| layer.pixels.len() == bytes), "every layer arrives whole");
+    // The rectangle lands where the kernel put it.
+    let objects = show::objects(&worker.values(&doc, show::OBJECTS).expect("reads")).expect("parses");
+    let shape = objects.objects.iter().find(|o| o.selected).expect("the new rectangle");
+    let want = ((shape.rect.1 + shape.rect.3 / 2) as f64 / 120000.0 * f64::from(h)) as usize;
+    let row = |layer: &show::Layer, y: usize| layer.pixels[y * w as usize * 4..(y + 1) * w as usize * 4].chunks(4).any(|px| px[3] != 0);
+    let inked = |layer: &show::Layer| (0..h as usize).filter(|y| row(layer, *y)).collect::<Vec<_>>();
+    assert!(want > 16 * 1024 * 1024 / (w as usize * 4), "the shape lies past the first piece");
+    let around = want - 20..want + 20;
+    let found = layers.list.iter().map(inked).any(|rows| around.clone().all(|y| rows.contains(&y)) && rows.len() < h as usize);
+    assert!(found, "no layer inks rows {around:?}");
 }
 
 #[test]
