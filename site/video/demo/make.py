@@ -122,10 +122,15 @@ def docx(path):
 
 
 # XLSX: half-year sales by product line.
-MONTHS = ["January", "February", "March", "April", "May", "June"]
-LINES = ["Trail Maps", "Guidebooks", "Prints", "Workshops"]
-SALES = [[4820, 6150, 2310, 1800], [5140, 5980, 2475, 2100], [6380, 7210, 2890, 2650],
-         [7120, 8040, 3120, 3400], [7950, 8820, 3460, 3900], [8610, 9470, 3780, 4350]]
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+SALES = {
+    "Trail Maps": [4820, 5140, 6380, 7120, 7950, 8610],
+    "Guidebooks": [6150, 5980, 7210, 8040, 8820, 9470],
+    "Prints": [2310, 2475, 2890, 3120, 3460, 3780],
+    "Workshops": [1800, 2100, 2650, 3400, 3900, 4350],
+    "Postcards": [940, 870, 1120, 1360, 1580, 1710],
+    "Gift Cards": [1250, 980, 760, 820, 1430, 2050],
+}
 
 
 def col(i):
@@ -139,18 +144,18 @@ def xlsx(path):
     def num(ref, value, s):
         return f'<c r="{ref}" s="{s}"><v>{value}</v></c>'
 
-    rows = ['<row r="1" ht="22" customHeight="1">' + text("A1", "Month", 1)
-            + "".join(text(f"{col(i + 1)}1", n, 2) for i, n in enumerate(LINES)) + text("F1", "Total", 2) + "</row>"]
-    for r, (month, values) in enumerate(zip(MONTHS, SALES), start=2):
-        cells = text(f"A{r}", month, 3) + "".join(num(f"{col(i + 1)}{r}", v, 4) for i, v in enumerate(values))
-        total = sum(values)
-        cells += f'<c r="F{r}" s="5"><f>SUM(B{r}:E{r})</f><v>{total}</v></c>'
+    rows = ['<row r="1" ht="22" customHeight="1">' + text("A1", "Product", 1)
+            + "".join(text(f"{col(i + 1)}1", m, 2) for i, m in enumerate(MONTHS)) + text("H1", "Total", 2) + "</row>"]
+    for r, (line, values) in enumerate(SALES.items(), start=2):
+        cells = text(f"A{r}", line, 3) + "".join(num(f"{col(i + 1)}{r}", v, 4) for i, v in enumerate(values))
+        cells += f'<c r="H{r}" s="5"><f>SUM(B{r}:G{r})</f><v>{sum(values)}</v></c>'
         rows.append(f'<row r="{r}" ht="20" customHeight="1">{cells}</row>')
-    rows.append('<row r="8" ht="22" customHeight="1">' + text("A8", "Half year", 1) + "</row>")
+    rows.append('<row r="9" ht="22" customHeight="1">' + text("A9", "All lines", 1)
+                + "".join(f'<c r="{col(i + 1)}9" s="5"/>' for i in range(7)) + "</row>")
     sheet = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="{S}">'
-             '<sheetViews><sheetView workbookViewId="0" showGridLines="1" zoomScale="130" zoomScaleNormal="130"/></sheetViews>'
+             '<sheetViews><sheetView workbookViewId="0" showGridLines="1"/></sheetViews>'
              '<sheetFormatPr defaultRowHeight="20"/>'
-             '<cols><col min="1" max="1" width="16" customWidth="1"/><col min="2" max="6" width="14" customWidth="1"/></cols>'
+             '<cols><col min="1" max="1" width="16" customWidth="1"/><col min="2" max="8" width="12" customWidth="1"/></cols>'
              f'<sheetData>{"".join(rows)}</sheetData></worksheet>')
     styles = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="{S}">'
               '<numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0"/></numFmts>'

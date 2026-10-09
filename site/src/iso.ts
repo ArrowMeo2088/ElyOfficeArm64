@@ -49,10 +49,24 @@ export function block(spec: Block): SVGGElement {
   return g;
 }
 
-const boxes = new WeakMap<SVGGElement, Block & { z: number }>();
+const boxes = new WeakMap<SVGGElement, Required<Block>>();
+
+/** A box's screen footprint on three iso axes. */
+function spans(b: Required<Block>): [number, number][] {
+  return [
+    [b.x - b.z - b.h, b.x + b.w - b.z],
+    [b.y - b.z - b.h, b.y + b.d - b.z],
+    [b.x - b.y - b.d, b.x + b.w - b.y],
+  ];
+}
+
+function overlap(a: Required<Block>, b: Required<Block>): boolean {
+  const [sa, sb] = [spans(a), spans(b)];
+  return sa.every(([lo, hi], i) => lo < sb[i][1] && sb[i][0] < hi);
+}
 
 /** Whether `a` draws before `b`: the first separating axis decides. */
-function behind(a: Block & { z: number }, b: Block & { z: number }): boolean {
+function behind(a: Required<Block>, b: Required<Block>): boolean {
   if (a.x + a.w <= b.x) return true;
   if (b.x + b.w <= a.x) return false;
   if (a.y + a.d <= b.y) return true;
@@ -62,19 +76,18 @@ function behind(a: Block & { z: number }, b: Block & { z: number }): boolean {
   throw new Error("blocks intersect");
 }
 
-/** Blocks in drawing order, back to front. */
-function ordered(blocks: SVGGElement[]): SVGGElement[] {
-  const box = (g: SVGGElement) => {
-    const found = boxes.get(g);
-    if (!found) throw new Error("not a block");
-    return found;
-  };
-  const left = [...blocks];
-  const out: SVGGElement[] = [];
-  while (left.length) {
-    const next = left.findIndex((g) => left.every((o) => o === g || !behind(box(o), box(g))));
-    if (next < 0) throw new Error("blocks overlap; no drawing order");
-    out.push(...left.splice(next, 1));
+/** Drawing order, back to front; only overlapping boxes constrain. */
+export function order(list: Required<Block>[]): number[] {
+  const before = list.map((b, i) =>
+    list.flatMap((a, j) => (j !== i && overlap(a, b) && behind(a, b) ? [j] : [])),
+  );
+  const done = new Set<number>();
+  const out: number[] = [];
+  while (out.length < list.length) {
+    const next = list.findIndex((_, i) => !done.has(i) && before[i].every((j) => done.has(j)));
+    if (next < 0) throw new Error("blocks occlude each other in a cycle");
+    done.add(next);
+    out.push(next);
   }
   return out;
 }
@@ -82,13 +95,18 @@ function ordered(blocks: SVGGElement[]): SVGGElement[] {
 /** An SVG for `blocks`, drawn back to front. */
 export function stage(blocks: SVGGElement[]): SVGSVGElement {
   const svg = document.createElementNS(SVG, "svg");
-  svg.append(...ordered(blocks));
+  const box = (g: SVGGElement) => {
+    const found = boxes.get(g);
+    if (!found) throw new Error("not a block");
+    return found;
+  };
+  svg.append(...order(blocks.map(box)).map((i) => blocks[i]));
   document.body.append(svg);
-  const box = svg.getBBox();
+  const bounds = svg.getBBox();
   svg.remove();
-  svg.setAttribute("viewBox", `${box.x} ${box.y} ${box.width} ${box.height}`);
-  svg.setAttribute("width", String(Math.ceil(box.width)));
-  svg.setAttribute("height", String(Math.ceil(box.height)));
+  svg.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
+  svg.setAttribute("width", String(Math.ceil(bounds.width)));
+  svg.setAttribute("height", String(Math.ceil(bounds.height)));
   svg.setAttribute("class", "stage");
   return svg;
 }

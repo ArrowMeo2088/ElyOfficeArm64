@@ -146,11 +146,21 @@ record_start() {
   read -r x y w h < <(frame)
   [ "$w" = "$win_w" ] && [ "$h" = "$win_h" ] || echo "note: window is ${w}x${h}, not ${win_w}x${win_h}" >&2
   rm -f "$out/rec/$1.mov"
+  cap_name=$1
   ffmpeg -hide_banner -loglevel error -f avfoundation -capture_cursor 1 -framerate 60 -pixel_format nv12 -i "0:none" \
     -vf "crop=$((w * 2)):$((h * 2)):$((x * 2)):$((y * 2))" -c:v h264_videotoolbox -b:v 80M -r 60 \
     "$out/rec/$1.mov" </dev/null &
   cap_pid=$!
+  t0=$(now)
+  : >"$out/rec/$1.txt"
   sleep 1.2
+}
+
+now() { perl -MTime::HiRes=time -e 'printf "%.2f\n", time'; }
+
+# Notes a key moment, in clip seconds, for the editor.
+mark() {
+  awk -v a="$(now)" -v b="$t0" -v m="$1" 'BEGIN { printf "%5.1f  %s\n", a - b - 0.5, m }' >>"$out/rec/$cap_name.txt"
 }
 
 # Stops capture; encodes 1920x1080 H.264 60 fps; checks frames.
