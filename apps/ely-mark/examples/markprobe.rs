@@ -56,6 +56,17 @@ const CHECK: &str = r#"
       inline: seen(view.querySelector('.milkdown p .katex')),
       display: seen(view.querySelector('.milkdown p .katex-display')),
       tasks: view.querySelectorAll('li[data-item-type="task"]').length,
+      box: (() => {
+        const item = view.querySelector('li[data-item-type="task"]');
+        if (!item) return null;
+        const mark = getComputedStyle(item, '::before');
+        const range = document.createRange();
+        range.selectNodeContents(item.querySelector('p'));
+        const line = range.getClientRects()[0];
+        const top = item.getBoundingClientRect().top + parseFloat(mark.marginTop);
+        const size = parseFloat(getComputedStyle(item).fontSize);
+        return [parseFloat(mark.width) / size, parseFloat(mark.height) / size, top + parseFloat(mark.height) / 2 - (line.top + line.height / 2)];
+      })(),
       cells: view.querySelectorAll('.milkdown td').length,
       notes: view.querySelectorAll('[data-type="footnote_definition"]').length,
       blocks,
