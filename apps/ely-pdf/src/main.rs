@@ -1,6 +1,7 @@
 mod annotate;
 mod ask;
 mod attach;
+mod backdrop;
 mod content;
 mod document;
 mod editing;
