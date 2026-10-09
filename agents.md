@@ -166,6 +166,7 @@ tests/scripts/recovery.sh      真窗口 ElyDoc：恢复点、崩溃后副本、
 tests/scripts/pdf-recovery.sh  真窗口 ElyPDF：加锁文件的封存恢复点、空闲引擎退出后重开时再问密码（需辅助功能权限）
 tests/scripts/autosave.sh      真窗口 ElyDoc：自动保存开关、停手即写、外部改动不覆盖（需辅助功能权限）
 tests/scripts/print.sh         真窗口 ElyDoc：打印用文档自己的纸张，取消不动文档（需辅助功能权限）
+tests/scripts/show-fullscreen.sh  真窗口 ElyShow：F5 放映的窗口盖住整块屏幕（菜单栏与程序坞之上，需辅助功能权限）
 tests/scripts/types.sh         packaging/types.tsv 的文件类型在 Linux 桌面项、Windows 安装程序与 macOS 文档类型里一致，从不设为默认
 tests/scripts/layout.sh        真窗口：六个应用在 640、800、1100 宽下无元素越出窗口左右，留截图（需辅助功能与屏幕录制权限）
 tests/scripts/ooxml.py <用例> <文件>  不经 LibreOffice 读 DOCX、XLSX、PPTX 并按自算的预期核对（往返用例调用）
