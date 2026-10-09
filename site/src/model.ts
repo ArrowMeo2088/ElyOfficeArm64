@@ -38,13 +38,14 @@ const tree = [on(6.5, 7.6, 0.7, 0.7, 2.8), on(8.7, 7.6, 0.7, 0.7, 1.8), on(7.2, 
 /** Headings stepping down. */
 const mark = [0, 1, 2].map((i) => on(1, 7 + i, 3, 1, 2 - i * 0.6));
 
-/** Roads: every document exports to PDF; Markdown goes to Git. */
+/** Roads: exports go to PDF; Markdown goes to Git. */
 const road = (x: number, y: number, w: number, d: number) => on(x, y, w, d, 0.08, 0, ACCENT);
 const roads = [
   road(2, 4, 0.6, 0.6),
-  road(6, 4, 0.6, 0.6),
+  road(6, 3.9, 0.6, 0.7),
   road(10.7, 2.85, 0.6, 1.75),
   road(2, 4.6, 11, 0.6),
+  road(2, 5.2, 0.6, 1.8),
   road(4, 7.6, 2.5, 0.6),
 ];
 

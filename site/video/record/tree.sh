@@ -31,7 +31,7 @@ mark "History tab: graph"
 mouse click $((x + 145)) $((y + 85))
 pause 1.2
 mark "open the new commit"
-mouse click $((x + 260)) $((y + 220))
+mouse click $((x + 260)) $((y + 156))
 pause 1.0
 mouse move $((x + 1000)) $((y + 700)) 0.8
 pause 1.5

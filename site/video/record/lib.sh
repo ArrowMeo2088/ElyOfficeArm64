@@ -63,17 +63,6 @@ wait_log() {
   return 1
 }
 
-# Waits until the AX tree shows text $1.
-wait_ax() {
-  local i
-  for i in $(seq $((${2:-30} * 2))); do
-    "$bin/ax-values" "$app_pid" | grep -q -- "$1" && return 0
-    sleep 0.5
-  done
-  echo "AX never showed: $1" >&2
-  return 1
-}
-
 # Center "x y" of the first AX line matching $1.
 where() {
   local i at
