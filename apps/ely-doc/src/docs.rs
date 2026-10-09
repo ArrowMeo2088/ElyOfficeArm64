@@ -85,6 +85,14 @@ impl Host for Docs {
         self.offer_spelling(id, view, cx);
     }
 
+    /// A dialog about a closed tab goes with it.
+    fn tab_closed(&mut self, tab: &ely_office::Tab<Extra, ely_office::Lok>, cx: &mut Context<Self>) {
+        if matches!(self.dialog, Some(Dialog::Output { tab: of, .. }) if of == tab.id) {
+            self.dialog = None;
+            cx.notify();
+        }
+    }
+
     fn search_leaves(&mut self, cx: &mut Context<Self>) {
         self.mark_place(cx);
     }

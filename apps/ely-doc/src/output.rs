@@ -29,7 +29,7 @@ impl Docs {
         self.ask_output(true, cx);
     }
 
-    fn ask_output(&mut self, print: bool, cx: &mut Context<Self>) {
+    pub(crate) fn ask_output(&mut self, print: bool, cx: &mut Context<Self>) {
         let Some(tab) = self.active_tab() else {
             let text = Docs::text(cx, "command.blocked.no_document", &[]);
             return self.toast(text, Severity::Warning, cx);

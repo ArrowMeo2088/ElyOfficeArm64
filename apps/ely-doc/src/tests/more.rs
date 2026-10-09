@@ -246,3 +246,20 @@ fn a_quit_from_either_window_asks_first() {
         }));
     }
 }
+
+#[test]
+fn closing_a_tab_takes_its_export_dialog() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(docs) = docs(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    let id = blank(&mut cx, &docs);
+    cx.update(|app| docs.update(app, |docs, cx| docs.ask_output(false, cx)));
+    assert!(cx.update(|app| matches!(docs.read(app).dialog, Some(crate::actions::Dialog::Output { .. }))));
+    with_window(&mut cx, &docs, |docs, window, cx| docs.request_close(id, After::Tab, window, cx));
+    settle(&cx, |app| docs.read(app).tab(id).is_none());
+    // Drawn now, a dialog for the gone tab would crash.
+    assert!(cx.update(|app| docs.read(app).dialog.is_none()), "the dialog went with its tab");
+}
