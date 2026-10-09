@@ -63,8 +63,8 @@ for step in ("visual", "themed", "preview"):
                        ("cells", 2), ("notes", 1), ("font", True), ("editors", 1)]:
         want(step, key, value)
     # Every task box: text-sized, centred on its line.
-    for width, height, off in seen[step]["boxes"]:
-        if abs(width - 1) > 0.01 or abs(height - 1) > 0.01 or abs(off) > 1:
+    for width, height, off, drawn in seen[step]["boxes"]:
+        if not drawn or abs(width - 1) > 0.01 or abs(height - 1) > 0.01 or abs(off) > 1:
             sys.exit(f"FAIL: {step} task boxes are {seen[step]['boxes']}")
     blocks = seen[step]["blocks"]
     if [block["language"] for block in blocks] != languages:
