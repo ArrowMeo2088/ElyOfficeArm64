@@ -88,3 +88,30 @@ fn a_resized_slide_reaches_the_view_and_still_fits() {
         })
     });
 }
+
+#[test]
+fn a_page_stays_centred_when_the_cursor_moves() {
+    let Some(install) = crate::client::tests::install() else {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    };
+    let cx = gpui::TestAppContext::single();
+    cx.update(|app| {
+        let (view, _) = live_view(app, &install);
+        view.update(app, |view, cx| {
+            let wide = Bounds { origin: point(px(0.0), px(0.0)), size: size(px(2400.0), px(900.0)) };
+            view.prepare(wide);
+            let centred = view.spare.0;
+            assert!(centred > 0.0, "a page narrower than the view sits centred");
+            view.show((1440, 1440, 20, 300), cx);
+            view.prepare(wide);
+            assert_eq!(view.spare.0, centred, "moving the cursor keeps it centred");
+            let narrow = Bounds { origin: point(px(0.0), px(0.0)), size: size(px(800.0), px(900.0)) };
+            view.prepare(narrow);
+            view.set_zoom(2.0, cx);
+            view.prepare(narrow);
+            let right = view.scroll.0 + view.geom.twips_of(view.viewport.0);
+            assert!(right <= view.doc_size.0, "no grey past the page: {right} > {}", view.doc_size.0);
+        })
+    });
+}

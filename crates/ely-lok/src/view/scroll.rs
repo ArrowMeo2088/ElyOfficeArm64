@@ -49,9 +49,11 @@ impl LokView {
             self.geom.twips_of(self.viewport.0) - fx,
             self.geom.twips_of(self.viewport.1) - fy,
         );
-        // Room past the target, in print twips for later zooms.
-        let need = self.print_of((x + w + vw + fx, y + h + vh + fy));
-        self.reach = (self.reach.0.max(need.0), self.reach.1.max(need.1));
+        // Only a sheet grows where it jumps; pages keep their size.
+        if self.sheet.is_some() {
+            let need = self.print_of((x + w + vw + fx, y + h + vh + fy));
+            self.reach = (self.reach.0.max(need.0), self.reach.1.max(need.1));
+        }
         if x >= fx && (x < fx + self.scroll.0 || x + w > fx + self.scroll.0 + vw) {
             self.scroll.0 = x - fx - vw / 2;
         }

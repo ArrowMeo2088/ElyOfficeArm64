@@ -359,6 +359,8 @@ fn a_moved_cursor_scrolls_into_view_and_a_still_one_does_not() {
             view.scroll_by(0.0, 1_000_000.0, cx);
             view.apply_batch(batch(), None, cx);
             assert_eq!(view.scroll.1, 0, "a still cursor leaves the scroll alone");
+            // Only a sheet grows past the kernel's size.
+            view.sheet = Some(crate::sheet::Geometry::default());
             let far = view.doc_size.1 + 20_000;
             let cell = crate::Cell {
                 cursor: Some((1418, far, 1280, 277)),
