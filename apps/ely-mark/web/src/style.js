@@ -36,7 +36,8 @@ export function style(text) {
         if (node.depth <= 2) vote('setext', head[0] !== '#')
         break
       case 'table': {
-        const rows = text.slice(at, node.position.end.offset).split('\n').map((row) => row.trim())
+        // Row nodes leave out quote and list prefixes.
+        const rows = node.children.map((row) => text.slice(row.position.start.offset, row.position.end.offset).trim())
         const padded = /\| /.test(rows[0])
         const cells = rows.flatMap((row) => row.replace(/^\||\|$/g, '').split('|'))
         const inner = (cell) => (padded ? cell.replace(/^ | $/g, '') : cell)
