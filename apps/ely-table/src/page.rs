@@ -82,6 +82,15 @@ fn cell_ok(cell: &str) -> bool {
         && row_number(digits).is_some()
 }
 
+/// Whole columns or rows, like `$A:$D`; one `$` each.
+fn whole(from: &str, to: &str, number: fn(&str) -> Option<u32>) -> bool {
+    let end = |end: &str| {
+        let end = end.strip_prefix('$').unwrap_or(end);
+        end.bytes().all(|byte| byte.is_ascii_alphanumeric()).then(|| number(&end.to_ascii_uppercase()))?
+    };
+    matches!((end(from), end(to)), (Some(first), Some(last)) if first <= last)
+}
+
 /// Areas as the kernel takes them, or None.
 fn areas(text: &str) -> Option<String> {
     let tokens: Vec<&str> = text
@@ -90,7 +99,9 @@ fn areas(text: &str) -> Option<String> {
         .filter(|token| !token.is_empty())
         .collect();
     let ok = |token: &&str| match token.split_once(':') {
-        Some((from, to)) => cell_ok(from) && cell_ok(to),
+        Some((from, to)) => {
+            cell_ok(from) && cell_ok(to) || whole(from, to, column_number) || whole(from, to, row_number)
+        }
         None => cell_ok(token),
     };
     tokens.iter().all(ok).then(|| tokens.join(","))
@@ -228,6 +239,11 @@ mod tests {
         assert_eq!(areas("A1:B"), None);
         assert_eq!(areas("XFE1"), None);
         assert_eq!(areas("S!A1"), None);
+        assert_eq!(areas("$A:$D, 1:3").as_deref(), Some("$A:$D,1:3"));
+        assert_eq!(areas("A:3"), None);
+        for bad in ["$$A:$$D", "$$1:$$3", "$A:$$D", "A:D,$$E:$$F", "+1:2", "D:A"] {
+            assert_eq!(areas(bad), None, "{bad}");
+        }
         assert_eq!(span("$1:$3", row_number), Some(Some((1, 3))));
         assert_eq!(span("2", row_number), Some(Some((2, 2))));
         assert_eq!(span("3:1", row_number), None);

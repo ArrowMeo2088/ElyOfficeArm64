@@ -436,3 +436,36 @@ fn closing_a_tab_takes_its_dialog_and_frees_the_import() {
     update(&mut cx, &book, |book, cx| book.ask_import(path.clone(), cx));
     asked(&cx, &book, |dialog| matches!(dialog, Dialog::Import(_)));
 }
+
+#[test]
+fn a_whole_column_print_area_still_applies() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some((_window, book)) = book(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    blank(&mut cx, &book);
+    update(&mut cx, &book, |book, cx| book.ask_page(cx));
+    asked(&cx, &book, |dialog| matches!(dialog, Dialog::Page { .. }));
+    type_in(&mut cx, &book, area, "A:D");
+    update(&mut cx, &book, |book, cx| book.page_asked(cx));
+    let layout = read(&mut cx, &book, sheet::print_layout, sheet::LAYOUT);
+    assert_eq!(layout.areas.len(), 1, "set: {:?}", layout.areas);
+    // The kernel's own text comes back into the dialog.
+    update(&mut cx, &book, |book, cx| book.ask_page(cx));
+    asked(&cx, &book, |dialog| matches!(dialog, Dialog::Page { .. }));
+    let shown = cx.update(|app| match book.read(app).dialog.as_ref() {
+        Some(dialog) => area(dialog).read(app).text().to_string(),
+        None => unreachable!("a page dialog"),
+    });
+    assert_eq!(shown, layout.areas[0]);
+    update(&mut cx, &book, |book, cx| {
+        if let Some(Dialog::Page { landscape, .. }) = &mut book.dialog {
+            *landscape = true;
+        }
+        book.page_asked(cx)
+    });
+    let layout = read(&mut cx, &book, sheet::print_layout, sheet::LAYOUT);
+    assert!(layout.landscape, "applied with {shown}");
+}
