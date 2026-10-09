@@ -2,27 +2,19 @@
 import { model } from "../../src/model.ts";
 import { type Box, SCREEN, screens } from "../scenes/parts.ts";
 import { BEAT, glide, toward } from "../scenes/time.ts";
+import recs from "./recs.json";
 
 const WIDTH = 1920;
 const HEIGHT = 1080;
 const FPS = 30;
 /** Bar 33 downbeat to the frame before bar 35. */
-export const FIRST = 2057;
+export const FIRST = recs.first;
 export const COUNT = 129;
 const TURN: [number, number] = [128, 136];
 const PIVOT = [8, 5.5];
 const GROW = 1.5;
 const TOP = model[0].blocks[0].h;
-
-/** Recording file, its start second, and landing beat. */
-export const apps = [
-  { app: "ElyMark", rec: "mark", from: 7.0, beat: 128 },
-  { app: "ElyTable", rec: "table", from: 1.6, beat: 128.25 },
-  { app: "ElyShow", rec: "show", from: 12.2, beat: 128.5 },
-  { app: "ElyDoc", rec: "doc", from: 3.6, beat: 128.75 },
-  { app: "ElyPDF", rec: "pdf", from: 8.8, beat: 129 },
-  { app: "ElyTree", rec: "tree", from: 11.0, beat: 129 },
-];
+const apps = recs.apps;
 
 /** A screen grown about its bottom centre; Show on its base. */
 function slab(app: string): Box {

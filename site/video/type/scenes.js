@@ -129,7 +129,7 @@ function app(name, b) {
     const boxes = list.flatMap((c, i) => {
       const at = arrive(t, t0 + (build[i] + 1) * SIX);
       if (!at) return [];
-      const gone = lift(t, t0 + (13 + out[i]) * SIX, LAND);
+      const gone = lift(t, t0 + (9 + out[i]) * SIX, LAND);
       return [box(c, at.dz + gone.dz, at.a * gone.a)];
     });
     cubes(ctx, v, boxes);
