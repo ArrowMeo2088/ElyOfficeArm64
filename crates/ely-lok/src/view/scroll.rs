@@ -41,6 +41,13 @@ impl LokView {
         self.scroll_by(dx, dy, cx);
     }
 
+    /// A newly selected object, such as a chart, shows.
+    pub(super) fn follow_graphic(&mut self, frame: Option<Rect>, cx: &mut Context<Self>) {
+        if let (None, Some(frame), true) = (self.graphic, frame, self.viewport.1 > 0.0) {
+            self.show(frame, cx);
+        }
+    }
+
     /// Scrolls print-twips `rect` into view; frozen parts always show.
     pub fn show(&mut self, rect: Rect, cx: &mut Context<Self>) {
         let (x, y, w, h) = self.tile_rect(rect);

@@ -1,16 +1,68 @@
 LOK Calc: a new chart lands beside its data
 
-FuInsertChart positions a chart away from aPositionRange. With request
-arguments (a kit client gives the range in FN_PARAM_5) that range was
-the cursor cell alone, so the chart went right next to the cursor and
-over the data it charts. Position it from the requested data range,
-as the dialog path does with the marked cells.
+FuInsertChart placed a chart away from aPositionRange, which for
+request arguments (a kit client gives the range in FN_PARAM_5) was the
+cursor cell alone; GetChartInsertPos then pulled the chart back into
+the visible area. The chart covered the data it charts, or a block
+next to it. Under LOK, with a requested range, the chart goes in the
+first empty cells right of its data large enough for it, else below
+the data, whatever the visible area; the view scrolls to it.
 
 diff --git a/sc/source/ui/drawfunc/fuins2.cxx b/sc/source/ui/drawfunc/fuins2.cxx
-index b0169d0..0a4e3dc 100644
+index b0169d0..fd65434 100644
 --- a/sc/source/ui/drawfunc/fuins2.cxx
 +++ b/sc/source/ui/drawfunc/fuins2.cxx
-@@ -452,6 +452,14 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
+@@ -47,6 +47,7 @@
+ #include <vcl/weldutils.hxx>
+ 
+ #include <comphelper/lok.hxx>
++#include <stdexcept>
+ #include <comphelper/storagehelper.hxx>
+ #include <comphelper/propertysequence.hxx>
+ #include <com/sun/star/embed/EmbedVerbs.hpp>
+@@ -215,6 +216,41 @@ void lcl_ChartInit(const uno::Reference <embed::XEmbeddedObject>& xObj, ScViewDa
+     // don't create chart listener here (range may be modified in chart dialog)
+ }
+ 
++
++/// Cells from (nCol, nRow) wide and tall enough for rSize.
++ScRange lcl_Room(const ScDocument& rDoc, SCTAB nTab, SCCOL nCol, SCROW nRow, const Size& rSize)
++{
++    SCCOL nRight = nCol;
++    while (nRight < rDoc.MaxCol() && rDoc.GetMMRect(nCol, nRow, nRight, nRow, nTab).GetWidth() < rSize.Width())
++        ++nRight;
++    SCROW nBottom = nRow;
++    while (nBottom < rDoc.MaxRow() && rDoc.GetMMRect(nCol, nRow, nCol, nBottom, nTab).GetHeight() < rSize.Height())
++        ++nBottom;
++    return ScRange(nCol, nRow, nTab, nRight, nBottom, nTab);
++}
++
++/// LOK: the first empty cells right of rData, else below it.
++Point lcl_EmptyBeside(const ScDocument& rDoc, const ScRange& rData, const Size& rSize)
++{
++    const SCTAB nTab = rData.aStart.Tab();
++    const auto empty = [&](const ScRange& r) {
++        return rDoc.IsBlockEmpty(r.aStart.Col(), r.aStart.Row(), r.aEnd.Col(), r.aEnd.Row(), nTab);
++    };
++    for (SCCOL nCol = rData.aEnd.Col() + 2; nCol <= rDoc.MaxCol(); ++nCol)
++    {
++        const ScRange aRoom = lcl_Room(rDoc, nTab, nCol, rData.aStart.Row(), rSize);
++        if (aRoom.aEnd.Col() < rDoc.MaxCol() && empty(aRoom))
++            return rDoc.GetMMRect(nCol, aRoom.aStart.Row(), nCol, aRoom.aStart.Row(), nTab).TopLeft();
++    }
++    for (SCROW nRow = rData.aEnd.Row() + 2; nRow <= rDoc.MaxRow(); ++nRow)
++    {
++        const ScRange aRoom = lcl_Room(rDoc, nTab, rData.aStart.Col(), nRow, rSize);
++        if (empty(aRoom))
++            return rDoc.GetMMRect(aRoom.aStart.Col(), nRow, aRoom.aStart.Col(), nRow, nTab).TopLeft();
++    }
++    throw std::runtime_error("no empty cells hold the chart");
++}
++
+ }
+ 
+ FuInsertOLE::FuInsertOLE(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawView* pViewP,
+@@ -452,6 +488,14 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
              aRangeString = static_cast<const SfxStringItem*>(pItem)->GetValue();
  
          aPositionRange = rViewSh.GetViewData().GetCurPos();
@@ -25,3 +77,15 @@ index b0169d0..0a4e3dc 100644
      }
      else
      {
+@@ -612,7 +656,10 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
+     //  object position
+ 
+     // get chart position (from window size and data range)
+-    Point aStart = rViewSh.GetChartInsertPos( aSize, aPositionRange );
++    // LOK: beside the data, never over it nor squeezed into view.
++    Point aStart = pRange && comphelper::LibreOfficeKit::isActive()
++        ? lcl_EmptyBeside(rData.GetDocument(), aPositionRange, aSize)
++        : rViewSh.GetChartInsertPos( aSize, aPositionRange );
+ 
+     tools::Rectangle aRect (aStart, aSize);
+     rtl::Reference<SdrOle2Obj> pObj = new SdrOle2Obj(

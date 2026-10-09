@@ -215,3 +215,27 @@ fn a_sheet_brings_far_cut_and_frozen_cells_into_view() {
         });
     });
 }
+
+#[test]
+fn a_newly_selected_object_comes_into_view_a_moved_one_stays() {
+    let Some(install) = crate::client::tests::install() else {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    };
+    let cx = gpui::TestAppContext::single();
+    cx.update(|app| {
+        let (view, _) = live_view_of(app, &install, "tall.fods", TALL);
+        view.update(app, |view, cx| {
+            let bounds = Bounds { origin: point(px(0.0), px(0.0)), size: size(px(800.0), px(600.0)) };
+            view.prepare(bounds);
+            let far = (60_000, 40_000, 9_000, 5_000);
+            let chart = |graphic| crate::Events { graphic, ..crate::Events::default() };
+            view.apply_batch(chart(Some(far)), None, cx);
+            view.prepare(bounds);
+            let (x, y) = (view.scroll.0, view.scroll.1);
+            assert!(x > 0 && y > 0, "the new chart is shown: scroll {x},{y}");
+            view.apply_batch(chart(Some((61_000, 40_000, 9_000, 5_000))), None, cx);
+            assert_eq!((view.scroll.0, view.scroll.1), (x, y), "dragging it does not scroll");
+        });
+    });
+}

@@ -389,6 +389,7 @@ impl LokView {
         {
             self.show(cell, cx);
         }
+        self.follow_graphic(batch.graphic, cx);
         self.cursor = batch.cursor;
         self.cursor_visible = batch.cursor_visible;
         self.selection = batch.selection;
