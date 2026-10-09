@@ -5,12 +5,14 @@ request arguments (a kit client gives the range in FN_PARAM_5) was the
 cursor cell alone; GetChartInsertPos then pulled the chart back into
 the visible area. The chart covered the data it charts, or a block
 next to it. Under LOK, with a requested range, the chart goes in the
-first empty, unmerged cells right of its data large enough for it,
-else below, left or above, whatever the visible area. Sizes are summed
-from the candidate cell, so a search near the sheet's end stays quick.
+first empty, unmerged cells of its own sheet right of its data large
+enough for it, else below, left or above, else the first such block
+anywhere, whatever the visible area. Data on another sheet starts the
+search at the cursor. With no room on the sheet the insert fails and
+nothing lands. Sizes are summed from each candidate cell.
 
 diff --git a/sc/source/ui/drawfunc/fuins2.cxx b/sc/source/ui/drawfunc/fuins2.cxx
-index b0169d0..2a6a2e9 100644
+index b0169d0..121500d 100644
 --- a/sc/source/ui/drawfunc/fuins2.cxx
 +++ b/sc/source/ui/drawfunc/fuins2.cxx
 @@ -47,6 +47,8 @@
@@ -22,7 +24,7 @@ index b0169d0..2a6a2e9 100644
  #include <comphelper/storagehelper.hxx>
  #include <comphelper/propertysequence.hxx>
  #include <com/sun/star/embed/EmbedVerbs.hpp>
-@@ -215,6 +217,64 @@ void lcl_ChartInit(const uno::Reference <embed::XEmbeddedObject>& xObj, ScViewDa
+@@ -215,6 +217,69 @@ void lcl_ChartInit(const uno::Reference <embed::XEmbeddedObject>& xObj, ScViewDa
      // don't create chart listener here (range may be modified in chart dialog)
  }
  
@@ -81,13 +83,18 @@ index b0169d0..2a6a2e9 100644
 +    for (SCROW nRow = nTop - 2; oRight && nRow >= 0; --nRow)
 +        if (const auto oEnd = lcl_Down(rDoc, nTab, nRow, nHeight); oEnd && *oEnd < nTop - 1 && free(nLeft, nRow, *oRight, *oEnd))
 +            return at(nLeft, nRow);
++    // Last, any chart-sized empty block, row bands first.
++    for (SCROW nRow = 0; const auto oBottom = lcl_Down(rDoc, nTab, nRow, nHeight); nRow = *oBottom + 1)
++        for (SCCOL nCol = 0; const auto oEnd = lcl_Across(rDoc, nTab, nCol, nWidth); nCol = *oEnd + 1)
++            if (free(nCol, nRow, *oEnd, *oBottom))
++                return at(nCol, nRow);
 +    return std::nullopt;
 +}
 +
  }
  
  FuInsertOLE::FuInsertOLE(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawView* pViewP,
-@@ -452,6 +512,14 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
+@@ -452,6 +517,14 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
              aRangeString = static_cast<const SfxStringItem*>(pItem)->GetValue();
  
          aPositionRange = rViewSh.GetViewData().GetCurPos();
@@ -102,7 +109,7 @@ index b0169d0..2a6a2e9 100644
      }
      else
      {
-@@ -612,7 +680,12 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
+@@ -612,7 +685,26 @@ FuInsertChart::FuInsertChart(ScTabViewShell& rViewSh, vcl::Window* pWin, ScDrawV
      //  object position
  
      // get chart position (from window size and data range)
@@ -110,8 +117,22 @@ index b0169d0..2a6a2e9 100644
 +    // LOK: beside the data, never over it, view or not.
 +    std::optional<Point> oBeside;
 +    if (pRange && comphelper::LibreOfficeKit::isActive())
-+        oBeside = lcl_EmptyBeside(rData.GetDocument(), aPositionRange, aSize);
-+    // A sheet with no room around the data: as before.
++    {
++        // The chart's own sheet; data elsewhere starts at the cursor.
++        const SCTAB nTab = rData.CurrentTabForData();
++        ScRange aNear = aPositionRange.aStart.Tab() == nTab ? aPositionRange : ScRange(rData.GetCurPos());
++        aNear.aStart.SetTab(nTab);
++        aNear.aEnd.SetTab(nTab);
++        oBeside = lcl_EmptyBeside(rData.GetDocument(), aNear, aSize);
++        if (!oBeside)
++        {
++            SAL_WARN("sc.lok", "no empty cells hold the chart");
++            if (xChartModel.is())
++                xChartModel->unlockControllers();
++            rViewSh.GetObjectShell()->GetEmbeddedObjectContainer().RemoveEmbeddedObject(aName);
++            return;
++        }
++    }
 +    Point aStart = oBeside ? *oBeside : rViewSh.GetChartInsertPos( aSize, aPositionRange );
  
      tools::Rectangle aRect (aStart, aSize);
