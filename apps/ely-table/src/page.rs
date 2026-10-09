@@ -143,7 +143,7 @@ impl Book {
             rows: field(sheet::rows_ref(layout.rows), "table.page.rows_hint", cx),
             columns: field(sheet::columns_ref(layout.columns), "table.page.columns_hint", cx),
         };
-        self.dialog = Some(Dialog::Page {
+        self.open_dialog(Dialog::Page {
             tab: id,
             landscape: layout.landscape,
             scale: layout.scale,

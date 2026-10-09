@@ -253,14 +253,26 @@ impl Book {
         .detach_and_log_err(cx);
     }
 
+    /// Opens `dialog`; a displaced import waits its turn again.
+    pub(crate) fn open_dialog(&mut self, dialog: Dialog) {
+        if let Some(Dialog::Import(pending)) = self.dialog.replace(dialog) {
+            log::info!("table: import waits behind another dialog");
+            self.imports.push_front(*pending);
+        }
+    }
+
     /// The next waiting import asks, once no dialog is open.
     pub(crate) fn next_import(&mut self, cx: &mut Context<Self>) {
         if self.dialog.is_some() {
             return;
         }
         if let Some(pending) = self.imports.pop_front() {
+            // A finished scan keeps the reader's column choices.
+            let unread = pending.reading;
             self.dialog = Some(Dialog::Import(Box::new(pending)));
-            self.scan_import(cx);
+            if unread {
+                self.scan_import(cx);
+            }
         }
     }
 

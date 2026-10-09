@@ -377,3 +377,39 @@ fn text_files_wait_their_turn_for_the_import_dialog() {
     names.sort();
     assert_eq!(names, ["a.csv", "b.csv"], "both files open");
 }
+
+#[test]
+fn an_import_waits_behind_a_dialog_that_displaces_it() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some((window, book)) = book(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    blank(&mut cx, &book);
+    let path = dir.path().join("wait.csv");
+    std::fs::write(&path, "Id,Ignored\n1E3,hidden\n").expect("writes");
+    update(&mut cx, &book, |book, cx| book.ask_import(path.clone(), cx));
+    asked(&cx, &book, |dialog| matches!(dialog, Dialog::Import(pending) if !pending.reading));
+    update(&mut cx, &book, |book, _| {
+        if let Some(Dialog::Import(pending)) = &mut book.dialog {
+            pending.how.columns = vec![Column::Text, Column::Skip];
+        }
+    });
+    window
+        .update(&mut cx, |_, window, cx| {
+            book.update(cx, |book, cx| book.on_export(&ely_ui::commands::Export, window, cx))
+        })
+        .expect("the window");
+    asked(&cx, &book, |dialog| matches!(dialog, Dialog::Export { .. }));
+    update(&mut cx, &book, |book, cx| {
+        book.dialog = None;
+        cx.notify();
+    });
+    asked(&cx, &book, |dialog| matches!(dialog, Dialog::Import(pending) if pending.path.ends_with("wait.csv")));
+    cx.run_until_parked();
+    update(&mut cx, &book, |book, cx| book.import_asked(cx));
+    settle(&cx, |app| book.read(app).active_tab().is_some_and(|tab| tab.name == "wait.csv"));
+    // Text keeps `1E3`; the skipped column stays empty.
+    assert_eq!(cells(&mut cx, &book, "A2:B2").trim_end(), "1E3");
+}

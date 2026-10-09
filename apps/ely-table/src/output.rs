@@ -49,7 +49,7 @@ impl Book {
         let Some(tab) = self.core.active else {
             return self.warn_key("command.blocked.no_document", cx);
         };
-        self.dialog = Some(Dialog::Export {
+        self.open_dialog(Dialog::Export {
             tab,
             format: Format::Pdf,
         });

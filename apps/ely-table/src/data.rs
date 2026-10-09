@@ -228,7 +228,7 @@ impl Book {
     fn data_dialog(&mut self, id: u64, asked: Asked, picked: Selection, state: ReadState, cx: &mut Context<Self>) {
         log::info!("table: {asked:?} on {}", picked.range);
         let header = picked.header;
-        self.dialog = Some(match asked {
+        self.open_dialog(match asked {
             Asked::Sort => {
                 let (first, ..) = picked.area.expect("a data area");
                 Dialog::Sort {
@@ -314,7 +314,7 @@ impl Book {
                     return book.warn_key("table.columns.same", cx);
                 }
                 let other = cx.new(|cx| TextInput::new(window, cx));
-                book.dialog = Some(Dialog::Columns {
+                book.open_dialog(Dialog::Columns {
                     tab: id,
                     separators: vec!["9".into()],
                     other,
@@ -394,7 +394,7 @@ impl Book {
                         .filter(|entry| entry.selected)
                         .map(|entry| SharedString::from(entry.text.clone()))
                         .collect();
-                    book.dialog = Some(Dialog::Column {
+                    book.open_dialog(Dialog::Column {
                         tab: id,
                         column,
                         row,
