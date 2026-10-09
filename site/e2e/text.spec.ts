@@ -4,6 +4,7 @@ import { TEXT, type Key, type Lang } from "../src/text.ts";
 const REPO = "https://github.com/ZacharyZhang-NY/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
 const dmg = (app: string) => `${REPO}/releases/download/v0.1.0/${app}-0.1.0-arm64.dmg`;
+const tarball = (kind: string) => `${REPO}/releases/download/v0.1.0/ElyOffice-0.1.0-${kind}.tar.gz`;
 
 test.use({ reducedMotion: "reduce" });
 
@@ -84,11 +85,12 @@ test.describe("English locale", () => {
     for (const [i, app] of APPS.entries()) {
       await expect(page.locator(".tour .get").nth(i)).toHaveAttribute("href", dmg(app));
     }
-    await expect(page.locator("#download ul a")).toHaveText([...APPS, TEXT.en.source]);
+    await expect(page.locator("#download ul a")).toHaveText([...APPS, TEXT.en.source, TEXT.en.upstream]);
     for (const [i, app] of APPS.entries()) {
       await expect(page.locator("#download ul a").nth(i)).toHaveAttribute("href", dmg(app));
     }
-    await expect(page.locator("[data-t=source]")).toHaveAttribute("href", REPO);
+    await expect(page.locator("[data-t=source]")).toHaveAttribute("href", tarball("source"));
+    await expect(page.locator("[data-t=upstream]")).toHaveAttribute("href", tarball("upstream-source"));
     await expect(page.locator(".hero > a")).toHaveText("GitHub");
     await expect(page.locator(".hero > a")).toHaveAttribute("href", REPO);
   });
@@ -97,7 +99,7 @@ test.describe("English locale", () => {
     await page.goto("/");
     const hrefs = await page.locator("a[href^='http']").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
     const unique = [...new Set(hrefs)];
-    expect(unique.sort()).toEqual([REPO, ...APPS.map(dmg)].sort());
+    expect(unique.sort()).toEqual([REPO, ...APPS.map(dmg), tarball("source"), tarball("upstream-source")].sort());
     for (const url of unique) {
       const res = await request.head(url);
       expect(res.status(), url).toBeLessThan(400);

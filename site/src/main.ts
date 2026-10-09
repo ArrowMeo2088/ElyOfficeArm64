@@ -42,11 +42,16 @@ for (const name of APPS) {
   li.append(a);
   list.append(li);
 }
-const source = said("a", "source");
-source.href = REPO;
-const li = document.createElement("li");
-li.append(source);
-list.append(li);
+for (const [key, file] of [
+  ["source", "ElyOffice-0.1.0-source.tar.gz"],
+  ["upstream", "ElyOffice-0.1.0-upstream-source.tar.gz"],
+] as const) {
+  const a = said("a", key);
+  a.href = `${RELEASE}/${file}`;
+  const li = document.createElement("li");
+  li.append(a);
+  list.append(li);
+}
 footer.append(version, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), list);
 
 const toggle = said("button", "other");
