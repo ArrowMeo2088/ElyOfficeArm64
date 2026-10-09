@@ -284,7 +284,7 @@ fn a_subset_font_writes_with_its_own_glyphs_and_reads_back() {
     let mut doc = worker.open(&path).expect("opens").doc;
     let at = worker.text_blocks(doc, 0).expect("blocks").iter().position(|b| b.text.contains("BUNDLE")).expect("the block");
     let mut writing = rewrite(&mut worker, doc, at, "TEXT BUNDLE", "original");
-    // Room for one line, so the space is not a line break.
+    // Room for one line; the space stays a space.
     writing.bx[2] *= 2.0;
     assert!(matches!(worker.put_text(doc, 0, &writing, 0.0).expect("answers"), Wrote::Done(_)), "the page's glyphs suffice");
     doc = worker.now(doc).expect("the state");
