@@ -82,7 +82,7 @@ fn copy(
 
 fn options(display: &Rc<dyn PlatformDisplay>) -> WindowOptions {
     WindowOptions {
-        window_bounds: Some(WindowBounds::Fullscreen(display.bounds())),
+        window_bounds: Some(WindowBounds::Windowed(display.bounds())),
         display_id: Some(display.id()),
         titlebar: None,
         focus: true,
@@ -102,6 +102,8 @@ pub fn show_window(
     Ok(match presenter {
         true => cx
             .open_window(options(display), |window, cx| {
+                // Hides the menu bar and Dock over the show.
+                window.toggle_simple_fullscreen();
                 let view = cx.new(|cx| Presenter::new(show, cx));
                 window.focus(&view.read(cx).focus.clone(), cx);
                 view
@@ -109,6 +111,7 @@ pub fn show_window(
             .into(),
         false => cx
             .open_window(options(display), |window, cx| {
+                window.toggle_simple_fullscreen();
                 let view = cx.new(|cx| Audience::new(show, cx));
                 window.focus(&view.read(cx).focus.clone(), cx);
                 view
