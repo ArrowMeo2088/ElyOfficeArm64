@@ -50,5 +50,8 @@ for _ in $(seq 20); do
   sleep 1
 done
 windows | grep -qx "0 0 $screen" || fail "no show window covers the screen ($screen): $(windows | tr '\n' ';')"
+# Menu bar and Dock hide; neither draws over the slide.
+bars=$(swift -e 'import CoreGraphics; let l = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as! [[String: Any]]; for w in l where ["Menubar", "Dock"].contains(w["kCGWindowName"] as? String ?? "") || (w["kCGWindowOwnerName"] as? String) == "Dock" && (w["kCGWindowLayer"] as? Int ?? 0) > 0 { print(w["kCGWindowName"] as? String ?? "Dock") }')
+[ -z "$bars" ] || fail "still on screen over the show: $bars"
 osascript -e 'tell application "System Events" to key code 53' >/dev/null
 echo "ok: the show covers the whole screen"
