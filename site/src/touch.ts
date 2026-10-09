@@ -23,7 +23,8 @@ export function touch(host: HTMLElement, svg: SVGSVGElement, parts: Map<string, 
     caption.setAttribute("aria-hidden", "true");
     host.append(caption);
 
-    const follow = () => place(caption, host, svg, blocks);
+    const follow = () => place(caption, host, svg, hit);
+    const sized = new ResizeObserver(follow);
     const show = () => {
       const up = state.hover || state.focus;
       for (const b of blocks) {
@@ -32,9 +33,14 @@ export function touch(host: HTMLElement, svg: SVGSVGElement, parts: Map<string, 
       }
       caption.classList.toggle("shown", up);
       // The camera announces each move on the host.
-      if (up) host.addEventListener("moved", follow);
-      else host.removeEventListener("moved", follow);
-      if (up) follow();
+      if (up) {
+        host.addEventListener("moved", follow);
+        sized.observe(svg);
+        follow();
+      } else {
+        host.removeEventListener("moved", follow);
+        sized.disconnect();
+      }
     };
     const set = (change: Partial<typeof state>) => {
       Object.assign(state, change);
@@ -82,14 +88,15 @@ function still(svg: SVGSVGElement, owner: Map<SVGGElement, string>): SVGPolygonE
   return hits;
 }
 
-/** Puts the caption one step above the building's top. */
-function place(caption: HTMLElement, host: HTMLElement, svg: SVGSVGElement, blocks: SVGGElement[]) {
+/** Puts the caption one cell above the lifted top. */
+function place(caption: HTMLElement, host: HTMLElement, svg: SVGSVGElement, faces: SVGPolygonElement[]) {
   const origin = host.getBoundingClientRect();
   const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
-  const rects = blocks.map((b) => b.querySelector(".outline")!.getBoundingClientRect());
+  // Hit faces never lift, so they give the rest pose.
+  const rects = faces.map((f) => f.getBoundingClientRect());
   const left = Math.min(...rects.map((r) => r.left));
   const right = Math.max(...rects.map((r) => r.right));
   const top = Math.min(...rects.map((r) => r.top));
   caption.style.left = `${(left + right) / 2 - origin.left}px`;
-  caption.style.top = `${top - origin.top - UNIT * scale}px`;
+  caption.style.top = `${top - origin.top - 2 * UNIT * scale}px`;
 }

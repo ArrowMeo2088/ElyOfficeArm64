@@ -145,22 +145,44 @@ test("holding Enter sinks the focused building until release", async ({ page }) 
   await expect(page.locator(".block.pressed")).toHaveCount(0);
 });
 
+/** Pixels the name sits from its expected place. */
+const drift = (page: Page, name: string) =>
+  page.evaluate(([n, unit]) => {
+    const svg = document.querySelector<SVGSVGElement>(".tour .stage")!;
+    const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+    const rects = [...document.querySelectorAll(`.hit-face[data-part="${n}"]`)].map((f) => f.getBoundingClientRect());
+    const centre = (Math.min(...rects.map((r) => r.left)) + Math.max(...rects.map((r) => r.right))) / 2;
+    const bottom = Math.min(...rects.map((r) => r.top)) - 2 * unit * scale;
+    const box = document.querySelector<HTMLElement>(".tour .caption.shown")!.getBoundingClientRect();
+    return Math.max(Math.abs(box.left + box.width / 2 - centre), Math.abs(box.bottom - bottom));
+  }, [name, CELL] as const);
+
 test("a focused name follows the model when the window narrows", async ({ page }) => {
   await page.setViewportSize({ width: 760, height: 1000 });
   await page.locator(".doors a").nth(3).focus();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect
-    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth))
-    .toBe(0);
-  const where = () => page.evaluate(() => {
-    const name = document.querySelector<HTMLElement>(".tour .caption.shown")!.getBoundingClientRect();
-    const tops = [...document.querySelectorAll('.block[data-part="ElyPDF"] .outline')].map((o) => o.getBoundingClientRect());
-    const left = Math.min(...tops.map((r) => r.left));
-    const right = Math.max(...tops.map((r) => r.right));
-    return { centre: name.left + name.width / 2, left, right, inside: name.left >= 0 && name.right <= innerWidth };
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  await expect.poll(() => drift(page, "ElyPDF")).toBeLessThan(1);
+});
+
+test("a focused name follows the model when only the model resizes", async ({ page }) => {
+  await page.locator(".doors a").nth(3).focus();
+  await page.evaluate(() => {
+    const svg = document.querySelector<SVGSVGElement>(".tour .stage")!;
+    svg.style.width = `${svg.getBoundingClientRect().width * 0.8}px`;
   });
-  await expect.poll(async () => (await where()).inside).toBe(true);
-  const placed = await where();
-  expect(placed.centre).toBeGreaterThanOrEqual(placed.left);
-  expect(placed.centre).toBeLessThanOrEqual(placed.right);
+  await expect.poll(() => drift(page, "ElyPDF")).toBeLessThan(1);
+});
+
+test.describe("with motion", () => {
+  test.use({ reducedMotion: "no-preference" });
+
+  test("the name sits one cell above the building once it has lifted", async ({ page }) => {
+    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, {
+      timeout: 20_000,
+    });
+    await page.locator(".doors a").first().focus();
+    await page.waitForTimeout(400);
+    expect(await drift(page, "ElyDoc")).toBeLessThan(1);
+  });
 });
