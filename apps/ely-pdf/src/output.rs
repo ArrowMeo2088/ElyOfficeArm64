@@ -95,7 +95,7 @@ impl Viewer {
             id,
             move |worker, doc| worker.get()?.print_copy(*doc, &out),
             move |viewer, done, _, cx| match done {
-                Ok(()) => ely_office::print_later(printing, cx, |viewer, error, cx| viewer.panel_failed(&error, cx)),
+                Ok(()) => ely_office::print_later(printing, cx),
                 Err(error) => viewer.failed(&error, cx),
             },
             cx,

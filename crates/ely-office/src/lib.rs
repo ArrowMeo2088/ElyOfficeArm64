@@ -242,11 +242,7 @@ pub fn in_window<H: Host, R>(
 }
 
 /// Opens the print panel after GPUI releases the app.
-pub fn print_later<H: Host>(
-    pdf: std::path::PathBuf,
-    cx: &mut Context<H>,
-    failed: impl FnOnce(&mut H, String, &mut Context<H>) + 'static,
-) {
+pub fn print_later<H: Tabs>(pdf: std::path::PathBuf, cx: &mut Context<H>) {
     // The panel's modal loop calls back into GPUI.
     cx.spawn(async move |this, cx| {
         let printed = ely_platform::print::print_pdf(&pdf);
@@ -258,7 +254,7 @@ pub fn print_later<H: Host>(
             Ok(printed) => log::info!("office: print done, printed {printed}"),
             Err(error) => {
                 if this
-                    .update(cx, |host, cx| failed(host, error.to_string(), cx))
+                    .update(cx, |host, cx| host.print_failed(&error.to_string(), cx))
                     .is_err()
                 {
                     log::error!("office: printing failed after its window closed: {error}");
@@ -291,6 +287,11 @@ pub trait Tabs: Host {
     fn toast(&self, text: SharedString, severity: Severity, cx: &mut App) {
         log::warn!("{}: {text}", Self::KIND.app.slug());
         self.toast_unlogged(text, severity, cx);
+    }
+
+    fn print_failed(&self, error: &str, cx: &mut App) {
+        let text = text(cx, "office.print.failed", &[("error", error)]);
+        self.toast(text, Severity::Danger, cx);
     }
 
     /// A success toast with a button that opens `path`.

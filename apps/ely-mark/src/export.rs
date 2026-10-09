@@ -343,9 +343,7 @@ impl Desk {
             if !job.lost.whole() {
                 self.warn_lost(&job.lost, None, cx);
             }
-            return ely_office::print_later(pdf, cx, |desk, why, cx| {
-                desk.exported(Err(io::Error::other(why)), cx)
-            });
+            return ely_office::print_later(pdf, cx);
         };
         // Never over the open file, not even through a link.
         let moved = not_open(self, &to)

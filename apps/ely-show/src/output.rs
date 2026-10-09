@@ -185,7 +185,7 @@ impl Deck {
             let path = work.join("print.pdf");
             let printing = path.clone();
             return self.write_pdf(&output, path, cx, move |_, cx| {
-                ely_office::print_later(printing, cx, |deck, error, cx| deck.output_failed(&error, cx))
+                ely_office::print_later(printing, cx)
             });
         }
         let Some(dir) = ely_office::folder(source) else {

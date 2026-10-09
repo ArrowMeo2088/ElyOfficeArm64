@@ -81,10 +81,8 @@ impl Docs {
             let path = source.work.join("print.pdf");
             let printing = path.clone();
             return self.write_pdf(tab, path, pdf, cx, move |docs, written, cx| match written {
-                Ok(()) => ely_office::print_later(printing, cx, |docs, error, cx| {
-                    docs.output_failed(&error, cx)
-                }),
-                Err(error) => docs.output_failed(&error.to_string(), cx),
+                Ok(()) => ely_office::print_later(printing, cx),
+                Err(error) => docs.print_failed(&error.to_string(), cx),
             });
         }
         let Some(dir) = ely_office::folder(source) else {
