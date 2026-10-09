@@ -159,6 +159,7 @@ tests/scripts/mark-outside.sh  真窗口 ElyMark：外部替换、改名、删�
 tests/scripts/mark-tools.sh    真窗口 ElyMark：查找替换、正则、Tab、列表、表格、拖放与粘贴图片（需辅助功能权限；ELY_CLIPBOARD_TEST=1 再测粘贴）
 tests/scripts/comments-rules.sh  comments.py 对长注释与跨行注释报错
 tests/scripts/bad-settings.sh  通用设置读不出时 ElyDoc 照样启动，文件不被覆盖
+tests/scripts/one-instance.sh  第二份 ElyDoc 被拒，第一份的工作目录不动
 tests/scripts/settings.sh      真窗口：ElyPDF 设置里选深色，ElyTree 即刻变深；作者名写入、不丢外观；ElyTree 拒绝非 Git 程序；设置文件读不出时提示且不覆盖；主窗口重开回到原处（需辅助功能与屏幕录制权限）
 tests/scripts/privacy.sh       真窗口 ElyDoc：键入的文字不进日志；worker 的日志进应用日志；设置里的诊断先列出所含内容，导出的文件去掉家目录与姓名、不含正文（需辅助功能权限）
 tests/scripts/panels.sh        真窗口 ElyDoc：左侧栏默认不宽于 230、拖动内侧边缘变宽、宽度存入设置、重启后照旧（需辅助功能权限）
@@ -274,3 +275,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-09：文档的缩放锚点（R2.7）。窄于视口的文档居中，缩放原按视口坐标求锚点、漏了居中的偏移，锚点随缩放漂移；现锚点先减去缩放前的偏移，缩放后按新的偏移（`LokView::slack`，绘制同用）换回。按键与菜单的缩放（无指针）另保持首页左缘在视口内；指针与捏合的缩放保持指针下的点不动（文档边界以外即止）。
 - 2026-10-09：退出（缺陷清单 X-01）。Cmd+Q 与应用菜单的“退出”由应用级动作接收：主窗口的宿主在 `Closing::own_window` 里登记自己的退出流程（`ely_ui::commands::route_quit`），任何窗口（含设置窗口）发出的退出都经它逐个关闭标签、询问未保存的；宿主的窗口已不在时才直接退出；没有宿主的应用（ElyTree）直接退出。`Host::quitting` 在退出开始时运行（ElyMark 先记下打开的标签）。原先只有主窗口根上截退出，设置窗口在前时 Cmd+Q 不问即退，并把这次运行记为干净结束、删掉恢复点。
 - 2026-10-09：作者名与读不出的设置（缺陷清单 X-02）。签名用的名字取启动时读入的通用设置（`ely_ui::settings::current`；文件读不出时为默认值，设置窗口另以 Banner 写明），`ely_platform::user::named(作者名)` 为空即用账户名；不再在引擎启动时重读文件（原先 `settings.json` 读不出时 Doc、Table、Show 以致命错误退出）。LOK worker 记下设定的作者名，引擎重启照用它。`tests/scripts/bad-settings.sh` 核对读不出的设置下 ElyDoc 照样启动、文件不被覆盖。
+- 2026-10-09：每个应用只跑一份（缺陷清单 X-03）。`ely_ui::run` 在写日志之前取应用数据目录的 `instance.lock`（`ely_platform::instance::hold`；Unix 为 fcntl 记录锁，进程结束即放，被拒时以 `F_GETLK` 向系统问出持锁的进程号，不另存进程号文件，同时启动的几份也报得准；Windows 为 LockFileEx，不报进程号）；已有一份在跑时第二份不启动，报“已在运行（进程号）”。原先第二份启动即清空第一份的工作目录、把它的恢复点当作干净结束删掉、改写崩溃锁。macOS 经访达打开文件本就交给运行中的那份；`open -n` 与 Linux 每文件一个进程时第二份被拒，文件须在已开的窗口里打开（未做转交）。`tests/scripts/one-instance.sh` 核对。

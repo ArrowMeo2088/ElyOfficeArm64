@@ -7,6 +7,7 @@ mod dirs;
 pub mod env;
 pub mod git;
 pub mod graphics;
+pub mod instance;
 pub mod locale;
 pub mod lock;
 pub mod logging;

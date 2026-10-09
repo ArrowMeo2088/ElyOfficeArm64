@@ -15,6 +15,10 @@ pub fn run<V: Render>(
     app: AppId,
     root: impl FnOnce(AppId, &mut Window, &mut App) -> Entity<V> + 'static,
 ) {
+    // Before the log: a second copy must not trim it.
+    if let Err(error) = ely_platform::instance::hold(app) {
+        startup::fail(app, &format!("{error}"));
+    }
     if let Err(error) = logging::init(app) {
         startup::fail(app, &format!("logging did not start: {error:#}"));
     }
