@@ -9,7 +9,7 @@ first empty cells right of its data large enough for it, else below
 the data, whatever the visible area; the view scrolls to it.
 
 diff --git a/sc/source/ui/drawfunc/fuins2.cxx b/sc/source/ui/drawfunc/fuins2.cxx
-index b0169d0..fd65434 100644
+index b0169d0..b8768af 100644
 --- a/sc/source/ui/drawfunc/fuins2.cxx
 +++ b/sc/source/ui/drawfunc/fuins2.cxx
 @@ -47,6 +47,7 @@
@@ -37,7 +37,7 @@ index b0169d0..fd65434 100644
 +    return ScRange(nCol, nRow, nTab, nRight, nBottom, nTab);
 +}
 +
-+/// LOK: the first empty cells right of rData, else below it.
++/// LOK: empty cells right of rData, else below.
 +Point lcl_EmptyBeside(const ScDocument& rDoc, const ScRange& rData, const Size& rSize)
 +{
 +    const SCTAB nTab = rData.aStart.Tab();
@@ -82,7 +82,7 @@ index b0169d0..fd65434 100644
  
      // get chart position (from window size and data range)
 -    Point aStart = rViewSh.GetChartInsertPos( aSize, aPositionRange );
-+    // LOK: beside the data, never over it nor squeezed into view.
++    // LOK: beside the data, never over it, view or not.
 +    Point aStart = pRange && comphelper::LibreOfficeKit::isActive()
 +        ? lcl_EmptyBeside(rData.GetDocument(), aPositionRange, aSize)
 +        : rViewSh.GetChartInsertPos( aSize, aPositionRange );

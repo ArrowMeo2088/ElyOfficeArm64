@@ -311,7 +311,18 @@ fn old_tiles_are_painted_and_freed_with_their_tab() {
     });
     cx.run_until_parked();
     let (painted, kept) = cx.update(|_, app| (view.read(app).painted, view.read(app).backdrop.len()));
-    assert!(kept > 0 && painted >= before + kept as u64, "{kept} old tiles, {} paints", painted - before);
+    // Old tiles cover what shows of the page.
+    let shown = cx.update(|window, app| {
+        let read = view.read(app);
+        let room = read.room;
+        read.showing(window.scale_factor(), false).iter().map(|s| {
+            let (left, top) = (-f32::from(read.scroll.offset().x), -f32::from(read.scroll.offset().y));
+            let w = (s.place.x + s.place.w).min(left + f32::from(room.size.width)) - s.place.x.max(left);
+            let h = (s.place.y + s.place.h).min(top + f32::from(room.size.height)) - s.place.y.max(top);
+            f64::from(w.max(0.0) * h.max(0.0))
+        }).sum::<f64>()
+    });
+    assert!(kept > 0 && painted - before >= shown * 0.99, "{kept} old tiles painted {} of {shown}", painted - before);
     cx.update(|_, app| view.update(app, |view, _| view.retire_all()));
     assert!(cx.update(|_, app| view.read(app).backdrop.is_empty()), "closing hands every old tile over");
 }
