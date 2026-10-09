@@ -17,7 +17,7 @@ export function turned(a: number, x: number, y: number, z: number): [number, num
 /** The montage's grown screens, which leave in bar 35. */
 export const slabs: Box[] = recs.apps.map(({ app }) => grown(app));
 
-/** The recording a leaving slab plays at frame `f`, if any. */
+/** A leaving slab's recording at frame `f`, if any. */
 export function recording(box: Box, land: number, f: number): string | null {
   const slab = slabs.indexOf(box);
   if (slab < 0 || land <= 0) return null;

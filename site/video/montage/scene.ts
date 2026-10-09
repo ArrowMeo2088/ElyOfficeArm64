@@ -1,6 +1,7 @@
 // Montage: six screens on the turning model, in WebGL.
 import { model } from "../../src/model.ts";
-import { type Box, grown, screens } from "../scenes/parts.ts";
+import { type Box, screens } from "../scenes/parts.ts";
+import { slabs } from "../scenes/turn.ts";
 import { BEAT, glide, toward } from "../scenes/time.ts";
 import recs from "./recs.json";
 
@@ -14,7 +15,6 @@ const TURN: [number, number] = [128, 136];
 const PIVOT = [8, 5.5];
 const apps = recs.apps;
 
-const slabs = apps.map((a) => grown(a.app));
 const ground = model.flatMap((p) => p.blocks).filter((b) => b !== screens.ElyShow);
 
 type Rgb = [number, number, number];

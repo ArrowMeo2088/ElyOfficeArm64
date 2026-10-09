@@ -172,6 +172,7 @@ tests/scripts/ooxml.py <用例> <文件>  不经 LibreOffice 读 DOCX、XLSX、P
 tests/scripts/webview.sh       真窗口 CEF 页面：输入法组字与提交、键入、焦点、主题变量、缩放、不可离开所在文件夹
 cd site && pnpm deploy        官网构建并经 wrangler 发到 Cloudflare Workers（只有静态资源），地址 https://ely-office.zhangyanghaha0407.workers.dev
 cd site && pnpm test && pnpm e2e   官网单测（几何、道路连通）与 Playwright 端到端（悬停、聚焦、按压、命中归属）
+cd site/video/scenes && npm run verify   发布视频：离场六块屏幕在切场后各播自己的录屏帧（真页面渲染）
 cargo check --workspace
 cargo test --workspace
 rm -rf target/debug/incremental   每次构建或测试后都删（用户定：增量缓存会占满磁盘）
