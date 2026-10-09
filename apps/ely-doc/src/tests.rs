@@ -463,3 +463,12 @@ fn an_outside_change_asks_and_keep_mine_overwrites() {
 mod find;
 mod more;
 mod overlap;
+
+impl Docs {
+    /// Chooses the active tab as template, then types a field.
+    pub(crate) fn field_here(&mut self, header: &str, cx: &mut gpui::Context<Self>) {
+        let active = self.core.active;
+        self.merge.update(cx, |merge, _| merge.source = active);
+        self.insert_field(header, cx);
+    }
+}

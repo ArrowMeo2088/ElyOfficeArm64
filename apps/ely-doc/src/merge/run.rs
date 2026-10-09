@@ -164,6 +164,7 @@ impl Docs {
         cx: &mut Context<Self>,
     ) {
         log::info!("doc: previewing merge record {}", at + 1);
+        self.merge.update(cx, |merge, _| merge.previews.insert(into));
         self.load_into(into, Source::Copy(copy), cx);
         self.core.waiting.push((
             into,
