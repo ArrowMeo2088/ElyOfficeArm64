@@ -88,7 +88,7 @@
 - [ ] K-03 `rect_of` 宽容解析把读不出的载荷悄悄吞掉
 - [ ] K-04 `Sheets.current` 用 `as u64` 转有符号的 part
 - [x] X-01 设置窗口在前时 Cmd+Q 直接退出，跳过未保存询问并抹掉恢复点 — 退出一律经主窗口宿主的流程（route_quit），延后到动作结束、先把宿主窗口提到前面；R1 主窗口 Cmd+Q 不问；R2 询问被设置窗口挡住；R3 PASS
-- [ ] X-02 共用 `settings.json` 读不出时 Doc、Table、Show 根本起不来
+- [x] X-02 共用 `settings.json` 读不出时 Doc、Table、Show 根本起不来 — 作者名取启动时读入的设置；R1 重启失败丢作者、脚本退出码、client.rs 超行；R2 作者更新的先后与停机期间的更新；R3 PASS
 - [ ] X-03 第二个实例启动即清掉运行中实例的工作目录与恢复点
 - [ ] X-04 属性栏字号菜单的 `expect("sizes are numbers")` 是脆弱点，但当前不可达
 - [ ] X-05 恢复点写不成时每 10 秒弹一次提示

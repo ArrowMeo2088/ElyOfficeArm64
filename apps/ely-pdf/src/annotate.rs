@@ -12,7 +12,7 @@ use crate::pages::{rect_on, to_view};
 use crate::view::PdfView;
 
 /// How far a click may move, in window pixels.
-const CLICK: f32 = 3.0;
+pub(crate) const CLICK: f32 = 3.0;
 /// Pages read for their annotations at once.
 const BATCH: usize = 20;
 
@@ -253,8 +253,9 @@ impl PdfView {
         if annots.is_empty() {
             return;
         }
+        let author = ely_ui::settings::current(cx).author.clone();
         self.settled_edit(what, cx, move |worker, doc| {
-            let name = ely_platform::user::name()?;
+            let name = ely_platform::user::named(&author)?;
             annots.iter_mut().for_each(|annot| annot.author = name.clone());
             worker.annotate(doc, &annots)
         });

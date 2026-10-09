@@ -16,6 +16,7 @@ mod doc;
 mod feed;
 mod frames;
 mod install;
+mod load;
 pub use install::{install_dir, templates};
 use install::worker_bin;
 pub use doc::{Pdf, Sheet, Sheets};
@@ -37,6 +38,8 @@ pub struct Worker {
     session: u64,
     stderr: ely_ipc::Relay,
     check: Check,
+    /// The name new comments sign with, once set.
+    author: Option<String>,
 }
 
 /// The start-up check: to run, passed, or why it failed.
@@ -188,6 +191,7 @@ impl Worker {
             session: SESSIONS.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
             stderr,
             check: Check::Pending(profile_dir.to_path_buf()),
+            author: None,
         };
         Ok(worker)
     }
@@ -201,49 +205,15 @@ impl Worker {
     /// The name new comments and tracked changes carry.
     pub fn set_author(&mut self, name: &str) -> io::Result<()> {
         log::info!("lok: the author is set");
+        // Wanted even if this worker fails; a restart sends it.
+        self.author = Some(name.to_string());
         self.request(tag::SET_AUTHOR, &Pack::new().str(name).bytes())?;
         Ok(())
     }
 
-    /// Loads `url`; macros never run (LOK-11).
-    pub fn load(&mut self, url: &str) -> io::Result<Doc> {
-        self.unlock(url, "")
-    }
-
-    /// Loads text `url` as a sheet, read as `how` says.
-    pub fn import(&mut self, url: &str, how: &crate::sheet::csv::Import) -> io::Result<Doc> {
-        use crate::sheet::csv::{COLUMNS, ENCODINGS};
-        let at = |found: Option<usize>| found.expect("a listed choice") as u64;
-        let pack = Pack::new()
-            .str(url)
-            .u64(u64::from(how.separator))
-            .u64(how.quote.map_or(0, u64::from))
-            .u64(at(ENCODINGS.iter().position(|e| *e == how.encoding)))
-            .u64(how.columns.len() as u64);
-        let pack = how.columns.iter().fold(pack, |pack, column| {
-            pack.u64(at(COLUMNS.iter().position(|c| c == column)))
-        });
-        let payload = self.request(tag::IMPORT, &pack.bytes())?;
-        let mut reply = Unpack::new(&payload);
-        let (id, kind) = (reply.u64()?, reply.u64()?);
-        self.feed.opened(id);
-        Ok(Doc { worker: self.session, id, rev: 0, kind })
-    }
-
-    /// Loads `url` with its password; a locked one is PermissionDenied.
-    pub fn unlock(&mut self, url: &str, password: &str) -> io::Result<Doc> {
-        let request = Pack::new().str(url).str(password).bytes();
-        let payload = self.request(tag::LOAD, &request).map_err(|error| {
-            if error.to_string() == crate::ipc::LOCKED {
-                io::Error::new(io::ErrorKind::PermissionDenied, error.to_string())
-            } else {
-                error
-            }
-        })?;
-        let mut reply = Unpack::new(&payload);
-        let (id, kind) = (reply.u64()?, reply.u64()?);
-        self.feed.opened(id);
-        Ok(Doc { worker: self.session, id, rev: 0, kind })
+    /// The name last asked for; a restart signs with it.
+    pub fn author(&self) -> Option<&str> {
+        self.author.as_deref()
     }
 
     /// Runs a macro by its URL (LOK-11 probe).
