@@ -1,6 +1,6 @@
 // Renders iso scenes to PNG frames, faces and MP4s.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -10,6 +10,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const site = resolve(here, "../..");
 const out = resolve(here, "../out/scenes");
 const PAGES = 6;
+/** Texts that delivered voxel type replaces. */
+const extra = resolve(here, "../out/extra");
+const hide = [["type-title", ["title"]], ["type-end", ["name", "version", "url"]]]
+  .filter(([d]) => existsSync(join(extra, d)))
+  .flatMap(([, t]) => t);
 
 const server = await createServer({ root: site, configFile: false, logLevel: "error", server: { port: 0 } });
 await server.listen();
@@ -27,12 +32,14 @@ async function open() {
   });
   await page.goto(url, { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
+  await page.evaluate((names) => window.ely.hide(names), hide);
   return page;
 }
 
 const pages = await Promise.all(Array.from({ length: PAGES }, open));
 const all = await pages[0].evaluate(() => window.ely.scenes.map((s) => ({ ...s, range: window.ely.frames(s) })));
 const wanted = process.argv.slice(2);
+if (hide.length) console.log(`hidden: ${hide.join(", ")}`);
 const unknown = wanted.filter((name) => !all.some((s) => s.name === name));
 if (unknown.length) throw new Error(`unknown scenes: ${unknown.join(", ")}`);
 const scenes = wanted.length ? all.filter((s) => wanted.includes(s.name)) : all;

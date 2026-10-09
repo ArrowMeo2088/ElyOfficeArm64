@@ -15,7 +15,7 @@ const { x, y, w, h } = plan.window;
 const css = `
   html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; }
   .hole { position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px; border-radius: 10px;
-    box-shadow: 0 0 0 1px rgba(0,0,0,.07), 0 18px 48px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.05), 0 0 0 3000px #fbfbfa; }
+    box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 0 0 3000px #fbfbfa; }
   .cap { position: absolute; left: ${x}px; right: ${1920 - x - w}px; top: ${y + h}px; bottom: 0;
     display: flex; align-items: center; gap: 28px; color: #1d1d1f; -webkit-font-smoothing: antialiased; }
   .name { font: 700 30px/1 "SF Pro Display", system-ui; letter-spacing: -0.01em; color: #3d7fe5; min-width: 150px; }

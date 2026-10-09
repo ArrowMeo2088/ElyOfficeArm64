@@ -27,7 +27,8 @@ export const screens: Record<string, Box> = {
   ElyTable: screen(5, 1.4, 2.9, 2.4),
   ElyShow: on(9.4, 1.25, 3.2, 0.05, 1.8, 0.4, SCREEN),
   ElyPDF: screen(13, 4.3, 2.4, 1),
-  ElyTree: screen(6.5, 7.9, 2.9, 2.8),
+  // Flush with the trunk front: hides the road edge behind.
+  ElyTree: screen(6.5, 8.22, 2.9, 2.8),
   ElyMark: screen(1, 7.4, 3, 2),
 };
 
@@ -43,11 +44,11 @@ const ROAD = TOP + 0.08;
 
 /** Mark to Tree first, then four exports queue at PDF. */
 export const trips: Trip[] = [
-  { path: [[4.26, 7.9], [5.2, 7.9]], lands: 129, hops: [130, 131] },
-  { path: [[11, 3.1], [11, 4.9], [12.74, 4.9]], lands: 130, hops: [132, 133] },
-  { path: [[6.3, 4.16], [6.3, 4.9], [12.14, 4.9]], lands: 130.25, hops: [132, 133, 134, 135] },
-  { path: [[2.3, 4.26], [2.3, 4.9], [11.54, 4.9]], lands: 130.5, hops: [132, 133, 134, 135, 136, 137] },
-  { path: [[2.3, 6.74], [2.3, 4.9], [10.94, 4.9]], lands: 130.75, hops: [132, 133, 134, 135, 136, 137] },
+  { path: [[4.26, 7.9], [5.2, 7.9]], lands: 136.5, hops: [137, 138] },
+  { path: [[11, 3.1], [11, 4.9], [12.74, 4.9]], lands: 136.75, hops: [139, 140] },
+  { path: [[6.3, 4.16], [6.3, 4.9], [12.14, 4.9]], lands: 137, hops: [139, 140, 141, 142] },
+  { path: [[2.3, 4.26], [2.3, 4.9], [11.54, 4.9]], lands: 137.5, hops: [139, 140, 141, 142, 143, 144] },
+  { path: [[2.3, 6.74], [2.3, 4.9], [10.94, 4.9]], lands: 137.75, hops: [139, 140, 141, 142, 143, 144] },
 ];
 
 /** The point `s` along a polyline. */
@@ -75,38 +76,90 @@ export function file(trip: Trip, s: number): Box {
   return { x: x - FILE / 2, y: y - FILE / 2, z: ROAD, w: FILE, d: FILE, h: FILE, tone: ACCENT };
 }
 
-/** Three props, each landing block by block from its bar. */
-export const props: { bar: number; blocks: Box[] }[] = [
+/** A lighter tone for paper sheets. */
+export const SHEET = "#fbfbfa";
+
+/** The lamp the dark spreads from; lands in bar 35. */
+export const LAMP = { beat: 138, centre: [14.4, 1.9] as [number, number] };
+export const lamp: Box[] = [
+  on(14.4, 1.4, 1, 1, 0.15),
+  on(14.8, 1.8, 0.2, 0.2, 2.4, 0.15),
+  on(13.9, 1.8, 0.9, 0.2, 0.15, 2.4),
+  on(13.6, 1.55, 0.7, 0.7, 0.45, 1.95),
+];
+
+/** Three props on plinths before the desk, built on sixteenths. */
+export interface Prop {
+  bar: number;
+  caption: string;
+  blocks: Box[];
+}
+
+/** A prop's blocks, placed on a 4 by 4 plinth at (ox, oy). */
+function plinth(ox: number, oy: number, list: [number, number, number, number, number, number, string?][]): Box[] {
+  const base: Box = { x: ox, y: oy, z: 0, w: 4, d: 4, h: TOP, tone: DESK };
+  const boxes = [base, ...list.map(([x, y, w, d, h, z, tone]) => on(ox + x, oy + y, w, d, h, z, tone ?? PAPER))];
+  return boxes.map(snap);
+}
+
+/** Snaps to 1/64 so touching faces compare exactly. */
+function snap(b: Box): Box {
+  const r = (v: number) => Math.round(v * 64) / 64;
+  const [x, y, z] = [r(b.x), r(b.y), r(b.z)];
+  return { x, y, z, w: r(b.x + b.w) - x, d: r(b.y + b.d) - y, h: r(b.z + b.h) - z, tone: b.tone };
+}
+
+export const props: Prop[] = [
+  {
+    bar: 36,
+    caption: "offline",
+    blocks: plinth(1.5, 12.2, [
+      [0.3, 0.4, 0.3, 1.8, 1, 0, SHEET],
+      [0.3, 0.4, 0.3, 1.8, 1, 1, SHEET],
+      [0.6, 1, 0.2, 0.6, 0.6, 0.3, SCREEN],
+      [3.4, 3.45, 0.3, 0.45, 0.4, 0, ACCENT],
+      [3.4, 2.45, 0.3, 1, 0.4, 0, ACCENT],
+      [3.4, 1.45, 0.3, 1, 0.4, 0, ACCENT],
+      [2.9, 1.15, 0.8, 0.3, 0.4, 0, ACCENT],
+      [1.85, 0.95, 1.05, 0.7, 1.2, 0, SHEET],
+      [1.6, 1.1, 0.25, 0.4, 0.4, 0.4, SCREEN],
+    ]),
+  },
   {
     bar: 37,
-    blocks: [
-      on(10, 7.2, 1.2, 0.6, 1.3),
-      on(10.2, 8.5, 0.8, 0.8, 0.6),
-      on(10.38, 8.15, 0.12, 0.35, 0.12, 0.25),
-      on(10.7, 8.15, 0.12, 0.35, 0.12, 0.25),
-      on(10.45, 9.3, 0.3, 1.2, 0.2),
-      on(10.75, 10.2, 1.4, 0.3, 0.2),
-    ],
+    caption: "open",
+    blocks: plinth(6.7, 12.2, [
+      [0.6, 0.6, 1.3, 1.3, 0.15, 0],
+      [1.9, 0.6, 1.3, 1.3, 0.15, 0],
+      [0.6, 1.9, 1.3, 1.3, 0.15, 0],
+      [1.9, 1.9, 1.3, 1.3, 0.15, 0],
+      [0.6, 0.6, 2.6, 0.15, 1.3, 0.15],
+      [0.6, 0.75, 0.15, 2.45, 1.3, 0.15],
+      [3.05, 0.75, 0.15, 2.3, 1.3, 0.15],
+      [0.75, 3.05, 2.45, 0.15, 1.3, 0.15],
+      [1.4, 1.4, 1, 1, 1.7, 0.15, ACCENT],
+      [0.6, 0.45, 2.6, 0.15, 2, 1.45, SHEET],
+      [0.75, 3.2, 2.45, 0.75, 0.06, 0],
+      [3.2, 0.75, 0.75, 2.3, 0.06, 0],
+    ]),
   },
   {
     bar: 38,
-    blocks: [
-      on(12.4, 7.2, 1.9, 1.9, 0.1),
-      on(12.4, 7.2, 1.9, 0.12, 1.1, 0.1),
-      on(12.4, 7.32, 0.12, 1.78, 1.1, 0.1),
-      on(14.18, 7.32, 0.12, 1.66, 1.1, 0.1),
-      on(12.52, 8.98, 1.78, 0.12, 1.1, 0.1),
-      on(11.5, 7.32, 0.9, 1.66, 0.06),
-      on(12.52, 9.1, 1.78, 0.9, 0.06),
-    ],
-  },
-  {
-    bar: 39,
-    blocks: [
-      on(14.6, 8.2, 1.3, 0.12, 1.5),
-      on(14.6, 8.2, 0.55, 0.12, 0.2, 1.5),
-      on(14.75, 8.32, 1, 0.08, 1.4, 0, ACCENT),
-      on(14.6, 8.4, 1.3, 0.12, 1.15),
-    ],
+    caption: "local",
+    blocks: plinth(11.9, 12.2, [
+      [0.4, 1.6, 0.8, 0.2, 2.6, 0],
+      [1.2, 1.6, 0.8, 0.2, 2.6, 0],
+      [2, 1.6, 0.8, 0.2, 2.6, 0],
+      [2.8, 1.6, 0.8, 0.2, 2.6, 0],
+      [0.4, 1.6, 1.2, 0.2, 0.35, 2.6, ACCENT],
+      [0.7, 1.8, 2.6, 0.15, 2.9, 0, SHEET],
+      [1, 1.95, 2, 0.03, 0.1, 2.6],
+      [1, 1.95, 1.6, 0.03, 0.1, 2.35],
+      [1, 1.95, 1.8, 0.03, 0.1, 2.1],
+      [0.4, 1.98, 0.8, 0.2, 2, 0],
+      [1.2, 1.98, 0.8, 0.2, 2, 0],
+      [2, 1.98, 0.8, 0.2, 2, 0],
+      [2.8, 1.98, 0.8, 0.2, 2, 0],
+    ]),
   },
 ];
