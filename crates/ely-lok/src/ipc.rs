@@ -86,6 +86,8 @@ pub mod tag {
     /// Refuses unless the document is still at a revision.
     pub const EXPECT: u8 = 33;
     pub const REVISION: u8 = 34;
+    /// One layer's pixels from the last `SLIDE_LAYERS`.
+    pub const SLIDE_LAYER: u8 = 35;
     pub const OK: u8 = 100;
     pub const ERR: u8 = 101;
 }

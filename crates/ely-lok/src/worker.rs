@@ -205,6 +205,7 @@ fn answer(lok: &Lok, tag: u8, id: u64, payload: &[u8]) {
         tag::PAINT_TILE => input::painted(unpack),
         tag::PAINT_PART => input::part_painted(unpack),
         tag::SLIDE_LAYERS => slides::slide_layers(unpack),
+        tag::SLIDE_LAYER => slides::slide_layer(unpack),
         tag::VERIFY => unpack
             .str()
             .and_then(|url| verify(lok, &url))

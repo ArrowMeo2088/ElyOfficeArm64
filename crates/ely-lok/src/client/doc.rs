@@ -180,7 +180,21 @@ impl Doc {
             .u64(u64::from(pixels.0))
             .u64(u64::from(pixels.1))
             .bytes();
-        crate::show::layers(&worker.request(tag::SLIDE_LAYERS, &request)?)
+        let head = worker.request(tag::SLIDE_LAYERS, &request)?;
+        let mut unpack = Unpack::new(&head);
+        let (width, height, count) = (unpack.u64()?, unpack.u64()?, unpack.u64()?);
+        // One layer per reply keeps each frame small.
+        let mut whole = Pack::new().u64(width).u64(height).u64(count);
+        for index in 0..count {
+            let (json, painted) = (unpack.str()?, unpack.u64()?);
+            whole = whole.str(&json).u64(painted);
+            if painted != 0 {
+                let id = worker.doc_id(self)?;
+                let reply = worker.request(tag::SLIDE_LAYER, &Pack::new().u64(id).u64(index).bytes())?;
+                whole = whole.blob(&Unpack::new(&reply).blob()?);
+            }
+        }
+        crate::show::layers(&whole.bytes())
     }
 
     /// Saves to `url` as `format`; failure surfaces (LOK-09).

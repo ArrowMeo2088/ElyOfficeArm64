@@ -220,3 +220,21 @@ fn an_animated_object_is_its_own_layer_under_its_effect_hash() {
 
 
 
+
+#[test]
+fn layers_larger_than_one_frame_arrive_one_by_one() {
+    if install().is_none() {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    }
+    let (_dir, mut worker, doc) = open_deck();
+    worker.run(&doc, "draw.shape", &["rectangle", "true"]).expect("draws");
+    let json = serde_json::json!({ "preset": "ooo-entrance-fade-in" }).to_string();
+    worker.run(&doc, "animation.add", &[&json]).expect("adds");
+    // Three layers at this size pass one 64 MB frame.
+    let layers = doc.slide_layers(&mut worker, 0, (5000, 2812)).expect("layers");
+    let (w, h) = layers.size;
+    let bytes = w as usize * h as usize * 4;
+    assert!(layers.list.len() * bytes > crate::ipc::MAX_FRAME, "{} layers of {bytes}", layers.list.len());
+    assert!(layers.list.iter().all(|layer| layer.pixels.len() == bytes), "every layer arrives whole");
+}
