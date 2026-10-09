@@ -34,6 +34,7 @@ docs/        工程风险与已知限制
 scripts/     fetch-references.sh 取上游  doctor.sh 查工具  review.sh 开分栏审查  build-*.sh 构建引擎
 tests/       scripts 与 engines 下是脚本测试；engines 缺二进制时报 SKIP；fixtures 是测试共用的样本（media/clip.mp4：1 秒 H.264/AAC；pdf/aes128.pdf：AES-128 加密，打开密码 user、所有者密码 owner；pdf/signer.p12 与 signer.der：自签名测试证书，密码 ely）
 tasks/       TASKS.md 进度真相
+site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木；中英两种文案在 src/text.ts）；site/video 是发布视频的分镜、配乐、录屏与合成脚本，产物在 site/video/out（不入库）
 ```
 
 ## 组件映射
@@ -166,6 +167,8 @@ tests/scripts/types.sh         packaging/types.tsv 的文件类型在 Linux 桌�
 tests/scripts/layout.sh        真窗口：六个应用在 640、800、1100 宽下无元素越出窗口左右，留截图（需辅助功能与屏幕录制权限）
 tests/scripts/ooxml.py <用例> <文件>  不经 LibreOffice 读 DOCX、XLSX、PPTX 并按自算的预期核对（往返用例调用）
 tests/scripts/webview.sh       真窗口 CEF 页面：输入法组字与提交、键入、焦点、主题变量、缩放、不可离开所在文件夹
+cd site && pnpm deploy        官网构建并经 wrangler 发到 Cloudflare Workers（只有静态资源），地址 https://ely-office.zhangyanghaha0407.workers.dev
+cd site && pnpm test && pnpm e2e   官网单测（几何、道路连通）与 Playwright 端到端（悬停、聚焦、按压、命中归属）
 cargo check --workspace
 cargo test --workspace
 rm -rf target/debug/incremental   每次构建或测试后都删（用户定：增量缓存会占满磁盘）
