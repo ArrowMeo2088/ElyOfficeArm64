@@ -3,6 +3,7 @@ mod check;
 mod deck;
 mod design;
 mod dialog;
+mod extra;
 mod guides;
 mod insert;
 mod list;

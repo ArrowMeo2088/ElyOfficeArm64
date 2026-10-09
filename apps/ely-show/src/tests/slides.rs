@@ -384,3 +384,27 @@ fn a_comment_picked_on_another_slide_shows_its_slide_again() {
     settle(&cx, |app| current(app) == Some(0));
     assert_eq!(cx.update(|app| deck.read(app).shown_remark()), Some(key));
 }
+
+#[test]
+fn a_zoom_stays_through_later_reports() {
+    use ely_gpui_component::shell::ZoomStep;
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(deck) = blank(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    let view = |app: &gpui::App| deck.read(app).active_tab().expect("a tab").view.clone();
+    settle(&cx, |app| view(app).read(app).fitting());
+    update(&mut cx, &deck, |deck, cx| deck.zoom(ZoomStep::In, cx));
+    let zoom = cx.update(|app| view(app).read(app).zoom());
+    update(&mut cx, &deck, |deck, cx| {
+        let (id, view) = deck.active_tab().map(|tab| (tab.id, tab.view.clone())).expect("a tab");
+        deck.observed(id, &view, cx);
+    });
+    cx.update(|app| {
+        let view = view(app);
+        assert!(!view.read(app).fitting(), "a report does not fit the slide again");
+        assert_eq!(view.read(app).zoom(), zoom, "the zoom stays");
+    });
+}
