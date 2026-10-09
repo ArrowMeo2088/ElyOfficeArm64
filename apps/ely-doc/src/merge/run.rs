@@ -260,9 +260,8 @@ impl Docs {
                 let folder = folder.display().to_string();
                 let text = match written {
                     Ok(count) => {
-                        let count = count.to_string();
-                        let text =
-                            Docs::text(cx, "doc.merge.done", &[("n", &count), ("folder", &folder)]);
+                        let n = count.to_string();
+                        let text = ely_ui::i18n::counted(cx, "doc.merge.done", count as u64, &[("n", &n), ("folder", &folder)]);
                         return docs.toast(text, Severity::Success, cx);
                     }
                     Err((n, error)) => Docs::text(

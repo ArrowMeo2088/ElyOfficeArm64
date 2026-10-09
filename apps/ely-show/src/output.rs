@@ -292,8 +292,8 @@ impl Deck {
             },
             move |deck, written, _, cx| match written {
                 Ok(count) => {
-                    let count = count.to_string();
-                    let text = Deck::text(cx, "show.output.pictures_done", &[("n", &count), ("folder", &shown)]);
+                    let n = count.to_string();
+                    let text = ely_ui::i18n::counted(cx, "show.output.pictures_done", count as u64, &[("n", &n), ("folder", &shown)]);
                     deck.toast_output(text, opened.clone(), cx);
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {

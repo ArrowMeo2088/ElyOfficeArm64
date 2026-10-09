@@ -213,7 +213,7 @@ impl Tree {
                     0 => (IconName::CircleCheck, text(cx, "tree.clean", &[])),
                     n => (
                         IconName::GitBranch,
-                        text(cx, "tree.changed", &[("n", &n.to_string())]),
+                        ely_ui::i18n::counted(cx, "tree.changed", n as u64, &[("n", &n.to_string())]),
                     ),
                 };
                 EmptyState::new(("tree-summary", opened.id), icon, title).into_any_element()

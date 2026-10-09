@@ -2,8 +2,13 @@
 
 pub(super) const EN: &[(&str, &str)] = &[
     ("menu.tools", "Tools"),
-    ("doc.count.words", "{words} words, {characters} characters"),
+    ("doc.count.words", "{words}, {characters}"),
     ("doc.count.selected", "{selected} of {words} words"),
+    ("doc.count.selected.one", "{selected} of 1 word"),
+    ("doc.count.word", "{n} words"),
+    ("doc.count.word.one", "1 word"),
+    ("doc.count.character", "{n} characters"),
+    ("doc.count.character.one", "1 character"),
     ("office.find.open", "Find and Replace"),
     ("office.find.stale", "Edited. Enter counts again."),
     ("doc.spell.ignore_all", "Ignore All"),
@@ -50,6 +55,7 @@ pub(super) const EN: &[(&str, &str)] = &[
     ("doc.merge.unreadable", "{name} cannot be read: {error}"),
     ("doc.merge.exists", "{name} exists. Nothing was written."),
     ("doc.merge.done", "Wrote {n} files to {folder}"),
+    ("doc.merge.done.one", "Wrote 1 file to {folder}"),
     (
         "doc.merge.failed",
         "The merge stopped at record {n}: {error}",
@@ -58,8 +64,13 @@ pub(super) const EN: &[(&str, &str)] = &[
 
 pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("menu.tools", "工具"),
-    ("doc.count.words", "{words} 字，{characters} 字符"),
+    ("doc.count.words", "{words}，{characters}"),
     ("doc.count.selected", "已选 {selected} / {words} 字"),
+    ("doc.count.selected.one", "已选 {selected} / 1 字"),
+    ("doc.count.word", "{n} 字"),
+    ("doc.count.word.one", "1 字"),
+    ("doc.count.character", "{n} 字符"),
+    ("doc.count.character.one", "1 字符"),
     ("office.find.open", "查找和替换"),
     ("office.find.stale", "已改动，回车重新计数"),
     ("doc.spell.ignore_all", "全部忽略"),
@@ -103,5 +114,6 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("doc.merge.unreadable", "无法读取 {name}：{error}"),
     ("doc.merge.exists", "{name} 已存在，未写入任何文件。"),
     ("doc.merge.done", "已写入 {n} 个文件到 {folder}"),
+    ("doc.merge.done.one", "已写入 1 个文件到 {folder}"),
     ("doc.merge.failed", "合并在第 {n} 条停止：{error}"),
 ];

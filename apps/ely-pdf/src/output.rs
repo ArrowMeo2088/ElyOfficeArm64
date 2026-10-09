@@ -177,7 +177,7 @@ impl Viewer {
             },
             move |viewer, done, _, cx| match done {
                 Ok(count) => {
-                    let text = Self::text(cx, "pdf.export.images_done", &[("count", &count.to_string())]);
+                    let text = ely_ui::i18n::counted(cx, "pdf.export.images_done", count as u64, &[("count", &count.to_string())]);
                     match folder.clone() {
                         Some(folder) => viewer.toast_output(text, folder, cx),
                         None => viewer.toast(text, Severity::Success, cx),

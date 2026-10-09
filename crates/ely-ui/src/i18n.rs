@@ -134,6 +134,16 @@ pub fn install(cx: &mut App) {
     let tag = locale_tag(cx);
     let locale = resolve(&tag);
     log::info!("i18n: locale {tag} -> {locale}");
+    let (en, zh) = catalogs();
+    cx.set_global(
+        I18n::new(locale)
+            .catalog("en-US", &en)
+            .catalog("zh-CN", &zh),
+    );
+}
+
+/// The English and Chinese catalogs, every module's messages.
+fn catalogs() -> (Vec<(&'static str, &'static str)>, Vec<(&'static str, &'static str)>) {
     let en: Vec<_> = EN
         .iter()
         .chain(office::EN)
@@ -182,11 +192,7 @@ pub fn install(cx: &mut App) {
         .chain(settings::ZH_CN)
         .copied()
         .collect();
-    cx.set_global(
-        I18n::new(locale)
-            .catalog("en-US", &en)
-            .catalog("zh-CN", &zh),
-    );
+    (en, zh)
 }
 
 /// `ELY_LOCALE`, then the language setting, then the system's.
@@ -203,9 +209,41 @@ pub fn text(cx: &App, key: &str, args: &[(&str, &str)]) -> SharedString {
     cx.global::<I18n>().text(key, args)
 }
 
+/// The message for `n` things: `key.one` when one, else `key`.
+pub fn counted(cx: &App, key: &str, n: u64, args: &[(&str, &str)]) -> SharedString {
+    text(cx, &count_key(key, n), args)
+}
+
+fn count_key(key: &str, n: u64) -> String {
+    match n {
+        1 => format!("{key}.one"),
+        _ => key.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::resolve;
+    use super::{catalogs, count_key, resolve};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn one_thing_takes_the_singular() {
+        assert_eq!(count_key("tree.changed", 1), "tree.changed.one");
+        for n in [0, 2, 21] {
+            assert_eq!(count_key("tree.changed", n), "tree.changed", "{n}");
+        }
+    }
+
+    #[test]
+    fn both_catalogs_hold_the_same_keys_and_singulars() {
+        let (en, zh) = catalogs();
+        let keys = |list: &[(&str, &str)]| list.iter().map(|(key, _)| key.to_string()).collect::<BTreeSet<_>>();
+        let (en, zh) = (keys(&en), keys(&zh));
+        assert_eq!(en.symmetric_difference(&zh).collect::<Vec<_>>(), Vec::<&String>::new());
+        for key in en.iter().filter_map(|key| key.strip_suffix(".one")) {
+            assert!(en.contains(key), "{key}.one has no plural");
+        }
+    }
 
     #[test]
     fn zh_variants_pick_zh_cn_others_pick_en() {

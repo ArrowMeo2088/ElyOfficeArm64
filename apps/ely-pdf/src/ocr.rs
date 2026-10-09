@@ -161,7 +161,7 @@ impl Viewer {
         cx.notify();
         let pages: Vec<(usize, Vec<OcrLine>)> = run.read.into_iter().filter(|(_, lines)| replace || !lines.is_empty()).collect();
         let (read, skipped) = (pages.len().to_string(), run.skipped.to_string());
-        let summary = Self::text(cx, "pdf.ocr.done", &[("read", &read), ("skipped", &skipped)]);
+        let summary = ely_ui::i18n::counted(cx, "pdf.ocr.done", pages.len() as u64, &[("read", &read), ("skipped", &skipped)]);
         let Some(view) = self.tab(tab).map(|tab| tab.view.clone()).filter(|_| !pages.is_empty()) else {
             return self.toast(summary, Severity::Info, cx);
         };

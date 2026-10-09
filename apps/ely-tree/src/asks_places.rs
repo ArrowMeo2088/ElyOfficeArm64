@@ -95,9 +95,10 @@ impl Tree {
             Ask::Force { repo, plan } => {
                 let lost = match plan.lost.len() {
                     0 => label("tree.force.nothing"),
-                    n => text(
+                    n => ely_ui::i18n::counted(
                         cx,
                         "tree.force.lost",
+                        n as u64,
                         &[("n", &n.to_string()), ("commits", &plan.lost.join("\n"))],
                     ),
                 };

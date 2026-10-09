@@ -311,7 +311,7 @@ impl Book {
             move |book, picked, _, window, cx| {
                 let (c1, _, c2, _) = picked.area.expect("a data area");
                 if c1 != c2 {
-                    return book.warn_key("table.columns.one", cx);
+                    return book.warn_key("table.columns.same", cx);
                 }
                 let other = cx.new(|cx| TextInput::new(window, cx));
                 book.dialog = Some(Dialog::Columns {
