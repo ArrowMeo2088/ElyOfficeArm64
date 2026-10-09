@@ -134,6 +134,11 @@ pub fn install(cx: &mut App) {
     let tag = locale_tag(cx);
     let locale = resolve(&tag);
     log::info!("i18n: locale {tag} -> {locale}");
+    install_as(locale, cx);
+}
+
+/// Installs the catalogs speaking `locale` (en-US or zh-CN).
+pub fn install_as(locale: &'static str, cx: &mut App) {
     let (en, zh) = catalogs();
     cx.set_global(
         I18n::new(locale)
@@ -231,6 +236,28 @@ mod tests {
         assert_eq!(count_key("tree.changed", 1), "tree.changed.one");
         for n in [0, 2, 21] {
             assert_eq!(count_key("tree.changed", n), "tree.changed", "{n}");
+        }
+    }
+
+    #[gpui::test]
+    fn counted_reads_one_and_many_in_both_languages(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            super::install_as("en-US", cx);
+            let said = |n: u64, cx: &gpui::App| super::counted(cx, "tree.changed", n, &[("n", &n.to_string())]);
+            assert_eq!((said(1, cx), said(2, cx)), ("1 file changed".into(), "2 files changed".into()));
+            super::install_as("zh-CN", cx);
+            assert_eq!((said(1, cx), said(2, cx)), ("1 个文件有改动".into(), "2 个文件有改动".into()));
+        });
+    }
+
+    #[test]
+    fn every_english_singular_reads_unlike_its_plural_at_one() {
+        let (en, _) = catalogs();
+        let text = |key: &str| en.iter().find(|(k, _)| *k == key).map(|(_, v)| *v).expect("the key");
+        for (key, one) in en.iter().filter(|(key, _)| key.ends_with(".one")) {
+            let many = text(key.trim_end_matches(".one")).replace("{n}", "1").replace("{count}", "1");
+            assert_ne!(*one, many, "{key} reads like its plural");
+            assert!(!one.contains("{n}") && !one.contains("{count}"), "{key} names its one");
         }
     }
 
