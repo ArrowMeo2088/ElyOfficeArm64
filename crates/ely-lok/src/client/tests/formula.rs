@@ -360,3 +360,20 @@ fn names_are_defined_changed_removed_and_flag_breaks() {
         .expect("a removal");
     assert!(!read(&mut worker).iter().any(|name| name.name == "Local"));
 }
+
+#[test]
+fn selection_figures_follow_the_cells_number_format() {
+    if install().is_none() {
+        eprintln!("SKIP: no pinned LOK build");
+        return;
+    }
+    let (_dir, mut worker, doc, seen) = open();
+    enter(&mut worker, &doc, &[("H1", "8128.33333333333"), ("H2", "8128.33333333333")]);
+    worker.run(&doc, "cell.goto", &["H1:H2"]).expect("both");
+    worker.run(&doc, "number.code", &["0.00"]).expect("two decimals");
+    let figures = |seen: &Events| {
+        seen.states.iter().rfind(|(name, _)| name == ".uno:StateTableCell").map(|(_, value)| value.clone())
+    };
+    let state = poll_until(&mut worker, &doc, &seen, SETTLE, |seen| figures(seen).is_some_and(|v| v.contains("8128.33;")));
+    assert!(figures(&state).is_some_and(|v| v.contains("Average: 8128.33;")), "{:?}", figures(&state));
+}
