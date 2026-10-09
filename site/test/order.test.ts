@@ -9,7 +9,6 @@ test("blocks apart on screen add no constraint, so no false cycle", () => {
   const list = [desk, box(0, 2, 0.5, 1, 1, 1), box(1, 0, 0.5, 2, 1, 1), box(0, 1, 0.5, 2, 1, 1)];
   const drawn = order(list);
   assert.equal(drawn[0], 0, "the desk is drawn first");
-  // C (index 3) covers A (index 1) only from behind A.
   assert.ok(drawn.indexOf(3) < drawn.indexOf(1));
 });
 

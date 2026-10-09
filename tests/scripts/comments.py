@@ -21,6 +21,11 @@ PATTERNS = [
     "patches/**/*.patch",
     "tests/**/*.swift",
     "apps/*/web/src/**/*.js",
+    "site/src/**/*.ts",
+    "site/src/**/*.css",
+    "site/test/**/*.ts",
+    "site/video/**/*.py",
+    "site/video/**/*.sh",
 ]
 LINE_COMMENT = {
     ".rs": re.compile(r"^\s*//[!/]?\s?(.*)$"),
@@ -29,6 +34,8 @@ LINE_COMMENT = {
     ".nsi": re.compile(r"^\s*;\s?(.*)$"),
     ".swift": re.compile(r"^\s*//\s?(.*)$"),
     ".js": re.compile(r"^\s*(?://\s?(.*)|/\*\*?\s?(.*?)\s*\*/)$"),
+    ".ts": re.compile(r"^\s*(?://\s?(.*)|/\*\*?\s?(.*?)\s*\*/)$"),
+    ".css": re.compile(r"^\s*/\*\s?(.*?)\s*\*/$"),
 }
 
 
