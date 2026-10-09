@@ -191,7 +191,7 @@
 - [x] R2.11 ElyTree：改动数的单复数（“1 file changed”） — R1 测试只核键名；R2 PASS
 - [ ] R2.12 ElyTree：差异按文件类型着色，Markdown 不按代码高亮 — R3 FAIL（Rust 与 Ruby 词表、Haskell 与 Erlang 注释、TOML 与 CMake 紧接注释）后按语言分表（组件库 b0dbfd4），三轮上限，未再审
 - [ ] R2.13 ElyMark：紧凑写法的 GFM 表格（无对齐空格）在可视模式显示为表格
-- [ ] R2.14 ElyMark：任务列表的勾选框与正文同大、对齐首行
+- [ ] R2.14 ElyMark：任务列表的勾选框与正文同大、对齐首行 — R1 只测首项；R2 未生成的框也算；R3 FAIL（隐藏的框也算）后改为核对文字缩进与可见性，三轮上限，未再审
 - [x] R2.15 “打开方式”里不得出现 LibreOffice（用户 2026-10-09 加急，先于 R2.2 收尾）：构建出的 LibreOffice.app 去掉文档类型与快速查看插件并注销；任何测试不挂载官方镜像（官方内核解到无包的文件夹）；`tests/scripts/lo-unregistered.sh` 核对 — R1 注销不幂等、吞查询与 plist 错误、负例不认原因；R2 inert 步骤吞坏 plist；R3 PASS
 - [x] R2.16 ElyTable（用户 2026-10-09 报）：单击单元格跳到别处（如 A5876），无法拖选多格 — R1 缩放与 DPI 变化漂移、拖选与远处测试缺；R2 测试跑在文字文档上；R3 PASS
 - [x] R2.17 ElyPDF（用户报）：编辑文字时报“这种字体画不出‘V’”，而所改文字里没有 V；改字对应的文字块须与面板所示一致 — R1 CMap 漏条目数、共用字形的字被改写、文件超 500 行；R2 部分 ToUnicode 不退回 cid_to_ucs；R3 PASS
