@@ -18,8 +18,8 @@ use ely_lok::{Doc, Worker, show::ShowSlide};
 use ely_office::prelude::*;
 use ely_platform::AppId;
 use gpui::{
-    AnyElement, AnyWindowHandle, App, AppContext as _, Context, Entity, EntityId, IntoElement,
-    ParentElement as _, PlatformDisplay, Window, WindowBounds, WindowOptions,
+    AnyElement, AnyWindowHandle, App, AppContext as _, Bounds, Context, Entity, EntityId, IntoElement,
+    ParentElement as _, Pixels, PlatformDisplay, Window, WindowBounds, WindowOptions,
 };
 
 use super::{Show, audience::Audience, presenter::Presenter};
@@ -80,14 +80,32 @@ fn copy(
     }
 }
 
+/// macOS covers its menu bar and Dock by simple fullscreen.
+const SIMPLE: bool = cfg!(target_os = "macos");
+
+/// A show window's bounds: fullscreen, or macOS's simple kind.
+fn bounds(area: Bounds<Pixels>) -> WindowBounds {
+    match SIMPLE {
+        true => WindowBounds::Windowed(area),
+        false => WindowBounds::Fullscreen(area),
+    }
+}
+
 fn options(display: &Rc<dyn PlatformDisplay>) -> WindowOptions {
     WindowOptions {
-        window_bounds: Some(WindowBounds::Windowed(display.bounds())),
+        window_bounds: Some(bounds(display.bounds())),
         display_id: Some(display.id()),
         titlebar: None,
         focus: true,
         app_id: Some(AppId::Show.slug().into()),
         ..Default::default()
+    }
+}
+
+/// Hides the menu bar and Dock over a macOS show.
+fn cover(window: &mut Window) {
+    if SIMPLE {
+        window.toggle_simple_fullscreen();
     }
 }
 
@@ -102,8 +120,7 @@ pub fn show_window(
     Ok(match presenter {
         true => cx
             .open_window(options(display), |window, cx| {
-                // Hides the menu bar and Dock over the show.
-                window.toggle_simple_fullscreen();
+                cover(window);
                 let view = cx.new(|cx| Presenter::new(show, cx));
                 window.focus(&view.read(cx).focus.clone(), cx);
                 view
@@ -111,7 +128,7 @@ pub fn show_window(
             .into(),
         false => cx
             .open_window(options(display), |window, cx| {
-                window.toggle_simple_fullscreen();
+                cover(window);
                 let view = cx.new(|cx| Audience::new(show, cx));
                 window.focus(&view.read(cx).focus.clone(), cx);
                 view
@@ -314,5 +331,20 @@ impl Deck {
                     })
             })
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::{Bounds, WindowBounds, point, px, size};
+
+    #[test]
+    fn a_show_covers_the_display_on_every_platform() {
+        let area = Bounds::new(point(px(0.), px(0.)), size(px(1920.), px(1080.)));
+        let want = match cfg!(target_os = "macos") {
+            true => WindowBounds::Windowed(area),
+            false => WindowBounds::Fullscreen(area),
+        };
+        assert_eq!(super::bounds(area), want);
     }
 }
