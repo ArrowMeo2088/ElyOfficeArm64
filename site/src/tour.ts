@@ -4,8 +4,8 @@ import { grow } from "./beat.ts";
 import { model } from "./model.ts";
 import { touch } from "./touch.ts";
 import { said, TEXT, type Key } from "./text.ts";
+import { RELEASES } from "./release.ts";
 
-const RELEASE = "https://github.com/ZacharyZhang-NY/ElyOffice/releases/download/v0.1.0";
 const SCREEN = "#3a3a3c";
 const DESK = "#e6e6e2";
 const STEP = 60 / 112 / 4;
@@ -227,7 +227,7 @@ export function tour(hero: HTMLElement): { section: HTMLElement; host: HTMLEleme
     h2.textContent = p.name;
     const get = said("a", "download");
     get.className = "get";
-    get.href = `${RELEASE}/${p.name}-0.1.0-arm64.dmg`;
+    get.href = RELEASES;
     const acts = document.createElement("div");
     acts.className = "acts";
     acts.append(get, plays[i]);

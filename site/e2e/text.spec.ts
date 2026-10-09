@@ -3,8 +3,7 @@ import { TEXT, type Key, type Lang } from "../src/text.ts";
 
 const REPO = "https://github.com/ZacharyZhang-NY/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
-const dmg = (app: string) => `${REPO}/releases/download/v0.1.0/${app}-0.1.0-arm64.dmg`;
-const tarball = (kind: string) => `${REPO}/releases/download/v0.1.0/ElyOffice-0.1.0-${kind}.tar.gz`;
+const RELEASES = `${REPO}/releases/latest`;
 
 test.use({ reducedMotion: "reduce" });
 
@@ -79,27 +78,25 @@ test.describe("English locale", () => {
     await expect(lang).toHaveText("中文");
   });
 
-  test("links point at the release and the repository", async ({ page }) => {
+  test("downloads go to the GitHub release page, never to a file", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".tour .get")).toHaveCount(APPS.length);
-    for (const [i, app] of APPS.entries()) {
-      await expect(page.locator(".tour .get").nth(i)).toHaveAttribute("href", dmg(app));
-    }
-    await expect(page.locator("#download ul a")).toHaveText([...APPS, TEXT.en.source, TEXT.en.upstream]);
-    for (const [i, app] of APPS.entries()) {
-      await expect(page.locator("#download ul a").nth(i)).toHaveAttribute("href", dmg(app));
-    }
-    await expect(page.locator("[data-t=source]")).toHaveAttribute("href", tarball("source"));
-    await expect(page.locator("[data-t=upstream]")).toHaveAttribute("href", tarball("upstream-source"));
+    for (const i of APPS.keys()) await expect(page.locator(".tour .get").nth(i)).toHaveAttribute("href", RELEASES);
+    await expect(page.locator("#download a")).toHaveCount(1);
+    await expect(page.locator("#download [data-t=github]")).toHaveAttribute("href", RELEASES);
     await expect(page.locator(".hero > a")).toHaveText("GitHub");
     await expect(page.locator(".hero > a")).toHaveAttribute("href", REPO);
+    const files = await page.locator("a[href]").evaluateAll((as) =>
+      as.map((a) => (a as HTMLAnchorElement).href).filter((h) => /\.(dmg|tar\.gz|zip|exe|AppImage)$/.test(h)),
+    );
+    expect(files).toEqual([]);
   });
 
   test("every external link answers @net", async ({ page, request }) => {
     await page.goto("/");
     const hrefs = await page.locator("a[href^='http']").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
     const unique = [...new Set(hrefs)];
-    expect(unique.sort()).toEqual([REPO, ...APPS.map(dmg), tarball("source"), tarball("upstream-source")].sort());
+    expect(unique.sort()).toEqual([REPO, RELEASES].sort());
     for (const url of unique) {
       const res = await request.head(url);
       expect(res.status(), url).toBeLessThan(400);

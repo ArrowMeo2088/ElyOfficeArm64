@@ -7,12 +7,10 @@ import { night } from "./night.ts";
 import { rhythm } from "./rhythm.ts";
 import { playground } from "./play.ts";
 import { film } from "./film.ts";
-import { model } from "./model.ts";
 import { said, speak, type Lang } from "./text.ts";
+import { RELEASES, VERSION } from "./release.ts";
 
 const REPO = "https://github.com/ZacharyZhang-NY/ElyOffice";
-const RELEASE = `${REPO}/releases/download/v0.1.0`;
-const APPS = model.slice(1, -1).map((p) => p.name);
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("index.html has no #app");
@@ -32,27 +30,10 @@ const shelf = props();
 const footer = document.createElement("footer");
 footer.id = "download";
 const version = document.createElement("h2");
-version.textContent = "Ely Office 0.1.0";
-const list = document.createElement("ul");
-for (const name of APPS) {
-  const a = document.createElement("a");
-  a.href = `${RELEASE}/${name}-0.1.0-arm64.dmg`;
-  a.textContent = name;
-  const li = document.createElement("li");
-  li.append(a);
-  list.append(li);
-}
-for (const [key, file] of [
-  ["source", "ElyOffice-0.1.0-source.tar.gz"],
-  ["upstream", "ElyOffice-0.1.0-upstream-source.tar.gz"],
-] as const) {
-  const a = said("a", key);
-  a.href = `${RELEASE}/${file}`;
-  const li = document.createElement("li");
-  li.append(a);
-  list.append(li);
-}
-footer.append(version, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), list);
+version.textContent = `Ely Office ${VERSION}`;
+const get = said("a", "github");
+get.href = RELEASES;
+footer.append(version, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), get);
 
 const toggle = said("button", "other");
 toggle.className = "lang";
