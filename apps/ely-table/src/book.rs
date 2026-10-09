@@ -229,7 +229,10 @@ impl Book {
                 match read {
                     Ok((sheets, geometry, at)) => {
                         log::info!("table: tab {id} has {} sheets", sheets.list.len());
-                        view.update(cx, |view, _| view.set_part(sheets.current));
+                        view.update(cx, |view, cx| {
+                            view.set_part(sheets.current);
+                            view.set_geometry(geometry.clone(), cx);
+                        });
                         let extra = &mut tab.extra;
                         extra.sheets = sheets;
                         extra.geometry = geometry;

@@ -247,6 +247,13 @@ impl Document {
         call!(class, 69, F, self.doc, view, true);
     }
 
+    /// Tells the kernel a tile's size in pixels and twips.
+    pub fn set_client_zoom(&self, pixels: i32, twips: i32) {
+        let class = unsafe { (*self.doc).class };
+        type F = unsafe extern "C" fn(*mut Doc, i32, i32, i32, i32);
+        call!(class, 23, F, self.doc, pixels, pixels, twips, twips);
+    }
+
     /// Tells the kernel the area the client shows, in twips.
     pub fn set_visible_area(&self, x: i32, y: i32, width: i32, height: i32) {
         let class = unsafe { (*self.doc).class };

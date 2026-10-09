@@ -55,14 +55,16 @@ impl Doc {
         Ok(Sheets { current, list })
     }
 
-    /// Tells the kernel the area the view shows, in twips.
-    pub fn visible_area(&self, worker: &mut Worker, (x, y, w, h): Rect) -> io::Result<()> {
+    /// Tells the kernel the shown area and the tile scale.
+    pub fn visible_area(&self, worker: &mut Worker, (x, y, w, h): Rect, (tile, tile_twips): (u32, i32)) -> io::Result<()> {
         let request = Pack::new()
             .u64(worker.doc_id(self)?)
             .i64(x.into())
             .i64(y.into())
             .i64(w.into())
             .i64(h.into())
+            .i64(tile.into())
+            .i64(tile_twips.into())
             .bytes();
         worker.request(tag::VISIBLE_AREA, &request)?;
         Ok(())

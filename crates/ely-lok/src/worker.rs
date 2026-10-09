@@ -246,9 +246,15 @@ fn answer(lok: &Lok, tag: u8, id: u64, payload: &[u8]) {
             .u64()
             .and_then(|id| {
                 let mut number = || i32::try_from(unpack.i64()?).map_err(io::Error::other);
-                Ok((id, (number()?, number()?, number()?, number()?)))
+                Ok((id, (number()?, number()?, number()?, number()?), (number()?, number()?)))
             })
-            .and_then(|(id, (x, y, w, h))| with_doc(id, |doc| doc.set_visible_area(x, y, w, h)))
+            .and_then(|(id, (x, y, w, h), (pixels, twips))| {
+                // Calc reads clicks at this scale, not the last tile's.
+                with_doc(id, |doc| {
+                    doc.set_client_zoom(pixels, twips);
+                    doc.set_visible_area(x, y, w, h)
+                })
+            })
             .map(|()| Vec::new()),
         tag::SELECTION_TEXT => unpack
             .u64()

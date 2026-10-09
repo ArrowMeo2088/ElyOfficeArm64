@@ -272,7 +272,7 @@ impl LokView {
             },
         );
         let pages = if self.pages.is_empty() {
-            vec![self.screen_rect((0, 0, extent.0, extent.1))]
+            vec![self.tile_screen_rect((0, 0, extent.0, extent.1))]
         } else {
             self.pages
                 .iter()
@@ -283,10 +283,11 @@ impl LokView {
             geom.twips_of(bounds.size.width.into()),
             geom.twips_of(bounds.size.height.into()),
         );
-        if self.shown != Some((sx, sy, vw, vh)) {
-            self.shown = Some((sx, sy, vw, vh));
+        let scale = (geom.tile_pixels(), TILE_TWIPS);
+        if self.shown != Some(((sx, sy, vw, vh), scale)) {
+            self.shown = Some(((sx, sy, vw, vh), scale));
             self.failed.clear();
-            self.send(input::Input::Visible((sx, sy, vw, vh)));
+            self.send(input::Input::Visible((sx, sy, vw, vh), scale));
         }
         let (ax, ay) = self.axes();
         let side = px(geom.px_of(TILE_TWIPS));

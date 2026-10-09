@@ -176,7 +176,7 @@ pub(super) fn open_book(text: &str) -> (tempfile::TempDir, Worker, Doc) {
     let doc = worker
         .load(&format!("file://{}", source.display()))
         .expect("the book loads");
-    doc.visible_area(&mut worker, (0, 0, 15000, 10000))
+    doc.visible_area(&mut worker, (0, 0, 15000, 10000), (256, 3840))
         .expect("the area");
     (dir, worker, doc)
 }

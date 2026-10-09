@@ -28,6 +28,7 @@ mod render;
 mod zoom;
 pub use zoom::{ZOOM_STEPS, Zoomed};
 mod scroll;
+mod sheet;
 pub use input::{CONTEXT, Copy, Cut, Paste, init};
 pub use off::read_off;
 pub use render::scheme;
@@ -89,13 +90,15 @@ pub struct LokView {
     fetching: HashSet<(i32, i32)>,
     failed: HashSet<((i32, i32), u64)>,
     /// The area last told to the kernel.
-    shown: Option<Rect>,
+    shown: Option<(Rect, (u32, i32))>,
     viewport: (f32, f32),
     origin: Point<Pixels>,
     /// Pixels a small document sits in: left, top.
     spare: (f32, f32),
     /// Frozen columns and rows, in twips from the top left.
     frozen: (i32, i32),
+    /// A spreadsheet's rows and columns, in print twips.
+    sheet: Option<crate::sheet::Geometry>,
     /// The farthest point a jump needed; Calc grows to it.
     reach: (i32, i32),
     pages: Vec<Rect>,
@@ -210,6 +213,7 @@ impl LokView {
             origin: Point::default(),
             spare: (0.0, 0.0),
             frozen: (0, 0),
+            sheet: None,
             reach: (0, 0),
             pages,
             focus: cx.focus_handle().tab_stop(true),

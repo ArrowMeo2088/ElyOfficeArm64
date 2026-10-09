@@ -41,9 +41,10 @@ impl LokView {
         self.scroll_by(dx, dy, cx);
     }
 
-    /// Scrolls `rect` into view; frozen parts always show.
-    pub fn show(&mut self, (x, y, w, h): Rect, cx: &mut Context<Self>) {
-        let (fx, fy) = self.frozen;
+    /// Scrolls print-twips `rect` into view; frozen parts always show.
+    pub fn show(&mut self, rect: Rect, cx: &mut Context<Self>) {
+        let (x, y, w, h) = self.tile_rect(rect);
+        let (fx, fy) = self.frozen_tiles();
         let (vw, vh) = (
             self.geom.twips_of(self.viewport.0) - fx,
             self.geom.twips_of(self.viewport.1) - fy,
@@ -63,7 +64,7 @@ impl LokView {
         cx.notify();
     }
 
-    /// Freezes what lies before `frozen`, in twips.
+    /// Freezes what lies before `frozen`, in print twips.
     pub fn set_frozen(&mut self, frozen: (i32, i32), cx: &mut Context<Self>) {
         if self.frozen != frozen {
             log::info!("lok: frozen at {frozen:?}");
@@ -75,7 +76,8 @@ impl LokView {
     /// Scrolls `rect` into view and puts the cursor there.
     pub fn reveal(&mut self, rect: Rect, cx: &mut Context<Self>) {
         self.show(rect, cx);
-        let (x, y, _, h) = rect;
+        // Clicks land in tile twips.
+        let (x, y, _, h) = self.tile_rect(rect);
         log::info!("lok: reveal at {x},{y}");
         for kind in [0, 1] {
             let (count, buttons, modifiers) = (1, 1, 0);
@@ -108,8 +110,13 @@ impl LokView {
         )
     }
 
-    /// The document point under a view position (LOK-04).
+    /// The print-twips document point under a view position (LOK-04).
     pub fn doc_point(&self, position: Point<Pixels>) -> (i32, i32) {
+        self.print_of(self.tile_point(position))
+    }
+
+    /// The tile-twips point under a view position.
+    pub(super) fn tile_point(&self, position: Point<Pixels>) -> (i32, i32) {
         let local = position - self.origin;
         let (ax, ay) = self.axes();
         (
@@ -121,14 +128,17 @@ impl LokView {
     /// The panes of each axis.
     pub(super) fn axes(&self) -> (super::panes::Axis, super::panes::Axis) {
         let axis = |frozen, scroll| super::panes::Axis { frozen, scroll };
-        (
-            axis(self.frozen.0, self.scroll.0),
-            axis(self.frozen.1, self.scroll.1),
-        )
+        let (fx, fy) = self.frozen_tiles();
+        (axis(fx, self.scroll.0), axis(fy, self.scroll.1))
     }
 
-    /// The window point of a document point in twips (LOK-04).
-    pub fn window_point(&self, (x, y): (i32, i32)) -> gpui::Point<Pixels> {
+    /// The window point of a print-twips document point (LOK-04).
+    pub fn window_point(&self, at: (i32, i32)) -> gpui::Point<Pixels> {
+        self.tile_window_point(self.tile_of(at))
+    }
+
+    /// The window point of a tile-twips point.
+    pub(super) fn tile_window_point(&self, (x, y): (i32, i32)) -> gpui::Point<Pixels> {
         let (ax, ay) = self.axes();
         let (x, y) = (self.geom.px_of(ax.show(x)), self.geom.px_of(ay.show(y)));
         self.origin + point(px(self.spare.0 + x), px(self.spare.1 + y))
@@ -139,12 +149,19 @@ impl LokView {
         Bounds::from_corners(self.window_point((x, y)), self.window_point((x + w, y + h)))
     }
 
+    /// A tile-twips rect in window pixels.
+    pub(super) fn tile_screen_rect(&self, (x, y, w, h): crate::Rect) -> Bounds<Pixels> {
+        Bounds::from_corners(self.tile_window_point((x, y)), self.tile_window_point((x + w, y + h)))
+    }
+
     /// The cursor rect in window pixels.
     pub fn cursor_bounds(&self) -> Option<Bounds<Pixels>> {
         let (x, y, w, h) = self.cursor?;
+        let origin = self.window_point((x, y));
+        let end = self.window_point((x + w, y + h));
         Some(Bounds {
-            origin: self.window_point((x, y)),
-            size: size(px(self.geom.px_of(w.max(1))), px(self.geom.px_of(h))),
+            origin,
+            size: size((end.x - origin.x).max(px(self.geom.px_of(1))), end.y - origin.y),
         })
     }
 }
