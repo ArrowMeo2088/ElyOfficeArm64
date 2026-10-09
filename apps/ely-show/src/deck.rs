@@ -133,7 +133,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
     let root = ely_ui::document_root(app, deck.clone().into(), &ely_ui::commands::FILE, menus, window, cx);
     deck.update(cx, |deck, cx| {
         deck.core.root = root.downgrade();
-        deck.core.window = Some(window.window_handle());
+        deck.own_window(window, cx);
         window.focus(&deck.core.focus, cx);
     });
     let launched = ely_ui::launch_files(cx);
@@ -448,7 +448,6 @@ impl Render for Deck {
             .on_action(cx.listener(Self::on_save_as))
             .on_action(cx.listener(Self::on_export))
             .on_action(cx.listener(Self::on_print))
-            .on_action(cx.listener(Self::on_quit))
             .on_action(cx.listener(Self::on_close_tab))
             .child(shell)
             .children(self.core_dialog(cx))

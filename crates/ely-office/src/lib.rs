@@ -72,6 +72,8 @@ pub trait Host: Sized + 'static {
     fn observed(&mut self, id: u64, view: &Entity<View<Self>>, cx: &mut Context<Self>);
     /// Runs before a search first moves the cursor.
     fn search_leaves(&mut self, _: &mut Context<Self>) {}
+    /// Runs as a quit starts, before any tab closes.
+    fn quitting(&mut self, _: &mut Context<Self>) {}
     /// Runs when a close stops: question or save cancelled.
     fn close_cancelled(&mut self, _: &mut Context<Self>) {}
     /// An outside change met a save; true if shown.

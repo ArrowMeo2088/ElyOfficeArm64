@@ -81,6 +81,11 @@ impl Host for Desk {
         &mut self.core
     }
 
+    /// A quit records the open tabs first.
+    fn quitting(&mut self, cx: &mut Context<Self>) {
+        self.leave(cx);
+    }
+
     /// A quit or close stopped: the kept list follows again.
     fn close_cancelled(&mut self, cx: &mut Context<Self>) {
         self.keeping.leaving = false;
@@ -215,7 +220,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
     let asked = ely_ui::launch_files(cx);
     desk.update(cx, |desk, cx| {
         desk.core.root = root.downgrade();
-        desk.core.window = Some(window.window_handle());
+        desk.own_window(window, cx);
         window.focus(&desk.core.focus, cx);
         // Launch files stand alone; unsaved text still returns.
         if asked.is_empty() {
@@ -403,10 +408,6 @@ impl Render for Desk {
             .on_action(cx.listener(Self::on_export))
             .on_action(cx.listener(Self::on_print))
             .on_action(cx.listener(Self::on_close_tab))
-            .on_action(cx.listener(|desk, quit, window, cx| {
-                desk.leave(cx);
-                desk.on_quit(quit, window, cx)
-            }))
             .on_action(cx.listener(|desk, _: &InsertTable, _, cx| desk.table("insert", cx)))
             .on_action(cx.listener(|desk, _: &RowAbove, _, cx| desk.table("row-above", cx)))
             .on_action(cx.listener(|desk, _: &RowBelow, _, cx| desk.table("row-below", cx)))

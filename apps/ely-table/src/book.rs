@@ -143,7 +143,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
     let root = ely_ui::document_root(app, book.clone().into(), &ely_ui::commands::FILE, menus, window, cx);
     book.update(cx, |book, cx| {
         book.core.root = root.downgrade();
-        book.core.window = Some(window.window_handle());
+        book.own_window(window, cx);
         window.focus(&book.core.focus, cx);
     });
     let launched = ely_ui::launch_files(cx);
@@ -372,7 +372,6 @@ impl Render for Book {
             .on_action(cx.listener(Self::on_open_file))
             .on_action(cx.listener(Self::on_save))
             .on_action(cx.listener(Self::on_save_as))
-            .on_action(cx.listener(Self::on_quit))
             .on_action(cx.listener(Self::on_close_tab))
             .on_action(cx.listener(Self::on_export))
             .on_action(cx.listener(Self::on_print))

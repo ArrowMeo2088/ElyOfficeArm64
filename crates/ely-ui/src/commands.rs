@@ -1,5 +1,7 @@
 use ely_platform::AppId;
-use gpui::{Action, App, KeyBinding, Menu, MenuItem, SharedString, Window, actions};
+use std::rc::Rc;
+
+use gpui::{Action, App, Global, KeyBinding, Menu, MenuItem, SharedString, Window, actions};
 
 use crate::i18n;
 
@@ -24,6 +26,29 @@ actions!(
     apps,
     [OpenElyDoc, OpenElyTable, OpenElyShow, OpenElyPdf, OpenElyMail, OpenElyTree, OpenElyMark, OpenElyAgent]
 );
+
+/// The main window's own quit, run from any window.
+struct QuitRoute(Rc<dyn Fn(&mut App)>);
+
+impl Global for QuitRoute {}
+
+/// Quit from every window, settings too, runs `quit`.
+pub fn route_quit(cx: &mut App, quit: impl Fn(&mut App) + 'static) {
+    cx.set_global(QuitRoute(Rc::new(quit)));
+}
+
+/// Quit, from any window, goes through `quit`.
+pub fn bind_quit(cx: &mut App) {
+    cx.on_action(|_: &Quit, cx| quit(cx));
+}
+
+/// Quits through the main window's route, if one is set.
+fn quit(cx: &mut App) {
+    match cx.try_global::<QuitRoute>().map(|route| Rc::clone(&route.0)) {
+        Some(route) => route(cx),
+        None => cx.quit(),
+    }
+}
 
 /// The action that starts `app` (§16 app switching).
 pub fn switch_to(app: AppId) -> Box<dyn Action> {

@@ -74,7 +74,7 @@ fn open<V: Render>(
     theme::install(cx);
     crate::i18n::install(cx);
     crate::commands::bind_keys(cx);
-    cx.on_action(|_: &crate::commands::Quit, cx| cx.quit());
+    crate::commands::bind_quit(cx);
     cx.on_action(move |_: &crate::commands::OpenSettings, cx| crate::settings::open(app, cx));
     let mut options = WindowOptions {
         focus: smoke == Smoke::Off,

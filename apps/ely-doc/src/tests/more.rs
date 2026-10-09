@@ -215,3 +215,34 @@ fn an_edit_that_just_landed_still_asks_and_selection_does_not() {
     });
     settle(&cx, |app| docs.read(app).tab(id).is_none());
 }
+
+#[test]
+fn a_quit_from_either_window_asks_first() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(docs) = docs(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    let id = blank(&mut cx, &docs);
+    commit(&mut cx, &docs, "Unsaved");
+    let view = cx.update(|app| docs.read(app).active_tab().expect("a tab").view.clone());
+    settle(&cx, |app| view.read(app).settled());
+    cx.update(ely_ui::commands::bind_quit);
+    let home = cx.add_window(|_, _| Blank);
+    cx.update_window(home.into(), |_, window, app| docs.update(app, |docs, cx| docs.own_window(window, cx)))
+        .expect("the window lives");
+    // The settings window has no quit of its own.
+    let settings = cx.add_window(|_, _| Blank);
+    for from in [home.into(), settings.into()] {
+        cx.dispatch_action(from, ely_ui::commands::Quit);
+        settle(&cx, |app| matches!(docs.read(app).core.dialog, Some(Dialog::Unsaved { .. })));
+        assert!(cx.update(|app| docs.read(app).tab(id).is_some()), "the tab waits for an answer");
+        assert_eq!(cx.update(|app| app.active_window()), Some(home.into()), "the question's window comes forward");
+        // Cancel, as the dialog's button does.
+        cx.update(|app| docs.update(app, |docs, cx| {
+            docs.close_cancelled(cx);
+            docs.core.dialog = None;
+        }));
+    }
+}

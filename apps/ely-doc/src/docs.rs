@@ -126,7 +126,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
     let root = ely_ui::document_root(app, docs.clone().into(), &ely_ui::commands::FILE, menus, window, cx);
     docs.update(cx, |docs, cx| {
         docs.core.root = root.downgrade();
-        docs.core.window = Some(window.window_handle());
+        docs.own_window(window, cx);
         window.focus(&docs.core.focus, cx);
     });
     let launched = ely_ui::launch_files(cx);
@@ -209,7 +209,6 @@ impl Render for Docs {
             .on_action(cx.listener(Self::on_open))
             .on_action(cx.listener(Self::on_save))
             .on_action(cx.listener(Self::on_save_as))
-            .on_action(cx.listener(Self::on_quit))
             .on_action(cx.listener(Self::on_close_tab))
             .child(shell)
             .children(self.core_dialog(cx))
