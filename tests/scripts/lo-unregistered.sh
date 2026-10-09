@@ -14,6 +14,15 @@ if [ -d "$app" ]; then
 fi
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+fake=$work/a/b/Fake.app
+mkdir -p "$fake/Contents/PlugIns"
+echo "not a plist" >"$fake/Contents/Info.plist"
+! "$root/scripts/inert-lo.sh" "$fake" 2>/dev/null || fail "inert-lo.sh accepts an unreadable Info.plist"
+plutil -create xml1 "$fake/Contents/Info.plist"
+plutil -insert CFBundleDocumentTypes -array "$fake/Contents/Info.plist"
+"$root/scripts/inert-lo.sh" "$fake" >/dev/null
+! /usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes" "$fake/Contents/Info.plist" >/dev/null 2>&1 || fail "inert-lo.sh left a claim"
+[ ! -e "$fake/Contents/PlugIns" ] || fail "inert-lo.sh left the plug-ins"
 for ext in docx xlsx pptx odt csv; do : >"$work/sample.$ext"; done
 cat >"$work/open.swift" <<'SWIFT'
 import AppKit

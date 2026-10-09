@@ -3,7 +3,7 @@
 set -euo pipefail
 app=${1:?usage: scripts/inert-lo.sh path/to/LibreOffice.app}
 plist=$app/Contents/Info.plist
-[ -f "$plist" ] || { echo "inert-lo.sh: no $plist" >&2; exit 1; }
+plutil -lint -s "$plist" || { echo "inert-lo.sh: $plist is missing or unreadable" >&2; exit 1; }
 lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 for key in CFBundleDocumentTypes CFBundleURLTypes UTExportedTypeDeclarations UTImportedTypeDeclarations; do
   if /usr/libexec/PlistBuddy -c "Print :$key" "$plist" >/dev/null 2>&1; then
