@@ -145,16 +145,16 @@ test("holding Enter sinks the focused building until release", async ({ page }) 
   await expect(page.locator(".block.pressed")).toHaveCount(0);
 });
 
-/** Pixels the name sits from its expected place. */
+/** Pixels from one cell above the drawn building. */
 const drift = (page: Page, name: string) =>
   page.evaluate(([n, unit]) => {
     const svg = document.querySelector<SVGSVGElement>(".tour .stage")!;
-    const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
-    const rects = [...document.querySelectorAll(`.hit-face[data-part="${n}"]`)].map((f) => f.getBoundingClientRect());
+    const cell = unit * svg.getScreenCTM()!.d;
+    const rects = [...document.querySelectorAll(`.block[data-part="${n}"] .face`)].map((f) => f.getBoundingClientRect());
     const centre = (Math.min(...rects.map((r) => r.left)) + Math.max(...rects.map((r) => r.right))) / 2;
-    const bottom = Math.min(...rects.map((r) => r.top)) - 2 * unit * scale;
+    const top = Math.min(...rects.map((r) => r.top));
     const box = document.querySelector<HTMLElement>(".tour .caption.shown")!.getBoundingClientRect();
-    return Math.max(Math.abs(box.left + box.width / 2 - centre), Math.abs(box.bottom - bottom));
+    return Math.max(Math.abs(box.left + box.width / 2 - centre), Math.abs(box.bottom - (top - cell)));
   }, [name, CELL] as const);
 
 test("a focused name follows the model when the window narrows", async ({ page }) => {
@@ -165,14 +165,17 @@ test("a focused name follows the model when the window narrows", async ({ page }
   await expect.poll(() => drift(page, "ElyPDF")).toBeLessThan(1);
 });
 
-test("a focused name follows the model when only the model resizes", async ({ page }) => {
-  await page.locator(".doors a").nth(3).focus();
-  await page.evaluate(() => {
-    const svg = document.querySelector<SVGSVGElement>(".tour .stage")!;
-    svg.style.width = `${svg.getBoundingClientRect().width * 0.8}px`;
+for (const side of ["width", "height"] as const) {
+  test(`a focused name follows the model when only its ${side} changes`, async ({ page }) => {
+    await page.locator(".doors a").nth(3).focus();
+    await page.evaluate((side) => {
+      const svg = document.querySelector<SVGSVGElement>(".tour .stage")!;
+      // CSS size: the screen box includes the camera zoom.
+      svg.style[side] = `${parseFloat(getComputedStyle(svg)[side]) * 0.8}px`;
+    }, side);
+    await expect.poll(() => drift(page, "ElyPDF")).toBeLessThan(1);
   });
-  await expect.poll(() => drift(page, "ElyPDF")).toBeLessThan(1);
-});
+}
 
 test.describe("with motion", () => {
   test.use({ reducedMotion: "no-preference" });

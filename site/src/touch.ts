@@ -91,12 +91,13 @@ function still(svg: SVGSVGElement, owner: Map<SVGGElement, string>): SVGPolygonE
 /** Puts the caption one cell above the lifted top. */
 function place(caption: HTMLElement, host: HTMLElement, svg: SVGSVGElement, faces: SVGPolygonElement[]) {
   const origin = host.getBoundingClientRect();
-  const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) throw new Error("model is not rendered");
   // Hit faces never lift, so they give the rest pose.
   const rects = faces.map((f) => f.getBoundingClientRect());
   const left = Math.min(...rects.map((r) => r.left));
   const right = Math.max(...rects.map((r) => r.right));
   const top = Math.min(...rects.map((r) => r.top));
   caption.style.left = `${(left + right) / 2 - origin.left}px`;
-  caption.style.top = `${top - origin.top - 2 * UNIT * scale}px`;
+  caption.style.top = `${top - origin.top - 2 * UNIT * ctm.d}px`;
 }
