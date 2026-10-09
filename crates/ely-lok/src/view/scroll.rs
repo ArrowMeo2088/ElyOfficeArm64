@@ -49,7 +49,7 @@ impl LokView {
             self.geom.twips_of(self.viewport.0) - fx,
             self.geom.twips_of(self.viewport.1) - fy,
         );
-        // Only a sheet grows where it jumps; pages keep their size.
+        // Only a sheet grows where it jumps.
         if self.sheet.is_some() {
             let need = self.print_of((x + w + vw + fx, y + h + vh + fy));
             self.reach = (self.reach.0.max(need.0), self.reach.1.max(need.1));
