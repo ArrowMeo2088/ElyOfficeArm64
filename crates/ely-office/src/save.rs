@@ -190,7 +190,7 @@ pub trait Saving: Host {
                 }
                 // No save: a close that waited on it stops.
                 if then.is_some() {
-                    host.close_cancelled(cx);
+                    host.close_stopped(cx);
                 }
             })
         })
@@ -419,7 +419,7 @@ pub trait Saving: Host {
             failed => {
                 self.report(id, failed, cx);
                 if then.is_some() {
-                    self.close_cancelled(cx);
+                    self.close_stopped(cx);
                 }
             }
         }

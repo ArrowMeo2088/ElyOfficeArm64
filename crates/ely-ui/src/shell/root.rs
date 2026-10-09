@@ -102,6 +102,33 @@ fn build(
         if !document {
             window.focus(&focus, cx);
         }
+        if let Some(updates) = crate::updates::updater(cx) {
+            cx.subscribe(
+                &updates,
+                |root: &mut Root, _, news: &crate::updates::UpdateNews, cx| match news {
+                    crate::updates::UpdateNews::Failed(error) => {
+                        let text = crate::i18n::text(cx, "updates.failed", &[("error", error)]);
+                        root.toast(text, Severity::Danger, cx);
+                    }
+                    crate::updates::UpdateNews::Latest => {
+                        let args = [
+                            ("app", root.app.name()),
+                            ("version", env!("CARGO_PKG_VERSION")),
+                        ];
+                        let text = crate::i18n::text(cx, "updates.latest", &args);
+                        root.toast(text, Severity::Success, cx);
+                    }
+                },
+            )
+            .detach();
+            // A failed install from the last quit says why.
+            if let Some(note) = updates.update(cx, |updates, _| updates.note.take()) {
+                let text = crate::i18n::text(cx, "updates.failed", &[("error", &note)]);
+                cx.defer_in(window, move |root: &mut Root, _, cx| {
+                    root.toast(text, Severity::Danger, cx)
+                });
+            }
+        }
         Root {
             app,
             focus,

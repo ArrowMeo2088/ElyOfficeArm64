@@ -63,14 +63,15 @@ fn shared_fields_type_strictly_and_default_when_absent() {
     let fields = |text: &str| serde_json::from_str::<serde_json::Map<_, _>>(text).unwrap();
     assert_eq!(Shared::from_fields(&fields("{}")).unwrap(), Shared::default());
     let read = Shared::from_fields(&fields(
-        r#"{"appearance":"dark","language":"zh-CN","motion":"reduce","omarchy_sync":false,"author":" Ana "}"#,
+        r#"{"appearance":"dark","language":"zh-CN","motion":"reduce","omarchy_sync":false,"author":" Ana ","check_updates":true}"#,
     ))
     .unwrap();
+    assert!(read.check_updates && !Shared::default().check_updates, "asked for, never by default");
     assert_eq!(
         (read.appearance, read.language, read.motion, read.omarchy_sync, read.author.as_str()),
         (Appearance::Dark, Language::Chinese, Motion::Reduced, false, "Ana")
     );
-    for bad in [r#"{"appearance":"blue"}"#, r#"{"omarchy_sync":"yes"}"#, r#"{"author":3}"#] {
+    for bad in [r#"{"appearance":"blue"}"#, r#"{"omarchy_sync":"yes"}"#, r#"{"author":3}"#, r#"{"check_updates":1}"#] {
         assert!(Shared::from_fields(&fields(bad)).is_err(), "{bad}");
     }
 }

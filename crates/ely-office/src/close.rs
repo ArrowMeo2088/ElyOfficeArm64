@@ -68,6 +68,12 @@ pub trait Closing: Host {
         });
     }
 
+    /// A close or quit stopped: no update installs on it.
+    fn close_stopped(&mut self, cx: &mut Context<Self>) {
+        ely_ui::updates::quit_stopped(cx);
+        self.close_cancelled(cx);
+    }
+
     fn no_document(&self, cx: &mut Context<Self>) {
         let text = text(cx, "command.blocked.no_document", &[]);
         self.toast(text, Severity::Warning, cx);

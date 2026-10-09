@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 use crate::{AppId, lock::FileLock};
 
 mod shared;
-pub use shared::{APPEARANCE, AUTHOR, Appearance, LANGUAGE, Language, MOTION, Motion, OMARCHY_SYNC, Shared, word};
+pub use shared::{APPEARANCE, AUTHOR, Appearance, CHECK_UPDATES, LANGUAGE, Language, MOTION, Motion, OMARCHY_SYNC, Shared, word};
 
 /// The layout this build reads and writes.
 pub const VERSION: u64 = 1;

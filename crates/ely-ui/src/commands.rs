@@ -18,6 +18,7 @@ actions!(
         CloseTab,
         ToggleCommandPalette,
         OpenSettings,
+        CheckForUpdates,
         Quit
     ]
 );
@@ -43,7 +44,7 @@ pub fn bind_quit(cx: &mut App) {
 }
 
 /// Quits through the main window's route, if one is set.
-fn quit(cx: &mut App) {
+pub(crate) fn quit(cx: &mut App) {
     match cx.try_global::<QuitRoute>().map(|route| Rc::clone(&route.0)) {
         Some(route) => route(cx),
         None => cx.quit(),
@@ -171,6 +172,10 @@ pub fn menus(
         first.push(MenuItem::separator());
     }
     first.push(MenuItem::action(i18n::text(cx, "menu.app.settings", &[]), OpenSettings));
+    // Only an installed app can update itself.
+    if crate::updates::updater(cx).is_some() {
+        first.push(MenuItem::action(i18n::text(cx, "menu.app.updates", &[]), CheckForUpdates));
+    }
     first.push(MenuItem::separator());
     first.push(MenuItem::action(i18n::text(cx, "menu.app.quit", &[("app", app.name())]), Quit));
     let mut menus = vec![

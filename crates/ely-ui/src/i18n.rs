@@ -24,6 +24,9 @@ use gpui::{App, SharedString};
 
 const EN: &[(&str, &str)] = &[
     ("menu.app.quit", "Quit {app}"),
+    ("updates.failed", "The update did not finish: {error}"),
+    ("updates.latest", "{app} {version} is the latest version."),
+    ("menu.app.updates", "Check for Updates…"),
     ("menu.app.switch", "Open Ely App"),
     ("toast.open", "Open"),
     ("toast.open_failed", "The file did not open: {error}"),
@@ -76,6 +79,9 @@ const EN: &[(&str, &str)] = &[
 
 const ZH_CN: &[(&str, &str)] = &[
     ("menu.app.quit", "退出 {app}"),
+    ("updates.failed", "更新没有完成：{error}"),
+    ("updates.latest", "{app} {version} 已是最新版本。"),
+    ("menu.app.updates", "检查更新…"),
     ("menu.app.switch", "打开 Ely 应用"),
     ("toast.open", "打开"),
     ("toast.open_failed", "文件没能打开：{error}"),
