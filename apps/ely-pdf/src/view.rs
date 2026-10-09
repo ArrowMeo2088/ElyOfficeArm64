@@ -37,8 +37,8 @@ pub struct PdfView {
     pub tiles: HashMap<TileKey, Arc<RenderImage>>,
     /// Images no longer drawn, freed at the next render.
     pub retired: ely_gpui_component::primitives::Retired,
-    /// A tile reached the screen; logged once (PERF-05).
-    pub drawn: bool,
+    /// Tile images painted so far; the first is logged (PERF-05).
+    pub painted: u64,
     /// Tiles the worker could not draw; not asked again.
     pub failed: HashSet<TileKey>,
     /// Old tiles shown under their page until covered.
@@ -145,7 +145,8 @@ impl PdfView {
     pub fn retire_all(&mut self) -> ely_gpui_component::primitives::Retired {
         let mut images = std::mem::take(&mut self.retired);
         let tiles = self.tiles.drain().map(|(_, image)| image);
-        for image in tiles.chain(self.thumbs.drain().map(|(_, image)| image)) {
+        let old = self.backdrop.drain(..).map(|old| old.image);
+        for image in tiles.chain(old).chain(self.thumbs.drain().map(|(_, image)| image)) {
             images.push(image);
         }
         images
@@ -166,7 +167,7 @@ impl PdfView {
             scroll: ScrollHandle::new(),
             tiles: HashMap::new(),
             retired: Default::default(),
-            drawn: false,
+            painted: 0,
             failed: HashSet::new(),
             backdrop: Vec::new(),
             text: HashMap::new(),

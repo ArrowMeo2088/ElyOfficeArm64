@@ -272,3 +272,46 @@ fn an_edit_past_the_first_hundred_sizes_keeps_the_page_drawn() {
     settle(cx, |app| view.read(app).edited == 1 && repainted(view.read(app)));
     assert!(!bare.get(), "the page never goes blank");
 }
+
+#[test]
+fn an_edit_on_page_101_keeps_its_measured_size_and_its_tiles() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut pages: Vec<(f32, f32, &[&str])> = vec![(612.0, 792.0, &["Page"]); 100];
+    pages.push((612.0, 900.0, &["Taller"]));
+    let mut cx = TestAppContext::single();
+    let (viewer, cx) = windowed(&mut cx, dir.path(), &[file(dir.path(), "mixed.pdf", &pages)], true);
+    let view = shown(cx, &viewer);
+    settle(cx, |app| view.read(app).sizes[100] == (612.0, 900.0));
+    cx.update(|_, app| view.update(app, |view, cx| view.show(100, 0.0, cx)));
+    settle(cx, |app| view.read(app).current == 100 && repainted(view.read(app)));
+    let (_watch, bare) = never_bare(cx, &view);
+    let late = ely_pdf_engine::NewAnnot { page: 100, ..note() };
+    cx.update(|_, app| view.update(app, |view, cx| view.annotate("adding a note", vec![late], cx)));
+    settle(cx, |app| view.read(app).edited == 1 && repainted(view.read(app)));
+    assert!(!bare.get(), "page 101 never goes blank");
+    assert_eq!(cx.update(|_, app| view.read(app).sizes[100]), (612.0, 900.0), "its measured size holds");
+}
+
+#[test]
+fn old_tiles_are_painted_and_freed_with_their_tab() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let (viewer, cx) = windowed(&mut cx, dir.path(), &[file(dir.path(), "one.pdf", &[(612.0, 792.0, &["Hello"])])], true);
+    let view = shown(cx, &viewer);
+    settle(cx, |app| repainted(view.read(app)));
+    // Nothing new is asked; only old tiles can paint.
+    let before = cx.update(|_, app| {
+        view.update(app, |view, cx| {
+            let keys: Vec<_> = view.tiles.keys().copied().collect();
+            view.failed.extend(keys);
+            view.keep_all();
+            cx.notify();
+            view.painted
+        })
+    });
+    cx.run_until_parked();
+    let (painted, kept) = cx.update(|_, app| (view.read(app).painted, view.read(app).backdrop.len()));
+    assert!(kept > 0 && painted >= before + kept as u64, "{kept} old tiles, {} paints", painted - before);
+    cx.update(|_, app| view.update(app, |view, _| view.retire_all()));
+    assert!(cx.update(|_, app| view.read(app).backdrop.is_empty()), "closing hands every old tile over");
+}

@@ -69,11 +69,12 @@ fn drawn_tile(image: Arc<RenderImage>, page: usize, view: gpui::Entity<PdfView>)
     canvas(
         |_, _, _| {},
         move |bounds, _, window, cx| match window.paint_image(bounds, bounds, Default::default(), image, 0, false) {
-            Ok(()) if !view.read(cx).drawn => {
-                view.update(cx, |view, _| view.drawn = true);
-                log::info!("pdf: first tile drawn, page {page}");
-            }
-            Ok(()) => {}
+            Ok(()) => view.update(cx, |view, _| {
+                view.painted += 1;
+                if view.painted == 1 {
+                    log::info!("pdf: first tile drawn, page {page}");
+                }
+            }),
             Err(error) => log::error!("pdf: drawing a page failed: {error}"),
         },
     )

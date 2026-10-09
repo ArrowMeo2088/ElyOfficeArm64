@@ -72,7 +72,7 @@ impl Viewer {
         let turned = unturn(margins, view.read(cx).rotate);
         let points = turned.map(|side| side * MM);
         view.update(cx, |view, cx| {
-            view.edit("cropping pages", move |worker, doc| worker.crop_pages(doc, &pages, points), cx)
+            view.edit_pages("cropping pages", move |worker, doc| worker.crop_pages(doc, &pages, points), cx)
         });
         cx.notify();
     }
