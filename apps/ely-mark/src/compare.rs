@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use ely_files::{Fingerprint, Policy, PolicyEngine};
+use ely_files::Fingerprint;
 use ely_gpui_component::{
     buttons::{Button, ButtonVariant},
     git::{self as merging, Region, Take, ThreeWayMerge},
@@ -102,7 +102,7 @@ impl Desk {
             Choice::Mine => {
                 if let Some(tab) = self.tab_mut(id) {
                     tab.session.rebase(fingerprint);
-                    tab.extra.policy = PolicyEngine::new(Policy::MarkAutoSave, true);
+                    tab.extra.restart_autosave();
                 }
                 self.set_outside(id, Outside::Clear, cx);
                 self.save(id, None, window, cx);
@@ -120,7 +120,7 @@ impl Desk {
                     return self.set_outside(id, Outside::Unread(why), cx);
                 }
                 tab.extra.base = disk.text.clone();
-                tab.extra.policy = PolicyEngine::new(Policy::MarkAutoSave, true);
+                tab.extra.restart_autosave();
                 tab.doc.lock().expect("the text lock").source = disk;
                 let view = tab.view.clone();
                 view.update(cx, |view, cx| view.adopt(merged, cx));
