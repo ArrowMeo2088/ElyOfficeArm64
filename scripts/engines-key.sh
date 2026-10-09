@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the engines' key: a hash of every pin, patch and recipe.
+# Prints the engines' key: a hash of pins and patches.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"

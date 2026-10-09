@@ -6,7 +6,7 @@ use ely_gpui_component::theme::ActiveTheme as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, MouseButton, ParentElement as _,
     Pixels, Point, RenderImage, StatefulInteractiveElement as _, Styled as _, Window, canvas, div,
-    img, point, px,
+    point, px,
 };
 use image::{Frame, ImageBuffer, Rgba};
 
@@ -62,6 +62,21 @@ fn span(from: f32, to: f32, sf: f32, side: i32) -> std::ops::RangeInclusive<i32>
     let first = (from.max(0.0) * sf).floor() as i32 / TILE;
     let last = ((to * sf).ceil() as i32 - 1).min(side - 1).max(0) / TILE;
     first..=last
+}
+
+/// Draws `image`, logging failure and first success (PERF-05).
+fn drawn_tile(image: Arc<RenderImage>, page: usize, view: gpui::Entity<PdfView>) -> gpui::Canvas<()> {
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, cx| match window.paint_image(bounds, bounds, Default::default(), image, 0, false) {
+            Ok(()) if !view.read(cx).drawn => {
+                view.update(cx, |view, _| view.drawn = true);
+                log::info!("pdf: first tile drawn, page {page}");
+            }
+            Ok(()) => {}
+            Err(error) => log::error!("pdf: drawing a page failed: {error}"),
+        },
+    )
 }
 
 /// A tile as an image; GPUI takes BGRA.
@@ -151,7 +166,7 @@ impl PdfView {
                     seen.insert(key);
                     match self.tiles.get(&key) {
                         Some(image) => tiles.push(
-                            img(image.clone())
+                            drawn_tile(image.clone(), place.page, cx.entity())
                                 .absolute()
                                 .left(px(rect[0] as f32 / sf))
                                 .top(px(rect[1] as f32 / sf))
@@ -279,7 +294,7 @@ impl PdfView {
                 });
                 match painted.map(|bgra| picture((rect[2] as u32, rect[3] as u32), bgra)) {
                     Ok(Some(image)) => {
-                        log::debug!("pdf: a tile of page {} drawn", key.page);
+                        log::debug!("pdf: a tile of page {} came", key.page);
                         if let Some(old) = view.tiles.insert(key, image) {
                             view.retired.push(old);
                         }

@@ -2,6 +2,7 @@
 """PERF-01 to PERF-08 on release builds, written as a record."""
 
 import argparse
+import collections
 import datetime
 import hashlib
 import json
@@ -98,8 +99,20 @@ class App:
         return self.family()[1] / 1024
 
     def files(self):
+        return sum(self.handles().values())
+
+    def handles(self):
+        """Open handles of the app and its children, as type and name."""
         ours, _ = self.family()
-        return sum(len(sh("lsof", "-p", str(pid)).splitlines()) for pid in ours)
+        found = collections.Counter()
+        for pid in ours:
+            kind = None
+            for line in sh("lsof", "-p", str(pid), "-F", "tn").splitlines():
+                if line[:1] == "t":
+                    kind = line[1:]
+                elif line[:1] == "n":
+                    found[(kind, line[1:])] += 1
+        return found
 
     def front(self):
         sh("osascript", "-e", f'tell application "System Events" to set frontmost of (first process whose unix id is {self.process.pid}) to true')
@@ -128,7 +141,7 @@ def percentile(values, p):
 
 
 # A page that failed to paint voids the run.
-PAINT_FAILED = r"lok: tile \(.*\) failed|pdf: drawing a page failed"
+PAINT_FAILED = r"lok: tile \(.*\) failed|lok: tile paint failed|pdf: drawing a page failed"
 
 
 def opened(slug, home, sample, marks, runs):
@@ -232,21 +245,40 @@ def raise_main(app):
     time.sleep(0.3)
 
 
+def documents_open(lines):
+    """The kernel's last document count; none logged fails."""
+    counts = [int(m.group(1)) for line in lines if (m := re.search(r"lok-worker: (\d+) documents open", line))]
+    if not counts:
+        raise RuntimeError("ely-doc: the worker logged no document count")
+    return counts[-1]
+
+
+def handles_kept(before, now, extra, cycle):
+    """Handles past the baseline: only system ones, the same each cycle."""
+    grown = now - before
+    # Read-only system resources load once, on first use.
+    left = sorted(handle for handle in grown if not handle[1].startswith("/System/Library/"))
+    if left:
+        raise RuntimeError(f"ely-doc: cycle {cycle} leaves handles: {left}")
+    if extra is not None and grown != extra:
+        raise RuntimeError(f"ely-doc: cycle {cycle} changed the system handles: {sorted((grown - extra) + (extra - grown))}")
+    return grown
+
+
 def perf08(work, cycles=40):
     """New and close a document; memory, handles and live documents."""
     app = App("ely-doc", os.path.join(work, "home-cycles"))
-    docs = r"lok-worker: (\d+) documents open"
 
     def open_docs():
-        counts = [int(m.group(1)) for line in app.lines() if (m := re.search(docs, line))]
-        return counts[-1] if counts else None
+        return documents_open(app.lines())
 
     try:
         app.wait("opened Untitled")
         app.front()
         time.sleep(2)
-        baseline = (app.memory_mb(), app.files(), open_docs())
-        seen = []
+        before = app.handles()
+        baseline = (app.memory_mb(), sum(before.values()), open_docs())
+        seen, extra = [], None
         for n in range(cycles):
             keys('keystroke "n" using command down')
             for _ in range(40):
@@ -277,15 +309,14 @@ def perf08(work, cycles=40):
                 if open_docs() == baseline[2]:
                     break
                 time.sleep(0.05)
+            else:
+                raise RuntimeError(f"ely-doc: {open_docs()} documents after closing, not {baseline[2]}")
             time.sleep(0.5)
-            seen.append((app.memory_mb(), app.files(), open_docs()))
+            now = app.handles()
+            extra = handles_kept(before, now, extra, n + 1)
+            seen.append((app.memory_mb(), sum(now.values()), open_docs()))
     finally:
         app.stop()
-    # The first dialog loads system fonts and AppKit tables once.
-    first, last = seen[0], seen[-1]
-    if last[1] != first[1] or last[2] != baseline[2]:
-        raise RuntimeError(f"ely-doc: after {cycles} cycles {last[1:]} files and documents, "
-                           f"not {first[1]} and {baseline[2]}")
     return baseline, seen
 
 def environment(found):
@@ -342,9 +373,9 @@ def main():
             ticks, stalls = perf02(work, args.runs)
             rows.append(("PERF-02", "ElyDoc key to new tile", ticks, None))
             rows.append(("PERF-02", f"main thread busy >100 ms: {len(stalls)} times", stalls or [0], None))
-        cases = [("PERF-03", "ely-doc", "doc.docx", ["opened doc.docx", r"lok: tile \(\d+, \d+\) shown"]),
-                 ("PERF-04", "ely-table", "sheet.xlsx", ["opened sheet.xlsx", r"lok: tile \(\d+, \d+\) shown"]),
-                 ("PERF-05", "ely-pdf", "pages.pdf", ["opened pages.pdf", r"pdf: a tile of page 0 drawn"]),
+        cases = [("PERF-03", "ely-doc", "doc.docx", ["opened doc.docx", r"lok: first tile drawn"]),
+                 ("PERF-04", "ely-table", "sheet.xlsx", ["opened sheet.xlsx", r"lok: first tile drawn"]),
+                 ("PERF-05", "ely-pdf", "pages.pdf", ["opened pages.pdf", r"pdf: first tile drawn, page 0$"]),
                  ("PERF-07", "ely-mark", "notes.md", ["opened notes.md", r"mark: shown as \"visual\""])]
         if want("PERF-03"):
             laid_out(work, found["doc.docx"][0], 100)

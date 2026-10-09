@@ -107,6 +107,8 @@ pub struct LokView {
     moves: u64,
     last_edit: u64,
     clock: clock::EditClock,
+    /// A tile reached the screen; logged once (PERF-03).
+    drawn: bool,
     /// Tiles the last frame showed.
     on_screen: Vec<(i32, i32)>,
     /// The mark of this view's last copy.
@@ -218,6 +220,7 @@ impl LokView {
             moves: 0,
             last_edit: 0,
             clock: clock::EditClock::default(),
+            drawn: false,
             on_screen: Vec::new(),
             copied: None,
             cursor: None,

@@ -91,6 +91,7 @@ impl Render for LokView {
                         }
                     },
                     move |bounds, painted, window, app| {
+                        let mut drawn = false;
                         for page in &painted.pages {
                             window.paint_quad(fill(*page, paper));
                             window.with_content_mask(
@@ -108,12 +109,17 @@ impl Render for LokView {
                                                 false,
                                             )
                                         });
-                                        if let Err(error) = painted {
-                                            log::error!("lok: tile paint failed: {error}");
+                                        match painted {
+                                            Ok(()) => drawn = true,
+                                            Err(error) => log::error!("lok: tile paint failed: {error}"),
                                         }
                                     }
                                 },
                             );
+                        }
+                        if drawn && !this.read(app).drawn {
+                            this.update(app, |view, _| view.drawn = true);
+                            log::info!("lok: first tile drawn");
                         }
                         window.with_content_mask(Some(ContentMask { bounds }), |window| {
                             for rect in painted.selection {
