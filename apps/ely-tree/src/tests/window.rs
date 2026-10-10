@@ -35,6 +35,10 @@ pub(crate) fn window<'a>(
     cx.update(|cx| {
         ely_ui::settings::install_defaults(cx);
         ely_ui::i18n::install(cx);
+        // As tool_root does: menus before the window.
+        let menus = crate::menu::menus(cx);
+        let menus = ely_ui::commands::menus(ely_platform::AppId::Tree, &ely_ui::commands::OPENING, false, menus, cx);
+        cx.set_menus(menus);
     });
     let recent = data.join("recent.json");
     cx.add_window_view(move |window, cx| Tree::new(recent, window, cx))
@@ -333,7 +337,8 @@ fn any_new_pick_leaves_a_file_history() {
     settle(cx, |app| branch(tree.read(app)).is_some());
     let head = sh(&root, &["rev-parse", "HEAD"]).trim().to_string();
     let looking = |cx: &mut VisualTestContext| cx.update(|_, app| tree.read(app).look.is_some());
-    let picks: [(&str, Box<dyn Fn(&mut Tree, &mut gpui::Context<Tree>)>); 3] = [
+    type Pick = Box<dyn Fn(&mut Tree, &mut gpui::Context<Tree>)>;
+    let picks: [(&str, Pick); 5] = [
         (
             "a tab",
             Box::new(|tree, cx| tree.set_side(Side::Branches, cx)),
@@ -345,6 +350,14 @@ fn any_new_pick_leaves_a_file_history() {
         (
             "a file",
             Box::new(|tree, cx| tree.show("a.txt", ChangeSection::Unstaged, cx)),
+        ),
+        (
+            "a branch",
+            Box::new(|tree, cx| tree.pick_ref(crate::branches::Kind::Local, "main".into(), cx)),
+        ),
+        (
+            "a remote",
+            Box::new(|tree, cx| tree.pick_place(crate::places::Place::Remote("origin".into()), cx)),
         ),
     ];
     for (what, pick) in picks {
