@@ -46,7 +46,13 @@ pub struct Docs {
     pub back: Vec<(u64, ely_lok::Rect)>,
     /// Last jump: tab, input, prior cursor moves, target.
     pub going: Option<(u64, u64, u64, ely_lok::Rect)>,
+    /// Dialog reads asked; a dialog or tab change voids older.
+    pub dialog_asked: u64,
+    dialog_seen: Seen,
 }
+
+/// Open dialog kinds, Ely's and the shell's, and the tab.
+type Seen = (Option<std::mem::Discriminant<Dialog>>, Option<std::mem::Discriminant<ely_office::Dialog>>, Option<u64>);
 
 /// The right column's panels.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -171,6 +177,7 @@ impl Docs {
             failed(docs, error, cx)
         })
         .detach();
+        cx.observe_self(|docs, _| docs.watch_dialogs()).detach();
         Docs {
             core: Core::new(worker, work, cx),
             dialog: None,
@@ -183,6 +190,18 @@ impl Docs {
             navigating: true,
             back: Vec::new(),
             going: None,
+            dialog_asked: 0,
+            dialog_seen: (None, None, None),
+        }
+    }
+
+    /// A dialog or tab change ends earlier dialog reads.
+    fn watch_dialogs(&mut self) {
+        let ely = self.dialog.as_ref().map(std::mem::discriminant);
+        let now = (ely, self.core.dialog.as_ref().map(std::mem::discriminant), self.core.active);
+        if self.dialog_seen != now {
+            self.dialog_seen = now;
+            self.dialog_asked += 1;
         }
     }
 
