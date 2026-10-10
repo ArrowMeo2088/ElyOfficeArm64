@@ -247,9 +247,11 @@ impl Docs {
                         let mut worker = worker.lock().expect("the worker lock");
                         let staged = template.with_file_name(format!("record.{extension}"));
                         let made = worker.load(&ely_lok::file_url(&template)).and_then(|doc| {
-                            fill(&mut worker, &doc, &table.headers, row)?;
-                            doc.save_as(&mut worker, &ely_lok::file_url(&staged), extension)?;
-                            worker.close_doc(doc)?;
+                            let saved = fill(&mut worker, &doc, &table.headers, row)
+                                .and_then(|()| doc.save_as(&mut worker, &ely_lok::file_url(&staged), extension));
+                            // Closed even when this record failed.
+                            let closed = worker.close_doc(doc);
+                            saved.and(closed)?;
                             publish(&staged, target)
                         });
                         made.map_err(|error| (n + 1, error))?;
