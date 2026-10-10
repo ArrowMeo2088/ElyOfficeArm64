@@ -165,10 +165,12 @@ impl Viewer {
         let Some(view) = self.tab(tab).map(|tab| tab.view.clone()).filter(|_| !pages.is_empty()) else {
             return self.toast(summary, Severity::Info, cx);
         };
-        self.on_same(&view, run.version, cx, |view, cx| {
+        let laid = self.on_same(&view, run.version, cx, |view, cx| {
             view.edit("adding recognised text", move |worker, doc| worker.text_layer(doc, &pages, replace), cx)
         });
-        self.toast(summary, Severity::Success, cx);
+        if laid {
+            self.toast(summary, Severity::Success, cx);
+        }
     }
 
     /// The OCR dialog: the ask, then the progress.

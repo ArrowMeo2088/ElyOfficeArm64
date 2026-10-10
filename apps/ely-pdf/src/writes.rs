@@ -176,25 +176,27 @@ impl Viewer {
         self.pick(false, cx, move |viewer, path: PathBuf, cx| {
             viewer.on_same(&view, version, cx, |view, cx| {
                 view.edit("replacing an image", move |worker, doc| worker.replace_image(doc, page, index, &path), cx)
-            })
+            });
         });
     }
 
-    /// Runs `step` on `view` if no edit came since `version`.
+    /// Whether `step` ran: no edit came since `version`.
     pub(crate) fn on_same(
         &self,
         view: &gpui::Entity<crate::view::PdfView>,
         version: u64,
         cx: &mut Context<Self>,
         step: impl FnOnce(&mut crate::view::PdfView, &mut Context<crate::view::PdfView>),
-    ) {
+    ) -> bool {
         // Landed or queued, an edit since may move the target.
         let open = self.core.tabs.iter().any(|tab| tab.view == *view);
         if !open || view.read(cx).version != version || !view.read(cx).settled() {
             let text = Self::text(cx, "pdf.object.changed", &[]);
-            return self.toast(text, Severity::Warning, cx);
+            self.toast(text, Severity::Warning, cx);
+            return false;
         }
         view.update(cx, step);
+        true
     }
 
     /// Asks for a picture; it lands mid-page.
