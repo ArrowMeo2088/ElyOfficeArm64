@@ -76,9 +76,25 @@ impl Git {
 
     /// HEAD names a commit; a new repository has none yet.
     pub fn born(&self, dir: &Path) -> io::Result<bool> {
-        Ok(!self
-            .run_or_one(dir, &["rev-parse", "--verify", "-q", "HEAD"])?
-            .is_empty())
+        if !self.run_or_one(dir, &["rev-parse", "--verify", "-q", "HEAD"])?.is_empty() {
+            return Ok(true);
+        }
+        // Unborn: HEAD names a branch with no ref at all.
+        let branch = String::from_utf8(self.run(dir, &["symbolic-ref", "-q", "HEAD"])?)
+            .map_err(|_| io::Error::other("HEAD names a ref that is not UTF-8"))?;
+        // Only Git's line end goes; a name keeps every byte.
+        let branch = branch.strip_suffix('\n').unwrap_or(&branch).to_owned();
+        let found = self.command(dir, &["for-each-ref", "--format=%(refname)", &branch]).output()?;
+        let unborn = branch.starts_with("refs/heads/") && found.status.success();
+        if unborn && found.stdout.is_empty() && found.stderr.is_empty() {
+            return Ok(false);
+        }
+        let mut why = format!("HEAD names {branch}: no commit, and no branch yet to begin");
+        let said = String::from_utf8_lossy(&found.stderr);
+        if !said.trim().is_empty() {
+            why = format!("{why}; Git says {}", said.trim());
+        }
+        Err(io::Error::other(why))
     }
 
     /// Exit 1 is an answer: files differ, key unset.
