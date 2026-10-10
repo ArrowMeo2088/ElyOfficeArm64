@@ -267,7 +267,23 @@ pub fn print_later<H: Tabs>(pdf: std::path::PathBuf, cx: &mut Context<H>) {
 
 /// Addresses a click may open outside: web and mail.
 pub fn outward(uri: &str) -> bool {
-    ["https://", "http://", "mailto:"].iter().any(|scheme| uri.starts_with(scheme))
+    // Schemes ignore case.
+    ["https://", "http://", "mailto:"]
+        .iter()
+        .any(|scheme| uri.get(..scheme.len()).is_some_and(|head| head.eq_ignore_ascii_case(scheme)))
+}
+
+#[cfg(test)]
+mod outward_tests {
+    #[test]
+    fn web_and_mail_go_out_in_any_case() {
+        for uri in ["https://a.example/", "HTTPS://a.example/", "Http://a.example/", "MAILTO:x@a.example"] {
+            assert!(super::outward(uri), "{uri}");
+        }
+        for uri in ["ftp://a.example/", "file:///etc/passwd", "javascript:alert(1)", "httpsx://a", "ht", "\u{e9}https://"] {
+            assert!(!super::outward(uri), "{uri}");
+        }
+    }
 }
 
 /// A localized message.

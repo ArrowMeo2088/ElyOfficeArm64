@@ -43,6 +43,9 @@ function flush() {
   pending = null
 }
 
+/** A link the user opens; the app decides. */
+const linked = (href) => tell({ kind: 'link', generation, href })
+
 /** The shown editor's headings, for the app's outline. */
 function outline() {
   if (current) tell({ kind: 'outline', generation, items: current.outline() })
@@ -83,7 +86,7 @@ async function build(text, mode) {
     const edited = (write) => changed(() => front + write())
     let made
     try {
-      made = await visual(place, body, mode === 'visual', texts, edited, edge)
+      made = await visual(place, body, mode === 'visual', texts, edited, edge, linked)
     } catch (error) {
       // A broken editor falls back to source and says so.
       console.error(`ely: the visual editor failed: ${error.name}`)

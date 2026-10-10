@@ -266,16 +266,7 @@ impl MarkView {
                 cx.emit(Reported);
             }
             Event::Query(said, reply) => self.query(said, reply, cx),
-            // A click on a link: web and mail open outside.
-            Event::Leave(url) if ely_office::outward(url) => {
-                log::info!("mark: opens a link outside");
-                cx.open_url(url);
-            }
-            Event::Leave(_) => {
-                log::info!("mark: a link of another kind was refused");
-                let said = ely_ui::i18n::text(cx, "office.link.refused", &[]).to_string();
-                cx.emit(Failed(said));
-            }
+            Event::Leave(url) => self.follow(url, cx),
             Event::Failed(why) => {
                 let lapsed = self.tally.lapse();
                 self.end_renders(lapsed, why, cx);
@@ -299,6 +290,17 @@ impl MarkView {
                 done(Err(why.clone()), cx);
             }
         });
+    }
+
+    /// A clicked link: web and mail open outside.
+    fn follow(&mut self, url: &str, cx: &mut Context<Self>) {
+        if ely_office::outward(url) {
+            log::info!("mark: opens a link outside");
+            return cx.open_url(url);
+        }
+        log::info!("mark: a link of another kind was refused");
+        let said = ely_ui::i18n::text(cx, "office.link.refused", &[]).to_string();
+        cx.emit(Failed(said));
     }
 
     fn query(&mut self, said: &str, reply: &Reply, cx: &mut Context<Self>) {
@@ -365,6 +367,13 @@ impl MarkView {
                 None => {
                     log::error!("mark: the page sent a bad search state");
                     return reply.fail("bad search state");
+                }
+            },
+            (Some("link"), ..) => match said["href"].as_str() {
+                Some(url) => self.follow(url, cx),
+                None => {
+                    log::error!("mark: the page sent a link without its address");
+                    return reply.fail("bad link");
                 }
             },
             (Some("table"), ..) if said["done"] == false => {
