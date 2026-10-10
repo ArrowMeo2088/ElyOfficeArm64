@@ -195,3 +195,27 @@ fn a_picture_never_drawn_is_checked_before_an_overwrite() {
     settle(cx, |app| viewer.read(app).active_tab().and_then(|tab| tab.risk) == Some(ely_office::Risk::Repaired));
     assert_eq!(std::fs::read(&path).expect("reads"), bytes, "Save turned into Save As");
 }
+
+#[test]
+fn an_edited_document_does_not_quote_the_files_size() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let path = file(dir.path(), "doc.pdf", &[(612.0, 792.0, &["First"])]);
+    let (viewer, cx) = windowed(&mut cx, dir.path(), &[path], true);
+    let view = shown(cx, &viewer);
+    // The window's toasts live on its root.
+    let root = cx.update(|window, app| {
+        let root = ely_ui::document_root(ely_platform::AppId::Pdf, viewer.clone().into(), &ely_ui::commands::FILE, Vec::new(), window, app);
+        viewer.update(app, |viewer, _| viewer.core.root = root.downgrade());
+        root
+    });
+    let note = ely_pdf_engine::NewAnnot { page: 0, shape: ely_pdf_engine::Shape::Note((100.0, 500.0)), rgb: None, contents: "n".into(), author: String::new() };
+    cx.update(|_, app| view.update(app, |view, cx| view.annotate("a note", vec![note], cx)));
+    settle(cx, |app| view.read(app).settled() && view.read(app).modified());
+    let id = cx.update(|_, app| viewer.read(app).core.tabs[0].id);
+    let out = dir.path().join("small.pdf");
+    let how = Optimizing { compress: true, from: 300, to: 150 };
+    cx.update(|_, app| viewer.update(app, |viewer, cx| viewer.write_export(id, Kind::Optimized, how, out.clone(), cx)));
+    let done = cx.update(|_, app| crate::viewer::Viewer::text(app, "pdf.export.done", &[("name", "small.pdf")]));
+    settle(cx, |app| root.read(app).toasts(app).iter().any(|(text, _)| *text == done));
+}

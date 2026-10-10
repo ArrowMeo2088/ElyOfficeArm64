@@ -203,6 +203,8 @@ impl Viewer {
             Err(error) => return self.failed(&error, cx),
         }
         let (work, path, revision) = (tab.work.join("export.out"), tab.session.path().map(PathBuf::from), tab.session.revision());
+        // Unsaved edits: the file on disk is not "before".
+        let compared = path.clone().filter(|_| !tab.view.read(cx).modified());
         let opened = target.clone();
         log::info!("pdf: exports {}", if kind == Kind::Text { "text" } else { "an optimized copy" });
         self.read_in(
@@ -214,7 +216,7 @@ impl Viewer {
                 }
                 let bytes = std::fs::read(&work)?;
                 std::fs::remove_file(&work)?;
-                let before = path.as_deref().map(std::fs::metadata).transpose()?.map(|meta| meta.len());
+                let before = compared.as_deref().map(std::fs::metadata).transpose()?.map(|meta| meta.len());
                 ely_files::export(&target, path.as_deref(), &bytes, revision)?;
                 Ok((before, bytes.len() as u64))
             },
