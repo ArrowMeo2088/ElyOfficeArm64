@@ -111,6 +111,56 @@ fn a_ligature_block_edits_like_any_other() {
 }
 
 #[test]
+fn a_control_character_in_text_still_reads() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let path = dir.path().join("control.pdf");
+    // Code 1 names U+0001, as broken encodings do.
+    let content = "BT /F1 24 Tf 72 700 Td <41014243> Tj ET";
+    let pdf = one_font_page(content, &[
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [1 /uni0001] >> >>".to_string(),
+    ]);
+    std::fs::write(&path, pdf).expect("writes");
+    let mut worker = worker();
+    let doc = worker.open(&path).expect("opens").doc;
+    let text = page_text(&mut worker, doc);
+    let blocks = worker.text_blocks(doc, 0).expect("the blocks parse");
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].text, text, "the same text as the page reads");
+}
+
+#[test]
+fn a_font_name_with_a_stray_byte_still_reads() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let path = dir.path().join("name.pdf");
+    // #E9 alone is not UTF-8.
+    let content = "BT /F1 24 Tf 72 700 Td (ABC) Tj ET";
+    let pdf = one_font_page(content, &[
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Review#E9Font /Encoding /WinAnsiEncoding >>".to_string(),
+    ]);
+    std::fs::write(&path, pdf).expect("writes");
+    let mut worker = worker();
+    let doc = worker.open(&path).expect("opens").doc;
+    let blocks = worker.text_blocks(doc, 0).expect("the blocks parse");
+    assert_eq!((blocks[0].text.as_str(), blocks[0].font.as_str()), ("ABC", "Review\u{FFFD}Font"));
+}
+
+#[test]
+fn a_font_name_in_surrogate_halves_still_reads() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let content = "BT /F1 24 Tf 72 700 Td (ABC) Tj ET";
+    let mut worker = worker();
+    // A pair joins; a lone half is no character.
+    for (base, want) in [("Review#ED#A0#BD#ED#B8#80Font", "Review\u{1F600}Font"), ("Lone#ED#A0#BDFont", "Lone\u{FFFD}Font")] {
+        let path = dir.path().join(format!("{want}.pdf"));
+        let font = format!("<< /Type /Font /Subtype /Type1 /BaseFont /{base} /Encoding /WinAnsiEncoding >>");
+        std::fs::write(&path, one_font_page(content, &[font])).expect("writes");
+        let doc = worker.open(&path).expect("opens").doc;
+        let blocks = worker.text_blocks(doc, 0).expect("the blocks parse");
+        assert_eq!(blocks[0].font, want);
+    }
+}
+
+#[test]
 fn a_font_written_into_the_page_says_it_cannot_write() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let path = dir.path().join("direct.pdf");
