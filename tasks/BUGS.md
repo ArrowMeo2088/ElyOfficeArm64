@@ -8,6 +8,10 @@
 
 - [x] E-01 Windows 与 Linux（WSL）的构建环境：工具链、MuPDF、CEF、ElyMark 页面、tessdata、Git，`cargo check --workspace --all-targets` 两端通过（LibreOffice 随 L-01、W-01） — R1 CEF 未设 API 版本、macOS 编译回归、日志测试不触发错误、Windows 硬链接不认作同一文件、WSL 无 Git；R2 注释超长；R3 PASS
 
+## 0.1.3 先发布（用户 2026-10-10 改定：非 P0 的缺陷先放下，三端先打包发布；Omarchy 主题跟随必须有）
+
+P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04、CI-01、REL-3。N-01 至 N-06 在 0.1.3 写为已知限制（打印、媒体、证书信任、Windows 与 Linux 的自更新安装、停止 Git、同级应用），发布后再做；其余未勾缺陷（G-03 起、K-02 起、X-04 起）同。
+
 ## 0.1.2 先做（用户 2026-10-09 定：先修致命与高，加自动更新，发布 0.1.2；其余随后按清单次序）
 
 次序：S-03、P-01、X-01、D-01、D-02、P-02、P-03、P-04、M-01、X-02、X-03、K-01（Linux、Windows，本机不能运行）、UPD-1、REL-1、REL-2。K-01 不进 0.1.2：只影响 Linux 与 Windows 的 worker，本机不能运行验证，0.1.2 只发 macOS；留在下面的清单里，未勾。T-05 已改一半（审查查出缩放后尺寸不重测），暂放，补丁存在草稿区。
