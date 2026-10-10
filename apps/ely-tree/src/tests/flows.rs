@@ -263,15 +263,9 @@ fn a_git_am_stopped_on_a_conflict_says_so() {
     let (root, _) = conflicted(dir.path());
     let patch = sh(&root, &["format-patch", "-1", "side", "--stdout"]);
     std::fs::write(dir.path().join("p.patch"), patch).expect("writes");
+    let patch_at = dir.path().join("p.patch").to_str().expect("utf-8").to_owned();
     // `git am` stops on the conflict, as in a terminal.
-    let stopped = super::git().run(
-        &root,
-        &[
-            "am",
-            "--3way",
-            dir.path().join("p.patch").to_str().expect("utf-8"),
-        ],
-    );
+    let stopped = super::git().run(&root, &["am", "--3way", patch_at.as_str()]);
     assert!(stopped.is_err(), "the patch conflicts");
     let mut cx = TestAppContext::single();
     let (tree, cx) = window(&mut cx, dir.path());
@@ -285,6 +279,32 @@ fn a_git_am_stopped_on_a_conflict_says_so() {
         cx.update(|_, app| op(app)),
         Some((crate::ops::Op::Am, "1/1".to_string()))
     );
+    let applying = || root.join(".git/rebase-apply").exists();
+    // Skip, then abort a second stop: each asks first.
+    for skip in [true, false] {
+        if !skip {
+            assert!(super::git().run(&root, &["am", "--3way", patch_at.as_str()]).is_err());
+            settle(cx, |app| op(app).is_some());
+        }
+        cx.update(|_, app| {
+            tree.update(app, |tree, cx| match skip {
+                true => tree.op_skip(crate::ops::Op::Am, cx),
+                false => tree.op_abort(crate::ops::Op::Am, cx),
+            })
+        });
+        let write = cx.update(|_, app| match &tree.read(app).ask {
+            Some(Ask::Confirm { write, .. }) => write.clone(),
+            _ => panic!("a confirm"),
+        });
+        assert!(applying(), "nothing runs before the yes");
+        cx.update(|_, app| {
+            tree.update(app, |tree, cx| {
+                tree.ask = None;
+                tree.write(1, write, cx)
+            })
+        });
+        settle(cx, |_| !applying());
+    }
 }
 
 #[test]
@@ -319,4 +339,25 @@ fn a_settled_conflict_says_so_when_picked_again() {
     let want = cx.update(|_, app| ely_ui::i18n::text(app, "tree.conflict.taken", &[]));
     let toasts = cx.update(|_, app| shell.read(app).toasts(app));
     assert!(toasts.iter().any(|(text, _)| *text == want), "{toasts:?}");
+}
+
+#[test]
+fn a_stop_that_does_not_read_says_why() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let root = super::committed(dir.path());
+    // A merge whose other side no longer exists.
+    let gone = "0123456789abcdef0123456789abcdef01234567";
+    std::fs::write(root.join(".git/MERGE_HEAD"), format!("{gone}\n")).expect("writes");
+    let mut cx = TestAppContext::single();
+    let (tree, cx) = window(&mut cx, dir.path());
+    cx.update(|_, app| tree.update(app, |tree, cx| tree.open_path(root.clone(), cx)));
+    let unread = |app: &App| match tree.read(app).active().and_then(|o| o.doing.clone()) {
+        Some(Err(error)) => Some(error),
+        _ => None,
+    };
+    settle(cx, |app| unread(app).is_some());
+    let error = cx.update(|_, app| unread(app)).expect("an error");
+    assert!(error.contains("bad object MERGE_HEAD"), "Git's own words: {error}");
+    let alert = cx.update(|_, app| tree.update(app, |tree, cx| tree.op_alert(cx).is_some()));
+    assert!(alert, "the failure shows above the work tree");
 }

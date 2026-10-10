@@ -149,6 +149,7 @@ pub(super) const EN: &[(&str, &str)] = &[
     ("tree.opname.rebase", "rebase"),
     ("tree.opname.cherry-pick", "cherry-pick"),
     ("tree.opname.revert", "revert"),
+    ("tree.opname.am", "patch application"),
 ];
 
 pub(super) const ZH_CN: &[(&str, &str)] = &[
@@ -273,4 +274,5 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("tree.opname.rebase", "变基"),
     ("tree.opname.cherry-pick", "拣选"),
     ("tree.opname.revert", "撤销"),
+    ("tree.opname.am", "补丁应用"),
 ];
