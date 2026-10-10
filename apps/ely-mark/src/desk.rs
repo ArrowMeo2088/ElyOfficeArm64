@@ -257,7 +257,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         cx.on_app_quit(|desk, cx| {
             // A system end skips asking: unsaved tabs keep points.
             if desk.core.tabs.iter().any(|tab| tab.dirty(cx)) {
-                log::warn!("mark: quit with unsaved tabs; points stay");
+                desk.keeping.hold();
             } else {
                 desk.keeping.close();
             }

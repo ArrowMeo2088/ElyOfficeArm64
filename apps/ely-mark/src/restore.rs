@@ -148,6 +148,13 @@ impl Keeping {
         self.waiting[at].tab = Some(tab);
     }
 
+    /// An end that never asked: the lock and points stay.
+    pub fn hold(&mut self) {
+        if self.crash.take().is_some() {
+            log::warn!("mark: the session ends unasked; its points stay");
+        }
+    }
+
     /// A clean end: no crash next time, no stale points.
     pub fn close(&mut self) {
         let Some(crash) = self.crash.take() else {
@@ -414,5 +421,24 @@ mod tests {
         assert_eq!(super::waiting_for(&waiting, None, 5), Some(1));
         assert_eq!(super::waiting_for(&waiting, None, 4), Some(0));
         assert_eq!(super::waiting_for(&waiting, None, 9), None, "a new tab takes nothing");
+    }
+
+    #[test]
+    fn an_unasked_end_keeps_the_lock_and_points_past_release() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let point = dir.path().join("recovery/s/point");
+        let (lock, slot) = (dir.path().join("session.lock"), point.parent().expect("a slot"));
+        let (mut held, ..) = super::Keeping::start(dir.path()).expect("a session");
+        std::fs::create_dir_all(slot).expect("a slot");
+        std::fs::write(&point, "unsaved").expect("a point");
+        held.hold();
+        held.close();
+        assert!(lock.exists() && point.exists(), "release after quit wiped them");
+        drop(held);
+        let (mut clean, ..) = super::Keeping::start(dir.path()).expect("a session");
+        std::fs::create_dir_all(slot).expect("a slot");
+        std::fs::write(&point, "unsaved").expect("a point");
+        clean.close();
+        assert!(!lock.exists() && !point.exists(), "a clean end clears");
     }
 }
