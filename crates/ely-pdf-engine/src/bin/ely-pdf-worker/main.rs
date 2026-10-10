@@ -68,7 +68,11 @@ impl Doc {
             return Err(io::Error::other(format!("nothing to {}", if redo { "redo" } else { "undo" })));
         }
         loop {
-            mupdf.undo(&self.open, redo)?;
+            if let Err(error) = mupdf.undo(&self.open, redo) {
+                // MuPDF may have moved part way; follow it.
+                self.at = mupdf.state(&self.open)?.0;
+                return Err(error);
+            }
             let passed = match redo {
                 true => {
                     self.at += 1;
