@@ -158,6 +158,7 @@ tests/scripts/mark-places.sh   真窗口 ElyMark：文件夹树、大纲跳转�
 tests/scripts/mark-output.sh   真窗口 ElyMark：专注模式与外观持久、四种导出、打印、Git 状态与打开 ElyTree、大文件（需辅助功能权限与 pdftotext；ELY_CLIPBOARD_TEST=1 再测富文本复制）
 tests/scripts/mark-outside.sh  真窗口 ElyMark：外部替换、改名、删除、冲突比较、自动保存、退出与崩溃后的恢复（需辅助功能权限）
 tests/scripts/mark-links.mjs   ElyMark 页面（Playwright，三端）：可视模式单击编辑，Cmd（他处 Ctrl）单击交应用，预览单击交应用，地址取文档原文（需 site 的依赖）
+tests/scripts/mark-broken.mjs  ElyMark 页面（Playwright，三端）：可视编辑器建不成即退回源码并告知，两者都建不成即报失败（需 site 的依赖）
 tests/scripts/mark-tools.sh    真窗口 ElyMark：查找替换、正则、Tab、列表、表格、拖放与粘贴图片（需辅助功能权限；ELY_CLIPBOARD_TEST=1 再测粘贴）
 tests/scripts/comments-rules.sh  comments.py 对长注释与跨行注释报错
 tests/scripts/bad-settings.sh  通用设置读不出时 ElyDoc 照样启动，文件不被覆盖

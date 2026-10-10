@@ -17,6 +17,8 @@ let pending = null
 let current = null
 // A mode asked for while an editor builds.
 let asked = null
+// The text no editor could show; a mode retries it.
+let broken = null
 // A place to show once the editor is built.
 let revealing = null
 // The search in force, kept across modes.
@@ -67,11 +69,21 @@ function changed(text) {
   revised(text)
 }
 
-/** An editor for `mode`; visual falls back to source. */
+/** An editor for `mode`; a failed one leaves no holder. */
 async function build(text, mode) {
   const holder = document.createElement('div')
   holder.hidden = true
   document.getElementById('document').append(holder)
+  try {
+    return await fill(holder, text, mode)
+  } catch (error) {
+    holder.remove()
+    throw error
+  }
+}
+
+/** Builds in `holder`; visual falls back to source. */
+async function fill(holder, text, mode) {
   const entry = { mode, holder, fallback: false }
   if (mode !== 'source') {
     const [front, body] = split(text)
@@ -126,15 +138,20 @@ function drop(entry) {
 async function show(text, want) {
   const turn = ++latest
   asked = null
+  broken = null
   if (current) drop(current)
   current = null
   let entry
   try {
     entry = await build(text, want)
   } catch (error) {
-    // Source failed too: tell the app, never blank.
-    if (turn === latest) tell({ kind: 'failed', generation, what: error.name })
-    return
+    if (turn !== latest) return
+    // Source failed too: tell the app, keep the text.
+    broken = text
+    tell({ kind: 'failed', generation, what: error.name })
+    const next = asked
+    asked = null
+    return next && mode(next)
   }
   if (turn !== latest) return drop(entry)
   current = entry
@@ -233,6 +250,7 @@ window.addEventListener('scroll', placed, { passive: true })
 /** Another mode for the same text; edits are sent first. */
 function mode(next) {
   if (!current) {
+    if (broken !== null) return show(broken, next)
     asked = next
     return
   }
