@@ -236,11 +236,7 @@ impl Desk {
         match (disk.text == current, dirty) {
             // The same text: only the file underneath is new.
             (true, _) => {
-                if let Some(view) = self.adopt_disk(id, &disk, fingerprint, cx) {
-                    // What shows is now saved: the tab is clean.
-                    let saved = crate::engine::mark(&disk.text);
-                    view.update(cx, |view, cx| view.saved(&saved, cx));
-                }
+                self.adopt_disk(id, &disk, fingerprint, cx);
             }
             // The text as last saved: the edits stay unsaved.
             (false, true) if kept => self.keep_edits(id, disk, fingerprint, cx),
@@ -294,8 +290,8 @@ impl Desk {
         self.save_after_pause(id, cx);
     }
 
-    /// The tab takes the file as saved; returns its view.
-    fn adopt_disk(
+    /// The tab and its view take the file as saved.
+    pub(crate) fn adopt_disk(
         &mut self,
         id: u64,
         disk: &Source,
@@ -309,7 +305,8 @@ impl Desk {
         }
         tab.extra.base = disk.text.clone();
         // The file holds the disk's text: it is saved.
-        tab.mark = crate::engine::mark(&disk.text);
+        let saved = crate::engine::mark(&disk.text);
+        tab.mark = saved.clone();
         tab.extra.restart_autosave();
         // Its bytes (BOM, line ends) are what saves keep now.
         tab.doc.lock().expect("the text lock").source = disk.clone();
@@ -322,6 +319,7 @@ impl Desk {
             log::warn!("mark: the replaced file did not register: {error}");
         }
         self.set_outside(id, Outside::Clear, cx);
+        view.update(cx, |view, cx| view.saved(&saved, cx));
         Some(view)
     }
 
