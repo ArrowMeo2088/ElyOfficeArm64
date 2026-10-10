@@ -252,3 +252,54 @@ fn pdfs_export_a_range_and_locked_files_ask() {
         "the locked text opens"
     );
 }
+
+/// The navigator alone as a window's view.
+struct Host(Entity<Navigator>);
+
+impl gpui::Render for Host {
+    fn render(&mut self, _: &mut gpui::Window, _: &mut gpui::Context<Self>) -> impl gpui::IntoElement {
+        gpui::div().size_full().child(self.0.clone())
+    }
+}
+
+#[test]
+fn an_outline_click_goes_where_its_row_was_drawn() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(docs) = docs(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    cx.update(ely_gpui_component::init_for_tests);
+    crate::tests::blank(&mut cx, &docs);
+    let navigator = cx.update(|app| docs.read(app).navigator.clone());
+    let heading = |n: i32| ely_lok::review::Heading { text: format!("Part {n}"), level: 0, rect: (0, n * 100, 10, 10), current: false };
+    cx.update(|app| navigator.update(app, |navigator, cx| {
+        navigator.outline = vec![heading(1), heading(2), heading(3)];
+        cx.notify();
+    }));
+    let (_, vcx) = cx.add_window_view(|_, _| Host(navigator.clone()));
+    let target = |vcx: &mut gpui::VisualTestContext| vcx.update(|_, app| docs.read(app).going.map(|going| going.3));
+    // Find where the drawn third row sits.
+    let third = (0..120)
+        .map(|step| gpui::point(gpui::px(40.), gpui::px(step as f32 * 4.)))
+        .find(|at| {
+            vcx.simulate_click(*at, gpui::Modifiers::none());
+            target(vcx) == Some((0, 300, 10, 10))
+        })
+        .expect("the third row is drawn");
+    vcx.update(|_, app| docs.update(app, |docs, _| docs.going = None));
+    // The list shrinks; the click lands on the old frame.
+    vcx.update(|window, app| {
+        navigator.update(app, |navigator, cx| {
+            navigator.outline.truncate(1);
+            cx.notify();
+        });
+        let (position, modifiers, button) = (third, gpui::Modifiers::none(), gpui::MouseButton::Left);
+        let down = gpui::MouseDownEvent { position, modifiers, button, click_count: 1, first_mouse: false };
+        window.dispatch_event(gpui::PlatformInput::MouseDown(down), app);
+        let up = gpui::MouseUpEvent { position, modifiers, button, click_count: 1 };
+        window.dispatch_event(gpui::PlatformInput::MouseUp(up), app);
+    });
+    assert_eq!(target(vcx), Some((0, 300, 10, 10)), "the click goes where its row was");
+}
