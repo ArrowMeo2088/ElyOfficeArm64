@@ -81,6 +81,36 @@ fn a_font_whose_codes_ely_cannot_write_says_so() {
 }
 
 #[test]
+fn a_ligature_block_edits_like_any_other() {
+    // Code 1 is one ligature glyph, in either Unicode form.
+    let mut forms = vec![("00660069".to_string(), "find".to_string()), ("FB01".into(), "find".into()), ("FB03".into(), "ffind".into())];
+    // Long mappings, to MuPDF's cap of 256: none cut short.
+    forms.push(("0066".repeat(48), format!("{}nd", "f".repeat(48))));
+    forms.push(("FB03".repeat(256), format!("{}nd", "ffi".repeat(256))));
+    for (unicode, text) in forms {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let path = dir.path().join("lig.pdf");
+        let cmap = format!("/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /Lig def 1 begincodespacerange <00> <FF> endcodespacerange 3 beginbfchar <01> <{unicode}> <6E> <006E> <64> <0064> endbfchar endcmap CMapName currentdict /CMap defineresource pop end end");
+        let content = "BT /F1 24 Tf 72 700 Td <016E64> Tj ET";
+        let pdf = one_font_page(content, &[
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [1 /fi] >> /ToUnicode 6 0 R >>".to_string(),
+            format!("<< /Length {} >>\nstream\n{cmap}\nendstream", cmap.len()),
+        ]);
+        std::fs::write(&path, pdf).expect("writes");
+        let mut worker = worker();
+        let doc = worker.open(&path).expect("opens").doc;
+        let block = worker.text_blocks(doc, 0).expect("blocks").into_iter().next().expect("a block");
+        assert_eq!(block.text, text);
+        assert!(block.editable, "{unicode}: {block:?}");
+        let writing = rewrite(&mut worker, doc, 0, "Yo", "helvetica");
+        let Wrote::Done(mark) = worker.put_text(doc, 0, &writing, 0.0).expect("writes") else {
+            panic!("{unicode}: the ligature block was not rewritten");
+        };
+        assert_eq!(page_text(&mut worker, doc.at(&mark).expect("a mark")), "Yo");
+    }
+}
+
+#[test]
 fn a_font_written_into_the_page_says_it_cannot_write() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let path = dir.path().join("direct.pdf");

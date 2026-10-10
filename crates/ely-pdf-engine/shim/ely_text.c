@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "ely_shim.h"
+#include "mupdf/ucdn.h"
 
 /* The page's text, read the same way every time. */
 static fz_stext_page *read_text(fz_context *ctx, fz_document *doc, int number)
@@ -58,14 +59,55 @@ static void block_targets(fz_context *ctx, fz_stext_block *block, fz_matrix to_u
 			}
 }
 
+/* `c` as stext spells it (stext-device.c); ligatures split. */
+static int spell(int c, int *out)
+{
+	static const char *named[] = { "ff", "fi", "fl", "ffi", "ffl", "st", "st" };
+	int i, n = 0;
+	uint32_t lig[18];
+	if (c >= 0xFB00 && c <= 0xFB06)
+	{
+		for (i = 0; named[c - 0xFB00][i]; i++)
+			out[n++] = named[c - 0xFB00][i];
+		return n;
+	}
+	if ((c >= 0xfb00 && c <= 0xfdff) || (c >= 0xfe70 && c <= 0xfefc))
+		n = ucdn_compat_decompose((uint32_t)c, lig);
+	for (i = 0; i < n; i++)
+		out[i] = (int)lig[i];
+	if (n > 0)
+		return n;
+	out[0] = c;
+	return 1;
+}
+
+/* Targets from `i` one glyph spells: a ligature spells several. */
+static int spelled(targets *t, int i, const int *ucs, int ucslen)
+{
+	int j = 1;
+	if (ucslen < 2 || ucs[0] != t->c[i])
+		return 1;
+	while (j < ucslen && i + j < t->n && t->c[i + j] == ucs[j] && (!t->owner || t->owner[i + j] == t->owner[i]))
+		j++;
+	return j;
+}
+
 /* Removes a glyph drawn at one of the targets. */
 static int take_glyph(fz_context *ctx, void *opaque, int *ucs, int ucslen, fz_matrix trm, fz_matrix ctm,
 	fz_rect bbox, int tr, float ca, float CA)
 {
 	targets *t = opaque;
 	fz_point at = fz_transform_point(fz_transform_point(fz_make_point(0, 0), trm), ctm);
-	int i, k, found = 0;
+	/* MuPDF gives at most PDF_MRANGE_CAP; each spells to 18. */
+	int i, k, found = 0, spelt[18 * PDF_MRANGE_CAP], n = 0;
 	t->glyph++;
+	if (ucslen > PDF_MRANGE_CAP)
+		fz_throw(ctx, FZ_ERROR_ARGUMENT, "a glyph with %d characters", ucslen);
+	/* Match what stext reads: ligature code points spelled out. */
+	for (k = 0; k < ucslen; k++)
+		n += spell(ucs[k], spelt + n);
+	ucs = spelt;
+	ucslen = n;
 	for (i = 0; i < t->n; i++)
 	{
 		int match = 0;
@@ -77,14 +119,14 @@ static int take_glyph(fz_context *ctx, void *opaque, int *ucs, int ucslen, fz_ma
 			continue;
 		if (!t->owner)
 		{
-			t->hit++;
+			t->hit += spelled(t, i, ucs, ucslen);
 			return 1;
 		}
 		/* Every block this glyph matches counts it once. */
 		if (t->seen[t->owner[i]] != t->glyph)
 		{
 			t->seen[t->owner[i]] = t->glyph;
-			t->hits[t->owner[i]]++;
+			t->hits[t->owner[i]] += spelled(t, i, ucs, ucslen);
 		}
 		found = 1;
 	}
