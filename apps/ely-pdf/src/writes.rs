@@ -71,7 +71,8 @@ impl Viewer {
         let (asked, viewer) = (writing.clone(), cx.weak_entity());
         view.update(cx, |view, cx| {
             let doc = view.doc;
-            view.read(
+            // A stale answer still reaches `previewed`, which says so.
+            view.off(
                 move |worker| worker.put_text(doc, page, &asked, PREVIEW),
                 move |_, answer, cx| {
                     // The viewer edits this view; wait until it is free.
@@ -95,6 +96,11 @@ impl Viewer {
         replacing: bool,
         cx: &mut Context<Self>,
     ) {
+        let same = self.tab(tab).is_some_and(|open| open.view.read(cx).version == version);
+        if !same {
+            let text = Self::text(cx, "pdf.object.changed", &[]);
+            return self.toast(text, Severity::Warning, cx);
+        }
         match answer {
             Ok(Wrote::Unwritable) => {
                 let note = Self::text(cx, "pdf.text.unwritable", &[]);

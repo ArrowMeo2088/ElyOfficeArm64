@@ -397,3 +397,33 @@ fn a_small_picture_on_text_under_a_page_form_still_aims() {
     click(cx, &view, (140.0, 66.0));
     assert!(matches!(cx.update(|_, app| view.read(app).aim), Some(Aim::Text { .. })), "the text, not the form around it");
 }
+
+#[test]
+fn a_preview_overtaken_by_an_edit_says_so() {
+    use ely_gpui_component::primitives::Severity;
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let (viewer, cx, view) = editing(&mut cx, dir.path());
+    // The window's toasts live on its root.
+    let root = cx.update(|window, app| {
+        let root = ely_ui::document_root(ely_platform::AppId::Pdf, viewer.clone().into(), &ely_ui::commands::FILE, Vec::new(), window, app);
+        viewer.update(app, |viewer, _| viewer.core.root = root.downgrade());
+        root
+    });
+    click(cx, &view, (80.0, 66.0));
+    type_in(cx, &viewer, "Hi world\nSecond line");
+    cx.update(|_, app| viewer.update(app, |viewer, cx| {
+        // A new font asks for a preview first.
+        viewer.edit_panel.update(cx, |panel, _| panel.font = "times".into());
+        viewer.write_text(false, cx);
+        // An edit lands before the preview answers.
+        if let Some(view) = viewer.active_view() {
+            view.update(cx, |view, _| view.version += 1);
+        }
+    }));
+    let changed = cx.update(|_, app| Viewer::text(app, "pdf.object.changed", &[]));
+    settle(cx, |app| root.read(app).toasts(app).iter().any(|(text, severity)| *severity == Some(Severity::Warning) && *text == changed));
+    frames(cx);
+    assert!(cx.update(|_, app| viewer.read(app).preview.is_none()), "no stale preview");
+    assert_eq!(cx.update(|_, app| view.read(app).edited), 0, "nothing written");
+}
