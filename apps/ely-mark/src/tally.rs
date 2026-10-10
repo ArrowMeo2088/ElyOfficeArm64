@@ -81,16 +81,20 @@ mod tests {
     fn a_key_from_before_a_refresh_leaves_it_settled() {
         let mut tally = Tally::<()>::new();
         let old = tally.load();
+        // The old page counted two versions.
+        tally.change(2);
+        assert!(tally.text(2));
         tally.restart();
         // The renderer's change for the old text lands late.
         if tally.current(Some(old)) {
-            tally.change(1);
+            tally.change(3);
         }
         assert!(tally.settled(), "an old change does not count");
+        assert_eq!(tally.changed(), 0, "versions start over");
         // The refreshed page's own edits count again.
         tally.change(1);
         assert!(!tally.settled());
-        assert!(tally.text(1));
+        assert!(tally.text(1), "the new page's first text counts");
         assert!(tally.settled());
     }
 
