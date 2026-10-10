@@ -197,8 +197,13 @@ fn make_browsers() {
             runtime_style: RuntimeStyle::ALLOY,
             ..Default::default()
         };
+        let scripts = match surface.lock().expect("the surface lock").scripts {
+            true => State::ENABLED,
+            false => State::DISABLED,
+        };
         let settings = BrowserSettings {
             windowless_frame_rate: 60,
+            javascript: scripts,
             ..Default::default()
         };
         // Made at once: no view ever waits on a browser.

@@ -65,9 +65,10 @@ probe=
 out=$(cat "$work/out")
 for want in "probe: value=你好a" "probe: focused=text" "probe: zoom=1.25" "probe: stayed" \
   "probe: outside=false" "probe: network=refused" "probe: udp=silent" "probe: rtc=undefined" "probe: main failed" "probe: hash loaded" "probe: missing failed" \
-  "probe: closed 20" "probe: dropped 5 unmade, 10 early"; do
+  "probe: closed 20" "probe: dropped 5 unmade, 10 early" "probe: inert loaded" "probe: scripted ran" "probe: inert checked"; do
   grep -qxF "$want" <<<"$out" || fail "expected '$want', got: $out"
 done
+! grep -q "probe: inert ran" <<<"$out" || fail "an inert page ran a script: $out"
 grep -qE '^probe: fg=rgba\([0-9]+, [0-9]+, [0-9]+, ' <<<"$out" || fail "no theme token: $out"
 # Freed before the hold: 20 closed, 5 unmade, 10 early.
 freed=$(awk "/probe: hold/ { exit } /a page's memory is freed/ { n++ } END { print n + 0 }" "$work/err")

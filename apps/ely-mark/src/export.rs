@@ -316,7 +316,8 @@ impl Desk {
             .parent()
             .expect("a staged page sits in a folder")
             .to_path_buf();
-        let view = match WebView::open(page, &root, window, cx) {
+        // A document's own scripts never run here.
+        let view = match WebView::open_inert(page, &root, window, cx) {
             Ok(view) => view,
             Err(error) => return self.exported(Err(io::Error::other(error)), cx),
         };
