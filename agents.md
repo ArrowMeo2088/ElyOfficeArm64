@@ -146,6 +146,7 @@ tests/scripts/lo-unregistered.sh  “打开方式”里没有 LibreOffice，构�
 tests/scripts/lokview.sh       真窗口里的 LokView：输入法、键入、点击、拖动，AX 树里的段落文本；ELY_CLIPBOARD_TEST=1 再测复制粘贴（会覆盖系统剪贴板）
 tests/scripts/doc-shell.sh     真窗口 ElyDoc：空白标签进 AX 树，启动后 Cmd+N 打开新建对话框（需辅助功能权限）
 tests/scripts/doc-props.sh     真窗口 ElyDoc 属性栏：段前段后连续键入、回车、失焦，读 AX 值与命令数（需辅助功能权限）
+tests/scripts/doc-review.sh    真窗口 ElyDoc：无日期的批注逐条写明作者与原因（AX 可读），多条时批注与修订列表仍在窗口内（需辅助功能权限）
 tests/scripts/theme.sh         真窗口 ElyTable 以深、浅两种外观启动，截窗口量网格亮度（需屏幕录制权限）
 tests/scripts/lag.sh ely-doc   真窗口键入，从调试日志算输入落地、图块、按键到新图块的分位数（需辅助功能权限）；ELY_LAG_LOG=路径 留下日志
 tests/scripts/pdf-idle.sh      真窗口 ElyPDF 无文件启动时无 worker 子进程
