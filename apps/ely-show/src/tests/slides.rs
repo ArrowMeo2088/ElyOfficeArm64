@@ -11,7 +11,7 @@ use crate::deck::Deck;
 use crate::dialog::Dialog;
 
 /// Runs `f` on the deck inside its window.
-fn in_window<R>(
+pub(super) fn in_window<R>(
     cx: &mut TestAppContext,
     deck: &Entity<Deck>,
     f: impl FnOnce(&mut Deck, &mut Window, &mut gpui::Context<Deck>) -> R,
@@ -25,7 +25,7 @@ fn in_window<R>(
     .expect("the window lives")
 }
 
-fn type_in(cx: &mut TestAppContext, field: &Entity<TextInput>, text: &str) {
+pub(super) fn type_in(cx: &mut TestAppContext, field: &Entity<TextInput>, text: &str) {
     let text = text.to_string();
     cx.update(|app| field.update(app, |field, cx| field.set_text(text, cx)));
 }
@@ -119,31 +119,6 @@ fn an_open_dialog_is_not_pushed_aside() {
     cx.run_until_parked();
     let kept = cx.update(|app| matches!(deck.read(app).dialog, Some(crate::dialog::Dialog::Table { .. })));
     assert!(kept, "the table dialog stays");
-}
-
-#[test]
-fn typed_notes_reach_the_slide() {
-    let dir = tempfile::tempdir().expect("a temp dir");
-    let mut cx = TestAppContext::single();
-    let Some(deck) = blank(&mut cx, dir.path()) else {
-        eprintln!("SKIP: no LOK build");
-        return;
-    };
-    let notes = |app: &gpui::App| {
-        deck.read(app)
-            .active_tab()
-            .and_then(|tab| tab.extra.notes.clone())
-    };
-    settle(&cx, |app| notes(app).is_some());
-    let field = in_window(&mut cx, &deck, |deck, window, cx| {
-        deck.notes_input(window, cx)
-    });
-    let field = field.expect("the field");
-    type_in(&mut cx, &field, "Start with the totals");
-    update(&mut cx, &deck, |deck, cx| deck.commit_notes(cx));
-    settle(&cx, |app| {
-        notes(app).is_some_and(|notes| notes.text == "Start with the totals")
-    });
 }
 
 #[test]

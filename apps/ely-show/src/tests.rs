@@ -9,6 +9,7 @@ use gpui::{AppContext as _, Entity, TestAppContext};
 use crate::deck::Deck;
 
 mod motion;
+mod notes;
 mod objects;
 mod output;
 mod play;
