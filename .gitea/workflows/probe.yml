@@ -2,17 +2,15 @@ name: probe
 on: workflow_dispatch
 jobs:
   probe:
-    strategy:
-      matrix:
-        os: [macos-arm64, windows, linux]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-arm64
     steps:
-      - name: Where this runner is
+      - name: Where the Mac keeps Rust and Ely Office
         shell: bash
         run: |
-          uname -a; echo "home=$HOME pwd=$PWD"; whoami
-          for d in "$HOME/Documents/GitHub/ElyOffice" "$HOME/Documents/Github/ElyOffice" /c/Users/zhang/Documents/Github/ElyOffice; do
-            [ -d "$d" ] && { echo "clone: $d"; ls "$d/engines" 2>/dev/null | tr '\n' ' '; echo; git -C "$d" log --oneline -1; }
+          ls "$HOME/.cargo/bin" 2>/dev/null | head -5
+          find "$HOME" -maxdepth 5 -type d -name ElyOffice -not -path "*/Library/*" 2>/dev/null | head -5
+          for d in $(find "$HOME" -maxdepth 5 -type d -name ElyOffice -not -path "*/Library/*" 2>/dev/null | head -3); do
+            echo "== $d"; ls "$d/engines" 2>/dev/null | tr '\n' ' '; echo; git -C "$d" log --oneline -1 2>/dev/null
+            ls "$d/engines/lo-src/instdir/LibreOffice.app/Contents/Frameworks/libmergedlo.dylib" 2>/dev/null
           done
-          which cargo rustc git python3 cmake ninja makensis 2>/dev/null || true
-          df -h . | tail -1
+          security find-identity -v -p codesigning 2>/dev/null | head -3
