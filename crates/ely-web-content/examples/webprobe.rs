@@ -179,7 +179,7 @@ impl Probe {
             cx.background_executor()
                 .timer(Duration::from_millis(500))
                 .await;
-            let _ = view.update(cx, |view, _| view.run_js("report('edited')"));
+            view.update(cx, |view, _| view.run_js("report('edited')"));
         })
         .detach();
     }

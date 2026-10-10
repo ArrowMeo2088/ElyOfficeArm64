@@ -56,7 +56,7 @@ impl Tree {
                     },
                 );
                 let (title, go) = (label("tree.stash.title"), label("tree.stash.go"));
-                self.form("tree-stash", title, go, rows, Some(extra), dismiss, cx)
+                self.form("tree-stash", (title, go), rows, Some(extra), dismiss, cx)
             }
             Ask::Remote { old, name, url, .. } => {
                 let rows = DescriptionList::new()
@@ -73,7 +73,7 @@ impl Tree {
                     None => label("tree.remote.add"),
                 };
                 let go = label("tree.remote.save");
-                self.form("tree-remote", title, go, rows, None, dismiss, cx)
+                self.form("tree-remote", (title, go), rows, None, dismiss, cx)
             }
             Ask::Worktree {
                 path, branch, new, ..
@@ -90,7 +90,7 @@ impl Tree {
                 let shown = path.display().to_string();
                 let title = text(cx, "tree.worktree.title", &[("path", &shown)]);
                 let go = label("tree.worktree.go");
-                self.form("tree-worktree", title, go, rows, Some(extra), dismiss, cx)
+                self.form("tree-worktree", (title, go), rows, Some(extra), dismiss, cx)
             }
             Ask::Force { repo, plan } => {
                 let lost = match plan.lost.len() {

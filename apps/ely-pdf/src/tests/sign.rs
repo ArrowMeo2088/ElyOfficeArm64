@@ -212,7 +212,7 @@ fn reopening_the_dialog_checks_the_file_as_it_is_now() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let mut cx = TestAppContext::single();
     let path = signed(dir.path());
-    let (viewer, cx) = windowed(&mut cx, dir.path(), &[path.clone()], true);
+    let (viewer, cx) = windowed(&mut cx, dir.path(), std::slice::from_ref(&path), true);
     let view = shown(cx, &viewer);
     let digest = |cx: &mut VisualTestContext| {
         cx.update(|_, app| viewer.update(app, |viewer, cx| viewer.show_signatures(true, cx)));

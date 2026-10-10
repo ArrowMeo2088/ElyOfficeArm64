@@ -57,12 +57,11 @@ impl PdfView {
         self.off(
             move |worker| {
                 let fields = worker.signatures(doc, &path)?;
-                Ok(fields.into_iter().map(|field| {
+                Ok(Iterator::collect::<Vec<_>>(fields.into_iter().map(|field| {
                     let chain = field.signed.as_ref().map(|signed| signed.certs.clone()).filter(|certs| !certs.is_empty());
                     let trust = chain.map(|chain| trust::check(&chain).map_err(|error| error.to_string()));
                     Checked { field, trust }
-                }))
-                .map(Iterator::collect::<Vec<_>>)
+                })))
             },
             move |view, read: io::Result<Vec<Checked>>, cx| {
                 view.reading_signatures = false;

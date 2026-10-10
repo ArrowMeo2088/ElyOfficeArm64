@@ -273,19 +273,6 @@ pub fn outward(uri: &str) -> bool {
         .any(|scheme| uri.get(..scheme.len()).is_some_and(|head| head.eq_ignore_ascii_case(scheme)))
 }
 
-#[cfg(test)]
-mod outward_tests {
-    #[test]
-    fn web_and_mail_go_out_in_any_case() {
-        for uri in ["https://a.example/", "HTTPS://a.example/", "Http://a.example/", "MAILTO:x@a.example"] {
-            assert!(super::outward(uri), "{uri}");
-        }
-        for uri in ["ftp://a.example/", "file:///etc/passwd", "javascript:alert(1)", "httpsx://a", "ht", "\u{e9}https://"] {
-            assert!(!super::outward(uri), "{uri}");
-        }
-    }
-}
-
 /// A localized message.
 pub fn text(cx: &App, key: &str, args: &[(&str, &str)]) -> SharedString {
     ely_ui::i18n::text(cx, key, args)
@@ -402,3 +389,16 @@ pub trait Tabs: Host {
 }
 
 impl<H: Host> Tabs for H {}
+
+#[cfg(test)]
+mod outward_tests {
+    #[test]
+    fn web_and_mail_go_out_in_any_case() {
+        for uri in ["https://a.example/", "HTTPS://a.example/", "Http://a.example/", "MAILTO:x@a.example"] {
+            assert!(super::outward(uri), "{uri}");
+        }
+        for uri in ["ftp://a.example/", "file:///etc/passwd", "javascript:alert(1)", "httpsx://a", "ht", "\u{e9}https://"] {
+            assert!(!super::outward(uri), "{uri}");
+        }
+    }
+}

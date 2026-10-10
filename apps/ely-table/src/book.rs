@@ -419,6 +419,8 @@ fn frozen_index(state: Option<&str>) -> Option<u32> {
     (index > 0).then_some(index)
 }
 
+impl Zooming for Book {}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -428,5 +430,3 @@ mod tests {
         assert_eq!(super::frozen_index(None), None);
     }
 }
-
-impl Zooming for Book {}

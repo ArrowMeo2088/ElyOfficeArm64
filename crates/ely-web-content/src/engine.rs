@@ -284,7 +284,7 @@ pub fn start(data: &Path, cx: &mut App) -> Result<()> {
             let why = held(&cache).unwrap_or_else(|| "CEF did not initialize".into());
             log::error!("web: {why}");
             *FAILED.lock().expect("the start lock") = Some(why);
-            cx.update(|cx| crate::view::deliver(cx));
+            cx.update(crate::view::deliver);
             return;
         }
         log::info!("web: CEF started, cache {}", cache.display());
@@ -310,7 +310,7 @@ pub fn start(data: &Path, cx: &mut App) -> Result<()> {
             run_later();
             make_browsers();
             do_message_loop_work();
-            cx.update(|cx| crate::view::deliver(cx));
+            cx.update(crate::view::deliver);
             // As cefclient: CEF does not ask for all work.
             due = Some(FALLBACK);
         }

@@ -365,7 +365,7 @@ fn a_macro_file_opens_in_risk_mode_and_saves_only_as_a_copy() {
     );
     cx.update(|app| {
         assert!(
-            !docs.read(app).active_tab().expect("a tab").risk.is_some(),
+            docs.read(app).active_tab().expect("a tab").risk.is_none(),
             "the DOCX copy holds no macros"
         )
     });

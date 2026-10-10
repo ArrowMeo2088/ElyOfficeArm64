@@ -45,8 +45,11 @@ pub struct Making {
     picture: Option<(PathBuf, f32)>,
 }
 
+/// Points of each stroke.
+type Strokes = Vec<Vec<(f32, f32)>>;
+
 /// Strokes moved to the corner, the longer side 1.
-pub fn fitted(strokes: &[Vec<(f32, f32)>]) -> Option<(Vec<Vec<(f32, f32)>>, f32)> {
+pub fn fitted(strokes: &[Vec<(f32, f32)>]) -> Option<(Strokes, f32)> {
     if strokes.iter().all(|stroke| stroke.len() < 2) {
         return None;
     }

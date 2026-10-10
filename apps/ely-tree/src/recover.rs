@@ -18,7 +18,7 @@ pub fn records(bytes: &[u8], n: usize) -> io::Result<Vec<Vec<&str>>> {
     if fields.last() == Some(&"") {
         fields.pop();
     }
-    if fields.len() % n != 0 {
+    if !fields.len().is_multiple_of(n) {
         return Err(bad(text));
     }
     Ok(fields.chunks(n).map(<[&str]>::to_vec).collect())

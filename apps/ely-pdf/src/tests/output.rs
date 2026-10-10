@@ -76,7 +76,7 @@ fn a_damaged_file_opens_repaired_and_saves_as_a_new_file() {
     bytes.truncate(at);
     bytes.extend_from_slice(b"startxref\n9\n%%EOF\n");
     std::fs::write(&path, &bytes).expect("writes");
-    let (viewer, cx) = windowed(&mut cx, dir.path(), &[path.clone()], true);
+    let (viewer, cx) = windowed(&mut cx, dir.path(), std::slice::from_ref(&path), true);
     let view = shown(cx, &viewer);
     assert_eq!(cx.update(|_, app| viewer.read(app).active_tab().and_then(|tab| tab.risk)), Some(ely_office::Risk::Repaired));
     assert!(cx.update(|_, app| view.read(app).repair.as_ref().is_some_and(|report| !report.is_empty())));
@@ -158,7 +158,7 @@ fn a_picture_that_breaks_as_it_draws_stops_an_overwrite() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let mut cx = TestAppContext::single();
     let (path, bytes) = broken_picture(dir.path(), 792.0, 600.0);
-    let (viewer, cx) = windowed(&mut cx, dir.path(), &[path.clone()], true);
+    let (viewer, cx) = windowed(&mut cx, dir.path(), std::slice::from_ref(&path), true);
     shown(cx, &viewer);
     settle(cx, |app| viewer.read(app).active_tab().and_then(|tab| tab.risk) == Some(ely_office::Risk::Repaired));
     let id = cx.update(|_, app| viewer.read(app).core.tabs[0].id);
@@ -184,7 +184,7 @@ fn a_picture_never_drawn_is_checked_before_an_overwrite() {
     let path = dir.path().join("long.pdf");
     worker.save(doc, &path).expect("saves");
     let bytes = std::fs::read(&path).expect("reads");
-    let (viewer, cx) = windowed(&mut cx, dir.path(), &[path.clone()], true);
+    let (viewer, cx) = windowed(&mut cx, dir.path(), std::slice::from_ref(&path), true);
     shown(cx, &viewer);
     for _ in 0..10 {
         super::frames(cx);

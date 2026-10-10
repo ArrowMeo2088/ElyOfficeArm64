@@ -314,7 +314,7 @@ wrap_load_handler! {
             failed_url: Option<&CefString>,
         ) {
             // A stopped load is no failure; a fenced one is.
-            if !frame.is_some_and(|frame| frame.is_main() == 1) || error_code == Errorcode::ABORTED {
+            if frame.is_none_or(|frame| frame.is_main() != 1) || error_code == Errorcode::ABORTED {
                 return;
             }
             let text = error_text.map(CefString::to_string).unwrap_or_default();

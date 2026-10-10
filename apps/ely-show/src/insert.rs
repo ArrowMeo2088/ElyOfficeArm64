@@ -172,7 +172,7 @@ mod tests {
                 _ => None,
             });
             let names: Vec<_> = names.collect();
-            (names.iter().any(|name| *name == media), names.len())
+            (names.contains(&media), names.len())
         });
         assert_eq!(offered, ely_platform::media::BUILT);
         assert!(total >= 11, "the rest stay: {total}");

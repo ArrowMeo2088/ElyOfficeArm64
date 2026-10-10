@@ -155,8 +155,11 @@ pub fn install_as(locale: &'static str, cx: &mut App) {
     );
 }
 
+/// Keys and messages of one language.
+type Catalog = Vec<(&'static str, &'static str)>;
+
 /// The English and Chinese catalogs, every module's messages.
-fn catalogs() -> (Vec<(&'static str, &'static str)>, Vec<(&'static str, &'static str)>) {
+fn catalogs() -> (Catalog, Catalog) {
     let en: Vec<_> = EN
         .iter()
         .chain(office::EN)

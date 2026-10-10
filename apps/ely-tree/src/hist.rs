@@ -253,7 +253,7 @@ impl Tree {
     pub fn search(&mut self, cx: &mut Context<Self>) {
         let Some(id) = self.active else { return };
         let text = self.search.read(cx).text().trim().to_string();
-        let query = (!text.is_empty()).then(|| Query {
+        let query = (!text.is_empty()).then_some(Query {
             find: self.find,
             text,
         });

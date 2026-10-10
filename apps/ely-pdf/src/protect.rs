@@ -236,7 +236,8 @@ impl Viewer {
     }
 
     fn protect_rows(&self, on: bool, user: &Entity<TextInput>, owner: &Entity<TextInput>, allow: u32, this: &Entity<Self>, cx: &mut Context<Self>) -> AnyElement {
-        let set = |change: Box<dyn Fn(&mut bool, &mut u32, bool)>| {
+        type Change = Box<dyn Fn(&mut bool, &mut u32, bool)>;
+        let set = |change: Change| {
             let this = this.clone();
             move |value: bool, _: &mut Window, cx: &mut App| {
                 this.update(cx, |viewer, cx| {

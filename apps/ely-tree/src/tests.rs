@@ -53,7 +53,9 @@ pub(crate) fn committed(dir: &Path) -> PathBuf {
     root
 }
 
-fn paths(files: &[Changed]) -> Vec<(&str, GitStatus, Option<(usize, usize)>)> {
+type Listed<'a> = (&'a str, GitStatus, Option<(usize, usize)>);
+
+fn paths(files: &[Changed]) -> Vec<Listed<'_>> {
     files
         .iter()
         .map(|file| (file.path.as_ref(), file.status, file.lines))

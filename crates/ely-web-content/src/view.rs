@@ -64,8 +64,11 @@ pub struct WebView {
     /// Shown instead of the page until reloaded.
     fault: Option<String>,
     /// Takes a paste before the page; true when it did.
-    pub(crate) paste: Option<std::rc::Rc<dyn Fn(&mut Window, &mut App) -> bool>>,
+    pub(crate) paste: Option<Paste>,
 }
+
+/// Takes a paste before the page; true when it did.
+pub(crate) type Paste = std::rc::Rc<dyn Fn(&mut Window, &mut App) -> bool>;
 
 impl EventEmitter<Event> for WebView {}
 

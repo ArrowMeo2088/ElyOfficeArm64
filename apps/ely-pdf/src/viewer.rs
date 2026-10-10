@@ -69,7 +69,7 @@ impl Host for Viewer {
     }
 
     fn read_at(&self, tab: u64, cx: &gpui::App) -> Option<ely_pdf_engine::Doc> {
-        self.tab(tab).map(|tab| tab.view.read(cx).doc.clone())
+        self.tab(tab).map(|tab| tab.view.read(cx).doc)
     }
 
     fn observed(&mut self, id: u64, view: &Entity<PdfView>, cx: &mut Context<Self>) {
