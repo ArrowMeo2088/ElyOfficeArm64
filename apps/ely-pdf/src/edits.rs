@@ -149,6 +149,7 @@ impl PdfView {
         }
         self.marks = fresh.marks;
         self.failed.clear();
+        self.unread.clear();
         self.text.clear();
         self.asking_text.clear();
         self.thumbs_failed.clear();
@@ -172,8 +173,10 @@ impl PdfView {
     /// The file now holds history `mark`.
     pub fn saved(&mut self, mark: &str, cx: &mut Context<Self>) {
         self.saved = mark.to_string();
+        self.saves += 1;
         // The file changed; read it again.
         self.signatures = None;
+        self.unread.retain(|unread| !matches!(unread, crate::view::Unread::Signatures(_)));
         cx.emit(Reported);
     }
 

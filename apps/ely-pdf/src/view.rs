@@ -23,6 +23,17 @@ pub struct Failed(pub String);
 /// The document changed what it shows.
 pub struct Reported;
 
+/// A page or document read that failed once.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Unread {
+    Notes(usize),
+    Layer(usize),
+    Names,
+    Files,
+    /// The signatures of the file at this path.
+    Signatures(std::path::PathBuf),
+}
+
 pub struct PdfView {
     worker: Arc<Mutex<Mupdf>>,
     pub doc: Doc,
@@ -41,6 +52,8 @@ pub struct PdfView {
     pub painted: f64,
     /// Tiles the worker could not draw; not asked again.
     pub failed: HashSet<TileKey>,
+    /// Reads that failed; not asked again until an edit.
+    pub unread: HashSet<Unread>,
     /// Old tiles shown under their page until covered.
     pub backdrop: Vec<crate::backdrop::Old>,
     pub text: HashMap<usize, Arc<Vec<Char>>>,
@@ -70,6 +83,8 @@ pub struct PdfView {
     /// History marks: now, and at the last load or save.
     pub mark: String,
     pub saved: String,
+    /// Saves so far: a read from before one is stale.
+    pub saves: u64,
     /// Page pictures for the side panel, by page and darkness.
     pub thumbs: HashMap<(usize, bool), Arc<RenderImage>>,
     pub thumbs_failed: HashSet<usize>,
@@ -173,6 +188,7 @@ impl PdfView {
             retired: Default::default(),
             painted: 0.0,
             failed: HashSet::new(),
+            unread: HashSet::new(),
             backdrop: Vec::new(),
             text: HashMap::new(),
             asking_text: HashSet::new(),
@@ -190,6 +206,7 @@ impl PdfView {
             editing: false,
             moving: false,
             saved: loaded.mark.clone(),
+            saves: 0,
             mark: loaded.mark,
             thumbs: HashMap::new(),
             thumbs_failed: HashSet::new(),

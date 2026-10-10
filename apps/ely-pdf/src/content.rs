@@ -8,7 +8,7 @@ use gpui::{AnyElement, App, Context, IntoElement, Pixels, Point, Styled as _, di
 
 use crate::layout::Placed;
 use crate::pages::rect_on;
-use crate::view::PdfView;
+use crate::view::{PdfView, Unread};
 
 /// What a press on a page does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -139,7 +139,9 @@ impl PdfView {
         if !self.tool.edits() || self.reading_layer {
             return;
         }
-        let Some(page) = pages.iter().copied().find(|page| !self.layers.contains_key(page)) else {
+        let Some(page) = (pages.iter().copied())
+            .find(|page| !self.layers.contains_key(page) && !self.unread.contains(&Unread::Layer(*page)))
+        else {
             return;
         };
         self.reading_layer = true;
@@ -156,7 +158,10 @@ impl PdfView {
                     Ok(layer) => {
                         view.layers.insert(page, layer);
                     }
-                    Err(error) => view.fail("reading what the page holds", &error, cx),
+                    Err(error) => {
+                        view.unread.insert(Unread::Layer(page));
+                        view.fail("reading what the page holds", &error, cx)
+                    }
                 }
                 cx.notify();
             },

@@ -18,6 +18,7 @@ mod notes;
 mod organize;
 mod output;
 mod protect;
+mod reads;
 mod removal;
 mod sign;
 mod structure;
