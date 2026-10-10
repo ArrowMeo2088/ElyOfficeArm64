@@ -15,7 +15,7 @@ use ely_ui::{commands, i18n::text};
 use ely_web_content::{Event, WebView};
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, IntoElement as _, ParentElement as _,
-    Subscription, Window,
+    Subscription, Task, Window,
 };
 use serde_json::Value;
 
@@ -62,7 +62,7 @@ pub struct Lost {
 }
 
 impl Lost {
-    fn of(images: Vec<String>, rendered: &Value) -> Lost {
+    pub fn of(images: Vec<String>, rendered: &Value) -> Lost {
         let diagrams = rendered["failed"].as_array().into_iter().flatten();
         let formulas = rendered["formulas"].as_array().into_iter().flatten();
         Lost {
@@ -280,19 +280,15 @@ impl Desk {
                 "html",
                 move |rendered, cx: &mut App| {
                     let staged = work.join(format!("print-{n}.html"));
-                    let writing = staged.clone();
+                    let page = match rendered {
+                        Ok(rendered) => {
+                            let print = paper::Print { folder, style, name, page: staged.clone() };
+                            paper::stage(cx.background_executor(), rendered, print)
+                        }
+                        Err(why) => Task::ready(Err(io::Error::other(why))),
+                    };
                     cx.spawn(async move |cx| {
-                        // Images inline and the page writes off the window thread.
-                        let page = cx
-                            .background_spawn(async move {
-                                rendered.map_err(io::Error::other).and_then(|rendered| {
-                                    let (html, images) = paper::Marked::read(&rendered)?.inline(&folder);
-                                    let style = format!("<style>{}</style>", std::fs::read_to_string(&style)?);
-                                    std::fs::write(&writing, paper::page(&name, &style, &html))?;
-                                    Ok(Lost::of(images, &rendered))
-                                })
-                            })
-                            .await;
+                        let page = page.await;
                         in_window(&desk, cx, |desk, window, cx| match page {
                             Ok(lost) => {
                                 let job = Job {
