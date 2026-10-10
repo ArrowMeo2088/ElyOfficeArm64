@@ -108,8 +108,7 @@ impl Desk {
         let Some(id) = self.active_tab().map(|tab| tab.id) else {
             return;
         };
-        let pdf = self.core.work.join(format!("print-{id}.pdf"));
-        self.render_pdf(id, pdf, None, cx);
+        self.render_pdf(id, None, cx);
     }
 
     /// Asks where, renders the whole text, then writes it.
@@ -126,20 +125,28 @@ impl Desk {
         let dir = ely_office::folder(tab).unwrap_or_else(std::env::temp_dir);
         let chosen = cx.prompt_for_new_path(&dir, Some(&format!("{stem}.{}", output.extension())));
         cx.spawn(async move |desk, cx| {
-            let Ok(Ok(Some(path))) = chosen.await else {
-                return log::info!("mark: the export panel closed without a path");
+            // A cancel says nothing; a panel that failed says why.
+            let failed = match chosen.await {
+                Ok(Ok(Some(path))) => Ok(path),
+                Ok(Ok(None)) => return log::info!("mark: the export panel was cancelled"),
+                Ok(Err(error)) => Err(error.to_string()),
+                Err(error) => Err(error.to_string()),
+            };
+            let path = match failed {
+                Ok(path) => path,
+                Err(why) => {
+                    if desk.update(cx, |desk, cx| desk.panel_failed(&why, cx)).is_err() {
+                        log::error!("mark: the export panel failed after its window: {why}");
+                    }
+                    return;
+                }
             };
             desk.update(cx, |desk, cx| {
                 if let Err(error) = not_open(desk, &path) {
                     return desk.exported(Err(error), cx);
                 }
                 match output {
-                    Output::Pdf => desk.render_pdf(
-                        id,
-                        desk.core.work.join(format!("export-{id}.pdf")),
-                        Some(path),
-                        cx,
-                    ),
+                    Output::Pdf => desk.render_pdf(id, Some(path), cx),
                     _ => desk.write_output(id, output, path, cx),
                 }
             })
@@ -257,7 +264,11 @@ impl Desk {
     }
 
     /// The whole text as PDF; then to `to`, else printed.
-    fn render_pdf(&mut self, id: u64, pdf: PathBuf, to: Option<PathBuf>, cx: &mut Context<Self>) {
+    fn render_pdf(&mut self, id: u64, to: Option<PathBuf>, cx: &mut Context<Self>) {
+        // Each job has its own files; none cancels another.
+        self.print_jobs += 1;
+        let n = self.print_jobs;
+        let pdf = self.core.work.join(format!("print-{n}.pdf"));
         let Some(tab) = self.tab(id) else {
             return;
         };
@@ -273,14 +284,20 @@ impl Desk {
             view.render(
                 "html",
                 move |rendered, cx: &mut App| {
-                    let staged = work.join(format!("print-{id}.html"));
-                    let page = rendered.map_err(io::Error::other).and_then(|rendered| {
-                        let (html, images) = paper::Marked::read(&rendered)?.inline(&folder);
-                        let style = format!("<style>{}</style>", std::fs::read_to_string(&style)?);
-                        std::fs::write(&staged, paper::page(&name, &style, &html))?;
-                        Ok(Lost::of(images, &rendered))
-                    });
+                    let staged = work.join(format!("print-{n}.html"));
+                    let writing = staged.clone();
                     cx.spawn(async move |cx| {
+                        // Images inline and the page writes off the window thread.
+                        let page = cx
+                            .background_spawn(async move {
+                                rendered.map_err(io::Error::other).and_then(|rendered| {
+                                    let (html, images) = paper::Marked::read(&rendered)?.inline(&folder);
+                                    let style = format!("<style>{}</style>", std::fs::read_to_string(&style)?);
+                                    std::fs::write(&writing, paper::page(&name, &style, &html))?;
+                                    Ok(Lost::of(images, &rendered))
+                                })
+                            })
+                            .await;
                         in_window(&desk, cx, |desk, window, cx| match page {
                             Ok(lost) => {
                                 let job = Job {
@@ -289,7 +306,7 @@ impl Desk {
                                     open,
                                     lost,
                                 };
-                                desk.print_page(&staged, job, window, cx)
+                                desk.print_page(n, &staged, job, window, cx)
                             }
                             Err(error) => desk.exported(Err(error), cx),
                         })
@@ -303,7 +320,7 @@ impl Desk {
     }
 
     /// Chromium prints the staged page; the PDF goes where asked.
-    fn print_page(&mut self, page: &Path, job: Job, window: &mut Window, cx: &mut Context<Self>) {
+    fn print_page(&mut self, n: u64, page: &Path, job: Job, window: &mut Window, cx: &mut Context<Self>) {
         let root = page
             .parent()
             .expect("a staged page sits in a folder")
@@ -315,20 +332,20 @@ impl Desk {
         let heard = cx.subscribe(&view, move |desk, view, event: &Event, cx| match event {
             Event::Loaded => view.read(cx).print_pdf(&job.pdf),
             Event::Printed(path, ok) => {
-                desk.printing = None;
+                desk.printing.remove(&n);
                 let printed = ok
                     .then(|| path.clone())
                     .ok_or_else(|| io::Error::other("Chromium did not print the page"));
                 desk.printed(printed, job.clone(), cx);
             }
             Event::Failed(why) => {
-                desk.printing = None;
+                desk.printing.remove(&n);
                 desk.exported(Err(io::Error::other(why.clone())), cx);
             }
             Event::Query(_, reply) => reply.ok(""),
             Event::Leave(_) => {}
         });
-        self.printing = Some(Printing {
+        self.printing.insert(n, Printing {
             _view: view,
             _heard: heard,
         });

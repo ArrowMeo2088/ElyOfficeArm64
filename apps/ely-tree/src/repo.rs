@@ -7,8 +7,6 @@ use std::{
 
 use crate::{git::Git, running::Running};
 
-/// How many repositories the recent list keeps.
-
 /// A work tree and its Git directory.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Repo {

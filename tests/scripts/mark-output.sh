@@ -190,6 +190,17 @@ for _ in $(seq 60); do [ "$(count "web: printed")" -gt "$printed" ] && break; sl
 [ "$(count "web: printed")" -gt "$printed" ] || fail "print made no PDF"
 sleep 2
 key 'key code 53'
+# Two prints at once: the second never cancels the first.
+sleep 1
+printed=$(count "web: printed")
+osascript -e 'tell application "System Events" to keystroke "p" using command down' -e 'tell application "System Events" to keystroke "p" using command down' >/dev/null
+# Panels are modal: close one, then the next prints.
+for want in 1 2; do
+  for _ in $(seq 80); do [ "$(count "web: printed")" -ge $((printed + want)) ] && break; sleep 0.25; done
+  [ "$(count "web: printed")" -ge $((printed + want)) ] || fail "a second print cancelled the first: $(grep -E "web: printed|print-" "$work/log" | tail -n 6)"
+  sleep 2
+  key 'key code 53'
+done
 # Rich copy carries HTML; it overwrites the clipboard.
 if [ "${ELY_CLIPBOARD_TEST:-}" = 1 ]; then
   key 'keystroke "f" using command down'

@@ -128,6 +128,18 @@ pub enum Choice {
 }
 
 impl Tree {
+    /// Opens a read's dialog unless another opened since.
+    pub fn offer(&mut self, ask: Ask, cx: &mut Context<Self>) {
+        match (&self.ask, ask) {
+            (None, ask) => self.ask = Some(ask),
+            (Some(_), Ask::Failed { title, detail }) => {
+                self.toast(format!("{title}: {detail}").into(), Severity::Danger, cx)
+            }
+            (Some(_), _) => log::info!("tree: a later dialog stands; read dropped"),
+        }
+        cx.notify();
+    }
+
     pub fn dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let this = cx.weak_entity();
         let dismiss = {

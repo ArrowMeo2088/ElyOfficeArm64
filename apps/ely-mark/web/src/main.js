@@ -81,7 +81,14 @@ async function build(text, mode) {
     const place = document.createElement('div')
     holder.append(place)
     const edited = (write) => changed(() => front + write())
-    const made = await visual(place, body, mode === 'visual', texts, edited, edge)
+    let made
+    try {
+      made = await visual(place, body, mode === 'visual', texts, edited, edge)
+    } catch (error) {
+      // A broken editor falls back to source and says so.
+      console.error(`ely: the visual editor failed: ${error.name}`)
+      entry.broke = error.name
+    }
     if (made) {
       // Lines count from the file's top, front matter included.
       const above = front ? front.split('\n').length - 1 : 0
@@ -119,13 +126,20 @@ async function show(text, want) {
   asked = null
   if (current) drop(current)
   current = null
-  const entry = await build(text, want)
+  let entry
+  try {
+    entry = await build(text, want)
+  } catch (error) {
+    // Source failed too: tell the app, never blank.
+    if (turn === latest) tell({ kind: 'failed', generation, what: error.name })
+    return
+  }
   if (turn !== latest) return drop(entry)
   current = entry
   entry.holder.hidden = false
   document.getElementById('document').dataset.mode = entry.mode
   entry.focus()
-  await ask({ kind: 'shown', mode: entry.mode, fallback: entry.fallback })
+  await ask({ kind: 'shown', mode: entry.mode, fallback: entry.fallback, broke: entry.broke ?? null })
   // A newer request owns what is queued now.
   if (turn !== latest) return
   outline()
@@ -176,10 +190,12 @@ async function open(text, want, words, load, folder, place) {
 }
 
 /** Changed on disk: the caret and scroll stay near. */
-async function refresh(text) {
+async function refresh(text, load) {
   const place = current && { ...current.where(), scroll: document.scrollingElement.scrollTop }
   clearTimeout(timer)
   pending = null
+  generation = load
+  version = 0
   times = [text]
   at = 0
   await show(text, current?.mode ?? 'visual')
@@ -243,7 +259,8 @@ function reveal(place) {
   }
   const shown =
     'heading' in place ? current.heading(place.heading) : current.line(place.line, place.query)
-  if (shown === false) console.warn(`ely: nothing at ${JSON.stringify(place)}`)
+  // Logs keep no search text; a line number at most.
+  if (shown === false) console.warn('heading' in place ? 'ely: no such heading' : `ely: nothing at line ${place.line}`)
 }
 
 /** The app's find box hears where the search stands. */

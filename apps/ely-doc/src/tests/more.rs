@@ -263,3 +263,41 @@ fn closing_a_tab_takes_its_export_dialog() {
     // Drawn now, a dialog for the gone tab would crash.
     assert!(cx.update(|app| docs.read(app).dialog.is_none()), "the dialog went with its tab");
 }
+
+#[test]
+fn a_tab_on_a_vanished_folder_takes_no_other_file() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(docs) = docs(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    let id = blank(&mut cx, &docs);
+    let gone = dir.path().join("volume");
+    std::fs::create_dir(&gone).expect("a folder");
+    let first = gone.join("first.docx");
+    with_window(&mut cx, &docs, |docs, window, cx| docs.write_as(id, first.clone(), None, window, cx));
+    written(&cx, &first, None);
+    // Its volume goes away; another file still saves.
+    std::fs::remove_dir_all(&gone).expect("the folder goes");
+    let other = dir.path().join("other.docx");
+    let holder = cx.update(|app| docs.read(app).holder(&other).map_err(|error| error.to_string()));
+    assert_eq!(holder, Ok(None));
+}
+
+#[test]
+fn an_edit_after_a_save_raced_it_counts_again() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(docs) = docs(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    let id = blank(&mut cx, &docs);
+    type_into(&mut cx, &docs, "a");
+    settle(&cx, |app| docs.read(app).tab(id).is_some_and(|tab| tab.modified));
+    // A save's ticket landed after this edit: saved, still modified.
+    cx.update(|app| docs.update(app, |docs, _| docs.tab_mut(id).expect("a tab").session.reverted()));
+    type_into(&mut cx, &docs, "b");
+    settle(&cx, |app| docs.read(app).tab(id).is_some_and(|tab| tab.session.state() == ely_files::SaveState::Dirty));
+}

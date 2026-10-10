@@ -400,7 +400,12 @@ fn with_doc<T>(id: u64, call: impl FnOnce(&Document) -> T) -> io::Result<T> {
 /// The shown part, then each part's name and info.
 fn sheets(doc: &Document) -> io::Result<Vec<u8>> {
     let count = doc.parts();
-    let mut pack = Pack::new().u64(doc.part() as u64).u64(count as u64);
+    // -1 means no view shell: no list.
+    let unread = |what| io::Error::other(format!("the kernel gives no {what}"));
+    let current = u64::try_from(doc.part()).map_err(|_| unread("current part"))?;
+    let mut pack = Pack::new()
+        .u64(current)
+        .u64(u64::try_from(count).map_err(|_| unread("part count"))?);
     for part in 0..count {
         pack = pack.str(&doc.part_name(part)?).str(&doc.part_info(part)?);
     }

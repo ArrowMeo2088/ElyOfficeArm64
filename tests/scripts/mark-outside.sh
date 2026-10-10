@@ -438,4 +438,20 @@ waits 'mark: shown as "source"'
 kill "$app"
 wait "$app" 2>/dev/null || true
 app=
+# A clean tab with the disk's text closes without asking.
+clean=$work/notes/c.md
+printf 'clean\n' >"$clean"
+launch "$clean"
+waits 'mark: shown as "visual"'
+changes=$(count "unsaved false")
+printf 'outside\n' >"$clean.tmp"
+mv "$clean.tmp" "$clean"
+more "unsaved false" "$changes"
+sleep 1
+[ "$("$work/ax-press" "$app" Close AXButton)" = pressed ] || fail "no tab Close"
+sleep 2
+! seen "Don't Save" || fail "a clean tab that took the disk's text asked to save"
+kill "$app"
+wait "$app" 2>/dev/null || true
+app=
 echo "ok: mark outside"

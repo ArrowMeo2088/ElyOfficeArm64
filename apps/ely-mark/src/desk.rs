@@ -53,7 +53,9 @@ pub struct Desk {
     pub keeping: crate::restore::Keeping,
     /// The export dialog's choice, while it is open.
     pub output: Option<crate::export::Output>,
-    pub printing: Option<crate::export::Printing>,
+    /// Pages printing to PDF, by job; several may run.
+    pub printing: HashMap<u64, crate::export::Printing>,
+    pub print_jobs: u64,
     pub look: crate::look::Look,
     pub look_file: PathBuf,
     /// Git's word on the shown file, and which tab asked.
@@ -113,7 +115,7 @@ impl Host for Desk {
         self.watch_folders(cx);
         let look = serde_json::to_value(&self.look).expect("a look serializes");
         view.update(cx, |view, cx| view.set_look(look, cx));
-        let changed = view.read(cx).changed;
+        let changed = view.read(cx).changed();
         self.autosave(id, changed, cx);
         let recheck = self.tab_mut(id).is_some_and(|tab| {
             if !tab.dirty(cx) {
@@ -200,7 +202,8 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
             comparing: None,
             keeping,
             output: None,
-            printing: None,
+            printing: Default::default(),
+            print_jobs: 0,
             look: look.clone(),
             look_file,
             tracked: None,
@@ -228,8 +231,13 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
                 desk.open_path(path, cx);
             }
         }
-        for name in desk.keeping.untitled() {
+        for (at, name) in desk.keeping.untitled() {
+            // Tab numbers come from `next` as the load starts.
+            let id = desk.core.next;
             desk.new_from_text(&name, "", cx);
+            if desk.core.next > id {
+                desk.keeping.made(at, id);
+            }
         }
         for path in asked {
             desk.open_path(path, cx);
@@ -246,8 +254,13 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
             }
         })
         .detach();
-        cx.on_app_quit(|desk, _| {
-            desk.keeping.close();
+        cx.on_app_quit(|desk, cx| {
+            // A system end skips asking: unsaved tabs keep points.
+            if desk.core.tabs.iter().any(|tab| tab.dirty(cx)) {
+                log::warn!("mark: quit with unsaved tabs; points stay");
+            } else {
+                desk.keeping.close();
+            }
             async {}
         })
         .detach();

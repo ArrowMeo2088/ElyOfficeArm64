@@ -48,6 +48,9 @@ impl Moved {
 const KEEP: usize = 200;
 
 pub fn reflog(git: &Git, root: &Path) -> io::Result<Vec<Moved>> {
+    if !git.born(root)? {
+        return Ok(Vec::new());
+    }
     // With a date mode, `%gd` carries when HEAD moved.
     let format = "--format=%H%x00%gd%x00%gs";
     let count = format!("-n{KEEP}");

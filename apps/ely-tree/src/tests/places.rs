@@ -433,3 +433,41 @@ fn a_stash_with_an_empty_message_still_lists() {
     assert_eq!(shown, ["", "named"]);
     assert_eq!(list[0].oid, oid);
 }
+
+#[test]
+fn a_new_repository_lists_no_moves_and_no_lfs_files() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let root = dir.path().join("new");
+    crate::repo::init(&git(), &root).expect("init");
+    assert_eq!(
+        crate::recover::reflog(&git(), &root).expect("no reflog error"),
+        Vec::new()
+    );
+    assert_eq!(
+        crate::structure::lfs(&git(), &root).expect("no LFS error"),
+        Vec::new()
+    );
+}
+
+#[test]
+fn a_worktree_registered_through_a_link_lists_its_real_path() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let root = committed(dir.path());
+    let other = dir.path().join("tree");
+    let path = other.to_str().expect("utf-8");
+    run(
+        &root,
+        Write::Git(words(&["worktree", "add", "-b", "side", "--", path])),
+    )
+    .expect("adds");
+    // Other tools may write the path through a link.
+    std::os::unix::fs::symlink(dir.path(), dir.path().join("link")).expect("links");
+    let gitdir = root.join(".git/worktrees/tree/gitdir");
+    std::fs::write(
+        &gitdir,
+        format!("{}\n", dir.path().join("link/tree/.git").display()),
+    )
+    .expect("writes");
+    let list = structure::worktrees(&git(), &root).expect("reads");
+    assert_eq!(list[1].path, std::fs::canonicalize(&other).expect("real"));
+}

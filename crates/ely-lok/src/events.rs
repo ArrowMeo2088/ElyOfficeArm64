@@ -15,8 +15,8 @@ pub use cell::{Cell, Function, Mark, Request};
 use cell::{functions_of, marks_of, request_of, usage_of};
 pub use parse::A11y;
 use parse::{
-    Dialog, a11y_update, dialog_of, fonts_of, formula_text, found_of, rect_of, result_of, state_of,
-    tabs_of,
+    Dialog, Unreadable, a11y_update, dialog_of, fonts_of, formula_text, found_of, rect_of,
+    result_of, state_of, tabs_of,
 };
 
 /// LOK_CALLBACK kinds Ely reads.
@@ -205,22 +205,36 @@ unsafe extern "C" fn on_event(kind: i32, payload: *const c_char, data: *mut c_vo
     signal().notify_all();
 }
 
+/// A rectangle payload; an unreadable one is a fault.
+fn rect_in(batch: &mut Events, what: &str, text: &str) -> Option<Rect> {
+    rect_of(text).unwrap_or_else(|Unreadable| {
+        batch.faults.push(format!("an unreadable {what}: {text}"));
+        None
+    })
+}
+
 /// Folds one callback in; returns a dialog to close.
 fn record(slot: &mut Slot, kind: i32, text: &str) -> Option<u32> {
     let batch = &mut slot.batch;
     match kind {
         INVALIDATE_TILES => {
             batch.generation += 1;
-            match rect_of(text) {
+            match rect_in(batch, "invalidation", text) {
                 Some(rect) => batch.rects.push(rect),
                 None => batch.all = true,
             }
         }
-        CURSOR => batch.cursor = rect_of(text),
-        SELECTION => batch.selection = text.split(';').filter_map(rect_of).collect(),
+        CURSOR => batch.cursor = rect_in(batch, "cursor", text),
+        SELECTION => {
+            let parts: Vec<&str> = text.split(';').collect();
+            batch.selection = parts
+                .into_iter()
+                .filter_map(|part| rect_in(batch, "selection", part))
+                .collect();
+        }
         CURSOR_VISIBLE => batch.cursor_visible = text == "true",
         GRAPHIC => {
-            batch.graphic = rect_of(text);
+            batch.graphic = rect_in(batch, "graphic selection", text);
             batch.cropping = batch.graphic.is_some() && text.contains("\"isCropMode\": true");
         }
         STATE => {
@@ -247,7 +261,7 @@ fn record(slot: &mut Slot, kind: i32, text: &str) -> Option<u32> {
                 .push(format!("an unreadable search result: {text}")),
         },
         MENU => batch.menu = Some(text.to_string()),
-        CELL_CURSOR => batch.cell.cursor = rect_of(text),
+        CELL_CURSOR => batch.cell.cursor = rect_in(batch, "cell cursor", text),
         CELL_FORMULA => batch.cell.formula = text.to_string(),
         CELL_ADDRESS => batch.cell.address = text.to_string(),
         REFERENCE_MARKS => match marks_of(text) {

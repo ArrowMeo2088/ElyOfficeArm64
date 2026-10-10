@@ -113,14 +113,14 @@ impl Tree {
                 if tree.active != Some(repo) {
                     return;
                 }
-                tree.ask = Some(match plan {
+                let ask = match plan {
                     Ok(plan) => Ask::Move { repo, plan },
                     Err(error) => Ask::Failed {
                         title: text(cx, "tree.op.failed", &[]),
                         detail: error.to_string().into(),
                     },
-                });
-                cx.notify();
+                };
+                tree.offer(ask, cx);
             })
             .ok();
         })

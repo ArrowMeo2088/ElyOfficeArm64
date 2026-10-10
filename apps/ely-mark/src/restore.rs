@@ -37,6 +37,8 @@ struct Waiting {
     kept: Kept,
     real: Option<PathBuf>,
     text: Option<(String, SystemTime)>,
+    /// The untitled tab made for it, once made.
+    tab: Option<u64>,
 }
 
 /// The session's files and what still waits to restore.
@@ -97,6 +99,7 @@ impl Keeping {
                         },
                         real: Some(real),
                         text: None,
+                        tab: None,
                     }),
                     Err(error) => {
                         log::warn!("mark: a kept file does not open: {error}");
@@ -111,6 +114,7 @@ impl Keeping {
                     kept,
                     real: None,
                     text,
+                    tab: None,
                 });
             }
         }
@@ -132,13 +136,16 @@ impl Keeping {
         Ok((keeping, paths, missing))
     }
 
-    /// The untitled tabs to make, with their names.
-    pub fn untitled(&self) -> Vec<String> {
-        let untitled = self
-            .waiting
-            .iter()
-            .filter(|waiting| waiting.kept.path.is_none());
-        untitled.map(|waiting| waiting.kept.name.clone()).collect()
+    /// The untitled tabs to make: their place here and name.
+    pub fn untitled(&self) -> Vec<(usize, String)> {
+        let waiting = self.waiting.iter().enumerate();
+        let untitled = waiting.filter(|(_, waiting)| waiting.kept.path.is_none() && waiting.tab.is_none());
+        untitled.map(|(at, waiting)| (at, waiting.kept.name.clone())).collect()
+    }
+
+    /// Entry `at` belongs to untitled tab `tab`.
+    pub fn made(&mut self, at: usize, tab: u64) {
+        self.waiting[at].tab = Some(tab);
     }
 
     /// A clean end: no crash next time, no stale points.
@@ -177,6 +184,15 @@ fn clear(dir: &Path) -> io::Result<()> {
     }
 }
 
+/// What tab `id` restores: by file, or untitled by number.
+fn waiting_for(waiting: &[Waiting], real: Option<&PathBuf>, id: u64) -> Option<usize> {
+    waiting.iter().position(|waiting| match (&waiting.real, real) {
+        (Some(kept), Some(open)) => kept == open,
+        (None, None) => waiting.tab == Some(id),
+        _ => false,
+    })
+}
+
 impl Desk {
     /// A tab just shown takes its kept mode, place, text.
     pub fn restore_shown(&mut self, id: u64, cx: &mut Context<Self>) {
@@ -190,16 +206,8 @@ impl Desk {
             .session
             .path()
             .and_then(|path| std::fs::canonicalize(path).ok());
-        let untitled = tab.session.path().is_none();
         let waiting = &mut self.keeping.waiting;
-        let Some(at) = waiting
-            .iter()
-            .position(|waiting| match (&waiting.real, &real) {
-                (Some(kept), Some(open)) => kept == open,
-                (None, None) => untitled,
-                _ => false,
-            })
-        else {
+        let Some(at) = waiting_for(waiting, real.as_ref(), id) else {
             return;
         };
         let Waiting {
@@ -391,5 +399,20 @@ mod tests {
         .expect("an older place reads");
         let place = kept.place.expect("a place");
         assert_eq!((place.line, place.column), (3, 0));
+    }
+
+    #[test]
+    fn an_untitled_copy_goes_to_the_tab_made_for_it() {
+        let untitled = |name: &str, tab: u64| super::Waiting {
+            kept: super::Kept { path: None, name: name.into(), mode: "visual".into(), place: None, slot: String::new() },
+            real: None,
+            text: None,
+            tab: Some(tab),
+        };
+        let waiting = [untitled("Untitled1", 4), untitled("Untitled2", 5)];
+        // The second tab shows first: it still takes its own.
+        assert_eq!(super::waiting_for(&waiting, None, 5), Some(1));
+        assert_eq!(super::waiting_for(&waiting, None, 4), Some(0));
+        assert_eq!(super::waiting_for(&waiting, None, 9), None, "a new tab takes nothing");
     }
 }

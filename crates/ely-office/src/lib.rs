@@ -265,6 +265,11 @@ pub fn print_later<H: Tabs>(pdf: std::path::PathBuf, cx: &mut Context<H>) {
     .detach();
 }
 
+/// Addresses a click may open outside: web and mail.
+pub fn outward(uri: &str) -> bool {
+    ["https://", "http://", "mailto:"].iter().any(|scheme| uri.starts_with(scheme))
+}
+
 /// A localized message.
 pub fn text(cx: &App, key: &str, args: &[(&str, &str)]) -> SharedString {
     ely_ui::i18n::text(cx, key, args)

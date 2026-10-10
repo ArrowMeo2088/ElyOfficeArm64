@@ -75,6 +75,11 @@ pub fn open(
     ));
 }
 
+/// The disk's text in place; reports start a new generation.
+pub fn refresh(view: &WebView, markdown: &str, load: u64) {
+    view.run_js(&format!("ely.refresh({}, {load})", json!(markdown)));
+}
+
 /// The same text in another mode; pending edits go first.
 pub fn switch(view: &WebView, mode: Mode) {
     view.run_js(&format!("ely.mode('{}')", mode.name()));

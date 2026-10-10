@@ -120,6 +120,7 @@ impl Desk {
                     return self.set_outside(id, Outside::Unread(why), cx);
                 }
                 tab.extra.base = disk.text.clone();
+                tab.mark = crate::engine::mark(&disk.text);
                 tab.extra.restart_autosave();
                 tab.doc.lock().expect("the text lock").source = disk;
                 let view = tab.view.clone();

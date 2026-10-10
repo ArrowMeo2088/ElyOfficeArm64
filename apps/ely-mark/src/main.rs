@@ -15,6 +15,7 @@ mod places;
 mod rename;
 mod restore;
 mod side;
+mod tally;
 mod text;
 mod vcs;
 mod view;

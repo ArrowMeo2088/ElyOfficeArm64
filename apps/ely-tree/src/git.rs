@@ -74,6 +74,13 @@ impl Git {
         checked(args, output)
     }
 
+    /// HEAD names a commit; a new repository has none yet.
+    pub fn born(&self, dir: &Path) -> io::Result<bool> {
+        Ok(!self
+            .run_or_one(dir, &["rev-parse", "--verify", "-q", "HEAD"])?
+            .is_empty())
+    }
+
     /// Exit 1 is an answer: files differ, key unset.
     pub fn run_or_one(&self, dir: &Path, args: &[&str]) -> io::Result<Vec<u8>> {
         let output = self.command(dir, args).output()?;

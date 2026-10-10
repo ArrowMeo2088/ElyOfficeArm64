@@ -308,6 +308,8 @@ impl Desk {
             return None;
         }
         tab.extra.base = disk.text.clone();
+        // The file holds the disk's text: it is saved.
+        tab.mark = crate::engine::mark(&disk.text);
         tab.extra.restart_autosave();
         // Its bytes (BOM, line ends) are what saves keep now.
         tab.doc.lock().expect("the text lock").source = disk.clone();

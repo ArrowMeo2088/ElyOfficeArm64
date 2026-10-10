@@ -54,6 +54,9 @@ pub struct Opened {
     /// Identity reads started; only the latest lands.
     pub me_asks: u64,
     pub places: crate::places::Places,
+    /// The branch or tag picked in the Branches panel.
+    pub picked_ref: Option<(crate::branches::Kind, String)>,
+    pub picked_place: Option<crate::places::Place>,
     pub net: Option<crate::network::Net>,
     /// Kept alive; dropping it stops the watch.
     _watcher: Option<RecommendedWatcher>,
@@ -103,9 +106,6 @@ pub struct Tree {
     pub amend_loading: bool,
     /// File history and blame opened, numbering each.
     pub looks: u64,
-    /// The branch or tag picked in the Branches panel.
-    pub picked_ref: Option<(crate::branches::Kind, String)>,
-    pub picked_place: Option<crate::places::Place>,
     /// The conflicted file being merged by hand.
     pub merging: Option<crate::conflict::Merging>,
     pub merge_editor: Entity<ely_gpui_component::editor::CodeEditor>,
@@ -220,8 +220,6 @@ impl Tree {
             amend_ask: 0,
             amend_loading: false,
             looks: 0,
-            picked_ref: None,
-            picked_place: None,
             merging: None,
             merge_editor,
             _searching: searching,
@@ -364,6 +362,8 @@ impl Tree {
             me: None,
             me_asks: 0,
             places: Default::default(),
+            picked_ref: None,
+            picked_place: None,
             net: None,
             _watcher: watcher,
         });

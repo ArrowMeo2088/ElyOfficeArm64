@@ -256,3 +256,67 @@ fn a_pick_that_conflicts_stops_without_a_dialog() {
     });
     assert!(cx.update(|_, app| tree.read(app).ask.is_none()));
 }
+
+#[test]
+fn a_git_am_stopped_on_a_conflict_says_so() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let (root, _) = conflicted(dir.path());
+    let patch = sh(&root, &["format-patch", "-1", "side", "--stdout"]);
+    std::fs::write(dir.path().join("p.patch"), patch).expect("writes");
+    // `git am` stops on the conflict, as in a terminal.
+    let stopped = super::git().run(
+        &root,
+        &[
+            "am",
+            "--3way",
+            dir.path().join("p.patch").to_str().expect("utf-8"),
+        ],
+    );
+    assert!(stopped.is_err(), "the patch conflicts");
+    let mut cx = TestAppContext::single();
+    let (tree, cx) = window(&mut cx, dir.path());
+    cx.update(|_, app| tree.update(app, |tree, cx| tree.open_path(root.clone(), cx)));
+    let op = |app: &App| match tree.read(app).active().and_then(|o| o.doing.clone()) {
+        Some(Ok(Some(doing))) => Some((doing.op, doing.theirs)),
+        _ => None,
+    };
+    settle(cx, |app| op(app).is_some());
+    assert_eq!(
+        cx.update(|_, app| op(app)),
+        Some((crate::ops::Op::Am, "1/1".to_string()))
+    );
+}
+
+#[test]
+fn a_settled_conflict_says_so_when_picked_again() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let (root, _) = conflicted(dir.path());
+    let mut cx = TestAppContext::single();
+    let (tree, cx) = window(&mut cx, dir.path());
+    let shell = cx.update(|window, app| {
+        let shell = ely_ui::tool_root(
+            ely_platform::AppId::Tree,
+            tree.clone().into(),
+            Vec::new(),
+            window,
+            app,
+        );
+        tree.update(app, |tree, _| tree.root = shell.downgrade());
+        shell
+    });
+    cx.update(|_, app| tree.update(app, |tree, cx| tree.open_path(root.clone(), cx)));
+    settle(cx, |app| branch(tree.read(app)).is_some());
+    cx.update(|_, app| tree.update(app, |tree, cx| tree.merge("side", cx)));
+    settle(cx, |app| conflicts(tree.read(app)) == 1);
+    cx.update(|_, app| {
+        tree.update(app, |tree, cx| {
+            tree.show("a.txt", ChangeSection::Conflicted, cx)
+        })
+    });
+    settle(cx, |app| tree.read(app).merging.is_some());
+    cx.update(|_, app| tree.update(app, |tree, cx| tree.take(0, Take::Theirs, cx)));
+    cx.update(|_, app| tree.update(app, |tree, cx| tree.take(0, Take::Ours, cx)));
+    let want = cx.update(|_, app| ely_ui::i18n::text(app, "tree.conflict.taken", &[]));
+    let toasts = cx.update(|_, app| shell.read(app).toasts(app));
+    assert!(toasts.iter().any(|(text, _)| *text == want), "{toasts:?}");
+}

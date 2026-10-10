@@ -349,6 +349,16 @@ wrap_life_span_handler! {
         fn on_after_created(&self, browser: Option<&mut Browser>) {
             let Some(browser) = browser.map(|b| b.clone()) else { return };
             log::info!("web: browser {} made", browser.identifier());
+            // Its view went before it came: close it, keep nothing.
+            if self.surface.lock().expect("the surface lock").closed {
+                log::info!("web: browser {} closes: its view is gone", browser.identifier());
+                crate::engine::later(move || {
+                    if let Some(host) = browser.host() {
+                        host.close_browser(true as _);
+                    }
+                });
+                return;
+            }
             adopt(&browser, self.surface.clone());
             self.surface.lock().expect("the surface lock").browser = Some(browser);
         }

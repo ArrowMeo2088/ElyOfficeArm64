@@ -168,16 +168,18 @@ impl Tree {
         }
         if let Some(cloning) = &self.cloning {
             let this = cx.weak_entity();
+            let title = text(cx, "tree.cloning", &[("name", &name(&cloning.into))]);
+            let state = EmptyState::new("tree-cloning", IconName::Download, title)
+                .body(cloning.said.clone());
+            if !crate::running::STOPS {
+                return state.into_any_element();
+            }
             let stop = Button::new("tree-clone-stop", text(cx, "tree.clone.stop", &[]))
                 .disabled(cloning.stopping)
                 .on_click(move |_, _, cx| {
                     this.update(cx, |tree, cx| tree.stop_clone(cx)).ok();
                 });
-            let title = text(cx, "tree.cloning", &[("name", &name(&cloning.into))]);
-            return EmptyState::new("tree-cloning", IconName::Download, title)
-                .body(cloning.said.clone())
-                .action(stop)
-                .into_any_element();
+            return state.action(stop).into_any_element();
         }
         let Some(opened) = self.active() else {
             return self.start_page(cx);

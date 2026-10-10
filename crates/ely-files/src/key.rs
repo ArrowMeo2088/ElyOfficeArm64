@@ -53,10 +53,13 @@ pub struct RecoveryKey {
 }
 
 impl RecoveryKey {
-    /// The stored key, else this session's; never a file.
+    /// The stored key, else this session's; read once a run.
     pub fn load() -> Self {
-        let dir = account_home().map(|home| shared_dir(&home));
-        Self::from(dir.and_then(|dir| load_with(&KeyringBackend, &dir)))
+        static LOADED: std::sync::OnceLock<RecoveryKey> = std::sync::OnceLock::new();
+        *LOADED.get_or_init(|| {
+            let dir = account_home().map(|home| shared_dir(&home));
+            Self::from(dir.and_then(|dir| load_with(&KeyringBackend, &dir)))
+        })
     }
 
     /// The loaded key, or this session's when loading failed.

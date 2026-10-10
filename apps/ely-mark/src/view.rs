@@ -43,14 +43,10 @@ pub struct Failed(pub String);
 pub struct MarkView {
     pub(crate) web: Entity<WebView>,
     doc: Doc,
-    /// The newest change the page announced.
-    pub changed: u64,
-    /// The change whose text `doc` holds.
-    reported: u64,
+    /// Page loads, changes and owed renders.
+    tally: crate::tally::Tally<Rendered>,
     /// The mark at the last load or save.
     saved: String,
-    /// Page loads so far; a reload restarts its versions.
-    load: u64,
     pub mode: Mode,
     /// Headings as the shown editor reads them.
     pub outline: Vec<Heading>,
@@ -70,9 +66,6 @@ pub struct MarkView {
     pub place: Option<Place>,
     /// The writing view, as the page applies it (MARK-09).
     look: Value,
-    /// Renders asked of the page, by number.
-    renders: std::collections::HashMap<u64, Rendered>,
-    asked: u64,
     pub focus: FocusHandle,
 }
 
@@ -95,10 +88,8 @@ impl MarkView {
         MarkView {
             web,
             doc,
-            changed: 0,
-            reported: 0,
+            tally: crate::tally::Tally::new(),
             saved,
-            load: 0,
             mode: if large { Mode::Source } else { Mode::Visual },
             large,
             outline: Vec::new(),
@@ -108,8 +99,6 @@ impl MarkView {
             attachable: false,
             place: None,
             look: Value::Null,
-            renders: std::collections::HashMap::new(),
-            asked: 0,
             folder,
             focus,
         }
@@ -117,7 +106,12 @@ impl MarkView {
 
     /// Every change's text has arrived.
     pub fn settled(&self) -> bool {
-        self.reported == self.changed
+        self.tally.settled()
+    }
+
+    /// The newest change the page announced.
+    pub fn changed(&self) -> u64 {
+        self.tally.changed()
     }
 
     /// The text's size now, in bytes.
@@ -190,8 +184,10 @@ impl MarkView {
             doc.source = source;
         }
         self.saved = mark(&text);
-        (self.changed, self.reported) = (0, 0);
-        crate::page::call(self.web.read(cx), "refresh", &Value::from(text));
+        // Reports and renders from before belong to the old text.
+        let lapsed = self.tally.restart();
+        self.end_renders(lapsed, "the text was replaced from disk", cx);
+        crate::page::refresh(self.web.read(cx), &text, self.tally.load());
         cx.emit(Reported);
     }
 
@@ -213,9 +209,8 @@ impl MarkView {
         done: impl FnOnce(Result<Value, String>, &mut gpui::App) + 'static,
         cx: &mut Context<Self>,
     ) {
-        self.asked += 1;
-        self.renders.insert(self.asked, Box::new(done));
-        let ask = serde_json::json!({ "kind": kind, "ask": self.asked });
+        let ask = self.tally.ask(Box::new(done));
+        let ask = serde_json::json!({ "kind": kind, "ask": ask });
         crate::page::call(self.web.read(cx), "render", &ask);
     }
 
@@ -240,7 +235,7 @@ impl MarkView {
         drop(doc);
         let mode = if self.large { Mode::Source } else { mode };
         self.mode = mode;
-        let at = (mode, self.load, place);
+        let at = (mode, self.tally.load(), place);
         crate::page::open(self.web.read(cx), &current, at, &self.folder, cx);
         cx.emit(Reported);
     }
@@ -262,21 +257,48 @@ impl MarkView {
         match event {
             // A reload shows the last text that arrived.
             Event::Loaded => {
-                self.load += 1;
+                let lapsed = self.tally.restart();
+                self.end_renders(lapsed, "the page reloaded", cx);
                 self.shown = false;
-                (self.changed, self.reported) = (0, 0);
                 let text = self.doc.lock().expect("the text lock").current.clone();
-                let at = (self.mode, self.load, self.place);
+                let at = (self.mode, self.tally.load(), self.place);
                 crate::page::open(web.read(cx), &text, at, &self.folder, cx);
                 cx.emit(Reported);
             }
             Event::Query(said, reply) => self.query(said, reply, cx),
-            Event::Leave(url) => log::info!("mark: a link out was not followed: {url}"),
-            Event::Failed(why) => cx.emit(Failed(why.clone())),
+            // A click on a link: web and mail open outside.
+            Event::Leave(url) if ely_office::outward(url) => {
+                log::info!("mark: opens a link outside");
+                cx.open_url(url);
+            }
+            Event::Leave(_) => {
+                log::info!("mark: a link of another kind was refused");
+                let said = ely_ui::i18n::text(cx, "office.link.refused", &[]).to_string();
+                cx.emit(Failed(said));
+            }
+            Event::Failed(why) => {
+                let lapsed = self.tally.lapse();
+                self.end_renders(lapsed, why, cx);
+                cx.emit(Failed(why.clone()));
+            }
             Event::Printed(path, _) => {
                 log::error!("mark: an editor page printed {}", path.display())
             }
         }
+    }
+
+    /// Renders the old page will never answer end with `why`.
+    fn end_renders(&mut self, pending: Vec<Rendered>, why: &str, cx: &mut Context<Self>) {
+        if pending.is_empty() {
+            return;
+        }
+        log::warn!("mark: {} renders lost with the page", pending.len());
+        let why = why.to_string();
+        cx.defer(move |cx| {
+            for done in pending {
+                done(Err(why.clone()), cx);
+            }
+        });
     }
 
     fn query(&mut self, said: &str, reply: &Reply, cx: &mut Context<Self>) {
@@ -287,10 +309,7 @@ impl MarkView {
                 return reply.fail("bad JSON");
             }
         };
-        if said["generation"]
-            .as_u64()
-            .is_some_and(|load| load != self.load)
-        {
+        if !self.tally.current(said["generation"].as_u64()) {
             log::info!("mark: a report from an earlier page load was dropped");
             return reply.ok("");
         }
@@ -307,6 +326,10 @@ impl MarkView {
                     self.mode = mode;
                     cx.notify();
                 }
+                if let Some(what) = said["broke"].as_str() {
+                    log::error!("mark: the visual editor broke ({what}); source shows");
+                    cx.emit(Failed(ely_ui::i18n::text(cx, "mark.visual.broke", &[("what", what)]).to_string()));
+                }
                 self.shown = true;
                 if let Some(place) = self.waiting.take() {
                     crate::page::call(self.web.read(cx), "reveal", &place);
@@ -315,6 +338,14 @@ impl MarkView {
                     crate::page::call(self.web.read(cx), "look", &self.look);
                 }
                 cx.emit(Reported);
+            }
+            (Some("failed"), ..) => {
+                let Some(what) = said["what"].as_str() else {
+                    log::error!("mark: the page sent a failure without its name");
+                    return reply.fail("bad failure");
+                };
+                log::error!("mark: the page built no editor ({what})");
+                cx.emit(Failed(ely_ui::i18n::text(cx, "mark.page.broke", &[("what", what)]).to_string()));
             }
             (Some("outline"), ..) => match headings(&said["items"]) {
                 Some(outline) => {
@@ -351,7 +382,7 @@ impl MarkView {
             (Some("table" | "inserted"), ..) => {}
             (Some("rendered"), ..) => {
                 let ask = said["ask"].as_u64().unwrap_or_default();
-                let Some(done) = self.renders.remove(&ask) else {
+                let Some(done) = self.tally.answered(ask) else {
                     log::error!("mark: a render nobody asked for came back");
                     return reply.fail("unasked render");
                 };
@@ -379,16 +410,18 @@ impl MarkView {
                 }
             },
             (Some("changed"), Some(version), _) => {
-                self.changed = self.changed.max(version);
+                self.tally.change(version);
                 cx.emit(Reported);
             }
             // Only the newest text counts.
-            (Some("text"), Some(version), Some(text)) if version >= self.reported => {
-                self.doc.lock().expect("the text lock").current = text.to_owned();
-                self.reported = version;
-                cx.emit(Reported);
+            (Some("text"), Some(version), Some(text)) => {
+                if !self.tally.text(version) {
+                    log::info!("mark: an older text was dropped");
+                } else {
+                    self.doc.lock().expect("the text lock").current = text.to_owned();
+                    cx.emit(Reported);
+                }
             }
-            (Some("text"), Some(_), Some(_)) => log::info!("mark: an older text was dropped"),
             _ => {
                 log::error!("mark: the page asked something unknown");
                 return reply.fail("unknown request");
