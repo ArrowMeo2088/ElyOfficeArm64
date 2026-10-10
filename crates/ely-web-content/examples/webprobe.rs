@@ -16,6 +16,10 @@ use gpui::{
 
 /// How many views open and close to show their release.
 const CHURN: usize = 20;
+/// Views dropped before the pump makes their browsers.
+const UNMADE: usize = 5;
+/// Views dropped within 3 ms steps of opening.
+const EARLY: u64 = 10;
 
 struct Probe {
     view: Entity<WebView>,
@@ -182,14 +186,29 @@ impl Probe {
 
     /// Opens and drops pages; each must free its memory.
     fn churn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let page = self.fixtures.join("probe.html");
         if self.churned == CHURN {
             println!("probe: closed {CHURN}");
+            for _ in 0..UNMADE {
+                drop(WebView::open(&page, &self.fixtures, window, cx).expect("a view"));
+            }
+            for step in 0..EARLY {
+                let view = WebView::open(&page, &self.fixtures, window, cx).expect("a view");
+                self.others.push(view.clone());
+                later(cx.weak_entity(), step * 3, window, cx, move |probe, _, _| {
+                    probe.others.retain(|other| *other != view);
+                });
+            }
+            println!("probe: dropped {UNMADE} unmade, {EARLY} early");
             let this = cx.weak_entity();
-            later(this, 2000, window, cx, |_, _, _| println!("probe: hold"));
+            later(this, 2000, window, cx, |_, _, _| {
+                // The log marks what freed before the hold.
+                log::info!("probe: hold");
+                println!("probe: hold");
+            });
             return;
         }
         self.churned += 1;
-        let page = self.fixtures.join("probe.html");
         let view = WebView::open(&page, &self.fixtures, window, cx).expect("a view");
         cx.subscribe_in(&view, window, |probe, view, event, window, cx| {
             if matches!(event, Event::Loaded) {

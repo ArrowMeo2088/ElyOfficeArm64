@@ -201,7 +201,8 @@ fn make_browsers() {
             windowless_frame_rate: 60,
             ..Default::default()
         };
-        let made = browser_host_create_browser(
+        // Made at once: no view ever waits on a browser.
+        let made = browser_host_create_browser_sync(
             Some(&info),
             Some(&mut handlers::client(&surface)),
             Some(&url.as_str().into()),
@@ -209,9 +210,15 @@ fn make_browsers() {
             None,
             None,
         );
-        if made != 1 {
-            surface.lock().expect("the surface lock").failed =
-                Some(format!("CEF made no browser for {url}"));
+        match made {
+            Some(browser) => {
+                handlers::adopt(&browser, surface.clone());
+                surface.lock().expect("the surface lock").browser = Some(browser);
+            }
+            None => {
+                surface.lock().expect("the surface lock").failed =
+                    Some(format!("CEF made no browser for {url}"))
+            }
         }
     }
 }
