@@ -22,6 +22,12 @@ pub fn templates(kind: &str) -> io::Result<Vec<PathBuf>> {
     Ok(found)
 }
 
+/// The kernel's folder beside the app, and in this build.
+#[cfg(target_os = "macos")]
+const LAYOUT: (&str, &str) = ("../Frameworks", "instdir/LibreOffice.app/Contents/Frameworks");
+#[cfg(not(target_os = "macos"))]
+const LAYOUT: (&str, &str) = ("libreoffice/program", "instdir/program");
+
 /// The LOK build: `ELY_LOK_DIR`, the app bundle's, or engines/.
 pub fn install_dir() -> io::Result<PathBuf> {
     if let Ok(dir) = std::env::var("ELY_LOK_DIR") {
@@ -35,17 +41,15 @@ pub fn install_dir() -> io::Result<PathBuf> {
             ))
         };
     }
+    let (beside, built) = LAYOUT;
+    let library = crate::ffi::KERNEL;
     let exe = std::env::current_exe()?;
-    let bundled = exe
-        .parent()
-        .unwrap_or(Path::new("."))
-        .join("../Frameworks");
-    if cfg!(target_os = "macos") && bundled.join("libmergedlo.dylib").try_exists()? {
+    let bundled = exe.parent().unwrap_or(Path::new(".")).join(beside);
+    if bundled.join(library).try_exists()? {
         return Ok(bundled);
     }
-    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../engines/lo-src/instdir/LibreOffice.app/Contents/Frameworks");
-    if dev.try_exists()? {
+    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../engines/lo-src").join(built);
+    if dev.join(library).try_exists()? {
         return Ok(dev);
     }
     Err(io::Error::new(

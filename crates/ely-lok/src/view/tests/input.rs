@@ -20,7 +20,7 @@ fn saved(view: &Entity<LokView>, cx: &mut TestAppContext) -> Vec<String> {
         let view = view.read(app);
         let mut worker = view.worker.lock().expect("the worker lock");
         view.doc
-            .save_as(&mut worker, &format!("file://{}", out.display()), "fodt")
+            .save_as(&mut worker, &crate::file_url(&out), "fodt")
             .expect("the save works");
     });
     paragraphs(&std::fs::read_to_string(&out).expect("the save reads"))
@@ -263,7 +263,7 @@ fn the_clipboard_moves_html_tables_and_images() {
         let view = view.read(app);
         let mut worker = view.worker.lock().expect("the worker lock");
         view.doc
-            .save_as(&mut worker, &format!("file://{}", out.display()), "fodt")
+            .save_as(&mut worker, &crate::file_url(&out), "fodt")
             .expect("the save works");
     });
     let xml = std::fs::read_to_string(&out).expect("the save reads");

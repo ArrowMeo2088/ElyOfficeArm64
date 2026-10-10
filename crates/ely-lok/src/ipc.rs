@@ -92,6 +92,9 @@ pub mod tag {
     pub const ERR: u8 = 101;
 }
 
+/// How a refusal for a changed document begins.
+pub const STALE: &str = "stale: ";
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -103,6 +106,3 @@ mod tests {
         assert!(super::path_of_file_url("file:///bad%zz").is_err());
     }
 }
-
-/// How a refusal for a changed document begins.
-pub const STALE: &str = "stale: ";

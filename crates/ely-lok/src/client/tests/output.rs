@@ -44,8 +44,7 @@ fn a_locked_document_asks_for_its_password() {
     for password in ["", "wrong"] {
         let error = worker
             .unlock(&url, password)
-            .err()
-            .expect("a locked load fails");
+            .expect_err("a locked load fails");
         assert_eq!(
             error.kind(),
             std::io::ErrorKind::PermissionDenied,

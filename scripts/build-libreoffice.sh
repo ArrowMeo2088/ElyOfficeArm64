@@ -49,7 +49,6 @@ case $(uname) in
     # Collabora's LOKit set: headless, bundled libraries.
     options+=(
       --disable-gui
-      --enable-cairo-rgba
       --disable-dbus
       --disable-gio
       --disable-dconf
@@ -70,6 +69,22 @@ case $(uname) in
       --without-system-nss
       --without-system-zlib
     )
+    app=$src/instdir/share
+    jobs=$(nproc)
+    ;;
+  CYGWIN*)
+    # Unix-only switches; configure refuses them here.
+    kept=()
+    for option in "${options[@]}"; do
+      case $option in
+        --enable-bogus-pkg-config | --disable-cups | --disable-evolution2 | --disable-python) ;;
+        *) kept+=("$option") ;;
+      esac
+    done
+    options=("${kept[@]}" --with-visual-studio=2022 --disable-ccache --disable-cli --without-dotnet)
+    # Cygwin's own make, never Git Bash's; MSYSTEM misleads the build.
+    unset MSYSTEM MSYSTEM_PREFIX MINGW_PREFIX MSYSTEM_CHOST MSYSTEM_CARCH
+    PATH=/opt/lo/bin:$PATH
     app=$src/instdir/share
     jobs=$(nproc)
     ;;

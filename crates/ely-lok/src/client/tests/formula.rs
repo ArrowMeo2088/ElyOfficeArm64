@@ -12,7 +12,7 @@ fn open() -> (tempfile::TempDir, Worker, Doc, Events) {
     let source = dir.path().join("in.fods");
     write(&source, FODS);
     let doc = worker
-        .load(&format!("file://{}", source.display()))
+        .load(&crate::file_url(&source))
         .expect("the sheet loads");
     let seen = poll_until(&mut worker, &doc, &Events::default(), SETTLE, |seen| {
         seen.cell.cursor.is_some()
@@ -29,7 +29,8 @@ fn type_text(worker: &mut Worker, doc: &Doc, text: &str) {
 /// The cells of `range`, as the kernel copies them.
 fn values(worker: &mut Worker, doc: &Doc, range: &str) -> String {
     worker.run(doc, "cell.goto", &[range]).expect("the range");
-    doc.selection_text(worker).expect("the text")
+    // Windows ends copied lines with CRLF.
+    doc.selection_text(worker).expect("the text").replace("\r\n", "\n")
 }
 
 #[test]

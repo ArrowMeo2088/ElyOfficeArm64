@@ -150,14 +150,14 @@ impl Worker {
         command
             .arg(install)
             .arg(profile_dir)
-            .env("SAL_FORCE_HIDPI_SCALING", "1")
-            .env("SAL_SKIA", "raster");
-        // Calc reports in document twips, as its geometry does.
-        let options = match cfg!(target_os = "macos") {
-            true => "unipoll:sc_print_twips_msgs",
-            false => "sc_print_twips_msgs",
+            .env("SAL_FORCE_HIDPI_SCALING", "1");
+        // Linux tiles via cairo are BGRA; Skia there is RGBA.
+        match cfg!(target_os = "linux") {
+            true => command.env("SAL_DISABLESKIA", "1"),
+            false => command.env("SAL_SKIA", "raster"),
         };
-        command.env("SAL_LOK_OPTIONS", options);
+        // Calc reports in document twips; unipoll lends LOK's loop.
+        command.env("SAL_LOK_OPTIONS", "unipoll:sc_print_twips_msgs");
         if dev {
             command.arg("--dev");
         }
@@ -370,7 +370,9 @@ impl Worker {
         // Nothing reaches a worker that has not passed its checks.
         self.ready()?;
         self.asked += 1;
-        ipc::write_frame(&mut self.stdin, request, self.asked, payload)?;
+        if let Err(error) = ipc::write_frame(&mut self.stdin, request, self.asked, payload) {
+            return Err(self.broken(request, error));
+        }
         let (reply, id, body) = match self.replies.recv() {
             Ok(Ok(frame)) => frame,
             Ok(Err(error)) => return Err(self.broken(request, error)),

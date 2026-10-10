@@ -50,7 +50,7 @@ pub(super) fn live_view_of(
     let source = dir.path().join(name);
     std::fs::write(&source, body).expect("the fixture writes");
     let doc = worker
-        .load(&format!("file://{}", source.display()))
+        .load(&crate::file_url(&source))
         .expect("the document loads");
     std::mem::forget(dir);
     let shared = Arc::new(Mutex::new(worker));

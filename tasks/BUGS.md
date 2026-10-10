@@ -138,3 +138,12 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] W-04 Windows 打包：六个安装程序，带引擎、许可、文件类型；更新清单含 windows-x86_64
 - [ ] CI-01 Gitea 工作流：打标签即在 macOS、Windows、Linux 运行器上构建、测试、打包并上传到发布
 - [ ] REL-3 版本号 0.1.3，打标签触发运行器，三端产物与清单上传，官网指向新发布
+
+## 0.1.3 之后（三端实测查出，非 P0）
+
+- [ ] P3-01 拼写建议：Windows 与 Linux 上右键不出拼写菜单（`tools::spelling_suggests_and_ignores`）
+- [ ] P3-02 Windows：Calc 深色主题的图块为全黑（`paint::the_page_follows_a_dark_theme_and_back`）
+- [ ] P3-03 Windows：放映图层大于一帧时分片缺行（`motion::a_layer_larger_than_one_frame_arrives_in_pieces`）
+- [ ] P3-04 Windows：放映的页脚字段文字不在占位处（`playlist::field_text_lands_where_its_placeholder_is`）
+- [ ] P3-05 Windows：辅助功能的段落选区不桥接（`commands::a11y_follows_the_focused_paragraph`）
+

@@ -9,13 +9,12 @@ use serde_json::{Value, json};
 
 use crate::view::Heading;
 
-/// The app's Resources, else this build's `engines/content`.
+/// Beside the app, its Resources, else this build's.
 pub fn content() -> Result<PathBuf> {
-    let bundled = std::env::current_exe()?
-        .parent()
-        .and_then(|dir| Some(dir.parent()?.join("Resources/content")));
+    let exe = std::env::current_exe()?;
+    let dir = exe.parent().unwrap_or(Path::new("."));
     let built = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../engines/content/ely-mark");
-    for dir in bundled.into_iter().chain([built]) {
+    for dir in [dir.join("content"), dir.join("../Resources/content"), built] {
         if dir.join("index.html").is_file() {
             log::info!("mark: page from {}", dir.display());
             return Ok(dir);

@@ -80,25 +80,6 @@ impl Document {
         call!(class, 13, F, self.doc, callback, data);
     }
 
-    /// Paints the document into `buffer` at `width` x `height` (R-01).
-    pub fn paint_tile(&self, buffer: &mut [u8], width: i32, height: i32) {
-        let class = unsafe { (*self.doc).class };
-        type F = unsafe extern "C" fn(*mut Doc, *mut u8, i32, i32, i32, i32, i32, i32);
-        call!(
-            class,
-            9,
-            F,
-            self.doc,
-            buffer.as_mut_ptr(),
-            width,
-            height,
-            0,
-            0,
-            width * 15,
-            height * 15
-        );
-    }
-
     /// Runs a UNO command with JSON `args` (LOK-08).
     pub fn post_uno(&self, command: &str, args: Option<&str>) -> io::Result<()> {
         self.dispatch(command, args, false)

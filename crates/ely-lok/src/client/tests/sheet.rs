@@ -37,7 +37,7 @@ fn open_sheet() -> (tempfile::TempDir, Worker, Doc) {
     let source = dir.path().join("in.fods");
     write(&source, FODS);
     let doc = worker
-        .load(&format!("file://{}", source.display()))
+        .load(&crate::file_url(&source))
         .expect("the sheet loads");
     (dir, worker, doc)
 }
@@ -174,7 +174,7 @@ pub(super) fn open_book(text: &str) -> (tempfile::TempDir, Worker, Doc) {
     let source = dir.path().join("book.fods");
     write(&source, text);
     let doc = worker
-        .load(&format!("file://{}", source.display()))
+        .load(&crate::file_url(&source))
         .expect("the book loads");
     doc.visible_area(&mut worker, (0, 0, 15000, 10000), (256, 3840))
         .expect("the area");

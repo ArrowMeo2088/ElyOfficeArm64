@@ -157,20 +157,20 @@ fn the_worker_round_trips_a_document() {
 
     let source = dir.path().join("note.fodt");
     write(&source, FODT);
-    let url = format!("file://{}", source.display());
+    let url = crate::file_url(&source);
     let doc = worker.load(&url).expect("the document loads");
     let (width, height) = doc.size(&mut worker).expect("the size");
     assert!(width > 0 || height > 0, "a nonzero document size");
 
     let odt = dir.path().join("note.odt");
-    doc.save_as(&mut worker, &format!("file://{}", odt.display()), "odt")
+    doc.save_as(&mut worker, &crate::file_url(&odt), "odt")
         .expect("the odt save");
     assert!(odt.try_exists().expect("the odt exists"));
     let doc2 = worker
-        .load(&format!("file://{}", odt.display()))
+        .load(&crate::file_url(&odt))
         .expect("the odt reloads");
     let pdf = dir.path().join("note.pdf");
-    doc2.save_as(&mut worker, &format!("file://{}", pdf.display()), "pdf")
+    doc2.save_as(&mut worker, &crate::file_url(&pdf), "pdf")
         .expect("the pdf save");
     let head = std::fs::read(&pdf).expect("the pdf reads");
     assert!(head.starts_with(b"%PDF"), "a real PDF comes out");
@@ -187,7 +187,7 @@ fn a_missing_file_is_an_error_never_a_success() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let mut worker = Worker::spawn(&install, &dir.path().join("profile")).expect("the worker");
     let missing = dir.path().join("gone.odt");
-    let outcome = worker.load(&format!("file://{}", missing.display()));
+    let outcome = worker.load(&crate::file_url(&missing));
     assert!(outcome.is_err(), "LOK-09: the failure is an error");
 }
 
@@ -209,7 +209,12 @@ fn a_failed_check_refuses_every_later_request() {
 
 /// Initializes the profile fully, the CLI way (registers Basic).
 fn seed_basic(install: &Path, profile: &Path) {
+    #[cfg(target_os = "macos")]
     let soffice = install.parent().expect("the app dir").join("MacOS/soffice");
+    #[cfg(target_os = "linux")]
+    let soffice = install.join("soffice.bin");
+    #[cfg(windows)]
+    let soffice = install.join("soffice.exe");
     let url = ipc::file_url_of(profile);
     let status = std::process::Command::new(&soffice)
         .args(["--headless", "--norestore", "--terminate_after_init"])
@@ -249,7 +254,7 @@ fn a_macro_never_writes_its_marker() {
     let source = dir.path().join("macro.fodt");
     std::fs::write(&source, macro_fodt(&marker)).expect("the macro fodt writes");
     let doc = worker
-        .load(&format!("file://{}", source.display()))
+        .load(&crate::file_url(&source))
         .expect("the macro document loads");
     std::thread::sleep(std::time::Duration::from_millis(800));
     assert!(
@@ -313,7 +318,7 @@ fn shutdown_leaves_no_locks_or_temp() {
     let source = dir.path().join("note.fodt");
     write(&source, FODT);
     let doc = worker
-        .load(&format!("file://{}", source.display()))
+        .load(&crate::file_url(&source))
         .expect("the document loads");
     let lock = dir.path().join(".~lock.note.fodt#");
     worker.close_doc(doc).expect("the document closes");
@@ -347,7 +352,7 @@ fn each_load_is_its_own_session() {
     let mut worker = Worker::spawn(&install, &dir.path().join("profile")).expect("the worker spawns");
     let source = dir.path().join("note.fodt");
     write(&source, FODT);
-    let url = format!("file://{}", source.display());
+    let url = crate::file_url(&source);
     // Freed native documents reuse addresses; sessions never repeat.
     let mut old = Vec::new();
     for _ in 0..4 {
@@ -375,7 +380,7 @@ fn a_document_belongs_to_its_worker() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let source = dir.path().join("note.fodt");
     write(&source, FODT);
-    let url = format!("file://{}", source.display());
+    let url = crate::file_url(&source);
     let mut first = Worker::spawn(&install, &dir.path().join("one")).expect("a worker");
     let mut second = Worker::spawn(&install, &dir.path().join("two")).expect("another worker");
     let theirs = first.load(&url).expect("loads");

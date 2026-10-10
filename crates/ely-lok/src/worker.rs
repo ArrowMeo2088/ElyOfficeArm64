@@ -16,6 +16,14 @@ mod revision;
 mod slides;
 mod teardown;
 mod text;
+#[cfg(windows)]
+mod messages;
+#[cfg(windows)]
+use messages::serve;
+#[cfg(target_os = "linux")]
+mod unipoll;
+#[cfg(target_os = "linux")]
+use unipoll::serve;
 
 /// English kernel, desktop hints; macros stay off (LOK-11).
 const LOAD_OPTIONS: &str = "Language=en-US,DeviceFormFactor=desktop";
@@ -49,7 +57,12 @@ fn serve(lok: Lok, input: impl io::Read + Send + 'static) -> io::Result<()> {
     }
     std::thread::spawn(move || reader(input));
     std::thread::spawn(events::push);
-    lok.run_loop();
+    // Aqua never polls: GCD brings the requests.
+    extern "C" fn poll(_: *mut std::ffi::c_void, _: i32) -> i32 {
+        0
+    }
+    extern "C" fn wake(_: *mut std::ffi::c_void) {}
+    lok.run_loop(Some(poll), Some(wake));
     Ok(())
 }
 
@@ -144,23 +157,6 @@ mod gcd {
         unsafe { &_raw as *const c_void as *mut c_void }
     }
     use _dispatch_main_q as _raw;
-}
-
-#[cfg(not(target_os = "macos"))]
-fn serve(lok: Lok, mut input: impl io::Read) -> io::Result<()> {
-    let lok = Box::leak(Box::new(lok));
-    pin(lok);
-    lok.register_callback(password::on_kit);
-    std::thread::spawn(events::push);
-    loop {
-        match ipc::read_frame(&mut input)? {
-            Some((tag, id, payload)) => answer(lok, tag, id, &payload),
-            None => {
-                log::info!("lok-worker: stdin closed");
-                teardown::teardown(0);
-            }
-        }
-    }
 }
 
 /// Handles one frame and writes its answer.
@@ -375,15 +371,16 @@ fn docs() -> &'static Mutex<std::collections::HashMap<u64, Document>> {
     DOCS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
 
-/// Loads and paints; the bytes gained (R-01).
+/// Loads and paints red text; its BGRA red pixels (R-01).
 fn verify(lok: &Lok, url: &str) -> io::Result<u64> {
     let doc = lok.load(url, LOAD_OPTIONS)?;
     let mut tile = vec![0xABu8; 64 * 64 * 4];
-    doc.paint_tile(&mut tile, 64, 64);
+    // Past the 2 cm margin, where the text sits.
+    doc.paint_rect(&mut tile, (64, 64), (0, 0, 3000, 3000));
     drop(doc);
-    let gained = tile.iter().filter(|byte| **byte != 0xAB).count() as u64;
-    log::info!("lok-worker: tile self-check gained {gained} bytes");
-    Ok(gained)
+    let red = tile.chunks_exact(4).filter(|px| px[2] > 200 && px[0] < 80 && px[1] < 80).count();
+    log::info!("lok-worker: tile self-check found {red} red pixels");
+    Ok(red as u64)
 }
 
 /// Borrows a live document for a read call.
