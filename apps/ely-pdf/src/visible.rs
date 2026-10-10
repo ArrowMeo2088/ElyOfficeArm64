@@ -95,6 +95,7 @@ impl PdfView {
                 let write = move |worker: &mut ely_pdf_engine::Worker, doc| match worker.put_text(doc, page, &writing, 0.0)? {
                     Wrote::Done(mark) => Ok(mark),
                     Wrote::Missing(c) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the font has no “{c}”"))),
+                    Wrote::Unwritable => Err(io::Error::other("the document's font cannot write")),
                     Wrote::Preview(..) => Err(io::Error::other("a preview where a write was asked")),
                 };
                 self.edit_at("placing a typed signature", write, cx);

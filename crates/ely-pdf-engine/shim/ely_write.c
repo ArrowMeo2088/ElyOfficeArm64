@@ -156,11 +156,12 @@ static void drop_laid(fz_context *ctx, laid *l)
 	fz_free(ctx, l->to);
 }
 
-/* Lays `a` out from `first`, or names a missing glyph. */
+/* Lays `a` out; a missing glyph, or -1: unwritable font. */
 static int lay_text(fz_context *ctx, text_args *a, fz_font *own, pdf_page *page, fz_point first, float gap, laid *l)
 {
 	int i;
-	ely_choose_pen(ctx, a->font, own, page, &l->p);
+	if (ely_choose_pen(ctx, a->font, own, page, &l->p) < 0)
+		return -1;
 	l->n = runes(ctx, a->text, &l->u);
 	for (i = 0; i < l->n; i++)
 		if (l->u[i] != '\n' && !ely_pen_has(ctx, &l->p, l->u[i]))
@@ -259,7 +260,7 @@ static void preview(fz_context *ctx, pdf_document *pdf, int number, int block, c
 		fz_rethrow(ctx);
 }
 
-/* Edits, adds or previews text: 0, 2 missing, -1 failed. */
+/* Writes or previews text: 0, 2 missing, 3 unwritable, -1. */
 int ely_put_text(fz_context *ctx, fz_document *doc, int number, int block, const char *expected, const char *text,
 	const char *font, float size, int rgb, const float box[3], const char *password, float scale, int *missing,
 	int *grew, unsigned char **pixels, int *w, int *h)
@@ -325,5 +326,5 @@ int ely_put_text(fz_context *ctx, fz_document *doc, int number, int block, const
 		*pixels = NULL;
 		return ely_edit_failed(ctx, pdf, begun);
 	}
-	return *missing ? 2 : 0;
+	return *missing < 0 ? 3 : *missing ? 2 : 0;
 }

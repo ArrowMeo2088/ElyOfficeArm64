@@ -29,13 +29,13 @@ static int unicode_of(pdf_font_desc *desc, int cid)
 	return n == 1 && ucs[0] > 0 && ucs[0] != FZ_REPLACEMENT_CHARACTER ? ucs[0] : -1;
 }
 
-/* Unicode and code pairs of `desc`; its codes are CIDs. */
-static void own_codes(fz_context *ctx, pdf_font_desc *desc, ely_pen *p)
+/* `desc` Unicode-to-code pairs; -1 when codes are not CIDs. */
+static int own_codes(fz_context *ctx, pdf_font_desc *desc, ely_pen *p)
 {
 	pdf_cmap *enc = desc->encoding;
 	int cid, end;
 	if (!enc || strcmp(enc->cmap_name, "Identity-H") || enc->codespace_len != 1 || enc->codespace[0].n > 2)
-		fz_throw(ctx, FZ_ERROR_ARGUMENT, "the document's font uses codes Ely cannot write");
+		return -1;
 	p->bytes = enc->codespace[0].n;
 	end = 1 << (8 * p->bytes);
 	p->map = fz_malloc_array(ctx, 2 * end, int);
@@ -45,10 +45,11 @@ static void own_codes(fz_context *ctx, pdf_font_desc *desc, ely_pen *p)
 		if (u > 0 && pdf_font_cid_to_gid(ctx, desc, cid) > 0)
 			p->map[2 * p->mapped] = u, p->map[2 * p->mapped + 1] = cid, p->mapped++;
 	}
+	return 0;
 }
 
-/* The page font drawn as `own`, with its codes. */
-static void own_font(fz_context *ctx, pdf_page *page, fz_font *own, ely_pen *p)
+/* The page font drawn as `own`; -1: cannot write. */
+static int own_font(fz_context *ctx, pdf_page *page, fz_font *own, ely_pen *p)
 {
 	pdf_obj *res = pdf_page_resources(ctx, page);
 	pdf_resource_stack stack = { NULL, res };
@@ -63,16 +64,15 @@ static void own_font(fz_context *ctx, pdf_page *page, fz_font *own, ely_pen *p)
 			continue;
 		}
 		p->desc = desc;
+		/* A direct font cannot be named again after the edit. */
 		p->num = pdf_to_num(ctx, pdf_dict_get_val(ctx, fonts, i));
-		if (!p->num)
-			fz_throw(ctx, FZ_ERROR_ARGUMENT, "the document's font is not an object of its own");
-		own_codes(ctx, desc, p);
+		return p->num ? own_codes(ctx, desc, p) : -1;
 	}
-	if (!p->desc)
-		fz_throw(ctx, FZ_ERROR_ARGUMENT, "the block's font is not a font of its page");
+	/* Drawn from elsewhere, as in a form: not writable here. */
+	return -1;
 }
 
-void ely_choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page *page, ely_pen *p)
+int ely_choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page *page, ely_pen *p)
 {
 	static const struct { const char *choice, *name; } latin[] = {
 		{ "helvetica", "Helvetica" }, { "times", "Times-Roman" }, { "courier", "Courier" } };
@@ -85,22 +85,21 @@ void ely_choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page 
 			fz_throw(ctx, FZ_ERROR_ARGUMENT, "no script font was given");
 		p->kind = PEN_CID;
 		p->font = fz_new_font_from_memory(ctx, "GreatVibes", script_data, (int)script_len, 0, 0);
-		return;
+		return 0;
 	}
 	if (!strcmp(choice, "original"))
 	{
 		if (!own)
 			fz_throw(ctx, FZ_ERROR_ARGUMENT, "the block has no font of its own");
 		p->kind = PEN_OWN;
-		own_font(ctx, page, own, p);
-		return;
+		return own_font(ctx, page, own, p);
 	}
 	for (i = 0; i < nelem(latin); i++)
 		if (!strcmp(choice, latin[i].choice))
 		{
 			p->kind = PEN_SIMPLE;
 			p->font = fz_new_base14_font(ctx, latin[i].name);
-			return;
+			return 0;
 		}
 	for (i = 0; i < nelem(cjk); i++)
 		if (!strcmp(choice, cjk[i].choice))
@@ -108,7 +107,7 @@ void ely_choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page 
 			p->kind = PEN_CJK;
 			p->ordering = cjk[i].ordering;
 			p->font = fz_new_cjk_font(ctx, cjk[i].ordering);
-			return;
+			return 0;
 		}
 	fz_throw(ctx, FZ_ERROR_ARGUMENT, "no font %s", choice);
 }

@@ -147,6 +147,7 @@ impl Worker {
         Ok(match wrote? {
             content::Wrote::Done => Pack::new().u64(0).str(&doc.mark()).bytes(),
             content::Wrote::Missing(c) => Pack::new().u64(2).u64(u64::from(c)).bytes(),
+            content::Wrote::Unwritable => Pack::new().u64(3).bytes(),
             content::Wrote::Preview(pixels, (w, h), grew) => {
                 Pack::new().u64(1).u64(u64::from(w)).u64(u64::from(h)).u64(u64::from(grew)).blob(&pixels).bytes()
             }

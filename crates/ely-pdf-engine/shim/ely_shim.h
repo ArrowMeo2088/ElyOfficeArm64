@@ -76,7 +76,7 @@ typedef struct
 	int *map, mapped;
 } ely_pen;
 
-void ely_choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page *page, ely_pen *p);
+int ely_choose_pen(fz_context *ctx, const char *choice, fz_font *own, pdf_page *page, ely_pen *p);
 const char *ely_pen_resource(fz_context *ctx, pdf_document *pdf, pdf_page *page, ely_pen *p, char *name, size_t room);
 int ely_pen_has(fz_context *ctx, ely_pen *p, int u);
 float ely_pen_advance(fz_context *ctx, ely_pen *p, int u, float size);

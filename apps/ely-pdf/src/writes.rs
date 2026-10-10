@@ -96,6 +96,13 @@ impl Viewer {
         cx: &mut Context<Self>,
     ) {
         match answer {
+            Ok(Wrote::Unwritable) => {
+                let note = Self::text(cx, "pdf.text.unwritable", &[]);
+                self.edit_panel.update(cx, |panel, cx| {
+                    panel.note = Some(note);
+                    cx.notify();
+                });
+            }
             Ok(Wrote::Missing(c)) => {
                 let note = Self::text(cx, "pdf.text.missing", &[("char", &c.to_string())]);
                 self.edit_panel.update(cx, |panel, cx| {
@@ -128,6 +135,7 @@ impl Viewer {
                 move |worker, doc| match worker.put_text(doc, page, &writing, 0.0)? {
                     Wrote::Done(mark) => Ok(mark),
                     Wrote::Missing(c) => Err(io::Error::other(format!("the font has no {c}"))),
+                    Wrote::Unwritable => Err(io::Error::other("the document's font cannot write")),
                     Wrote::Preview(..) => Err(io::Error::other("a write came back as a preview")),
                 },
                 cx,

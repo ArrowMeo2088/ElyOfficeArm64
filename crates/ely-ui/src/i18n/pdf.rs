@@ -67,6 +67,7 @@ pub(super) const EN: &[(&str, &str)] = &[
         "pdf.text.missing",
         "This font cannot draw “{char}”. Choose another font.",
     ),
+    ("pdf.text.unwritable", "The document's own font cannot write new text. Choose another font."),
     ("pdf.object.replace", "Replace Image…"),
     ("pdf.object.delete", "Delete"),
     (
@@ -288,6 +289,7 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("pdf.text.apply", "应用"),
     ("pdf.text.erase", "删除文字"),
     ("pdf.text.missing", "这种字体画不出“{char}”。请换一种字体。"),
+    ("pdf.text.unwritable", "文档自带的字体写不了新字。请换一种字体。"),
     ("pdf.object.replace", "替换图片…"),
     ("pdf.object.delete", "删除"),
     ("pdf.object.changed", "文档已改动，未执行。"),
