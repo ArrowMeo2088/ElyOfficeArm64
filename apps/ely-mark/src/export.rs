@@ -332,6 +332,7 @@ impl Desk {
         let heard = cx.subscribe(&view, move |desk, view, event: &Event, cx| match event {
             Event::Loaded => view.read(cx).print_pdf(&job.pdf),
             Event::Printed(path, ok) => {
+                log::info!("mark: job {n} printed {}, ok {ok}", path.display());
                 desk.printing.remove(&n);
                 let printed = ok
                     .then(|| path.clone())
