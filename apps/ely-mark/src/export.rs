@@ -125,32 +125,27 @@ impl Desk {
         let dir = ely_office::folder(tab).unwrap_or_else(std::env::temp_dir);
         let chosen = cx.prompt_for_new_path(&dir, Some(&format!("{stem}.{}", output.extension())));
         cx.spawn(async move |desk, cx| {
-            // A cancel says nothing; a panel that failed says why.
-            let failed = match chosen.await {
-                Ok(Ok(Some(path))) => Ok(path),
-                Ok(Ok(None)) => return log::info!("mark: the export panel was cancelled"),
+            let chosen = match chosen.await {
+                Ok(Ok(path)) => Ok(path),
                 Ok(Err(error)) => Err(error.to_string()),
                 Err(error) => Err(error.to_string()),
             };
-            let path = match failed {
-                Ok(path) => path,
-                Err(why) => {
-                    if desk.update(cx, |desk, cx| desk.panel_failed(&why, cx)).is_err() {
-                        log::error!("mark: the export panel failed after its window: {why}");
+            let done = desk.update(cx, |desk, cx| match chosen {
+                Ok(Some(path)) => {
+                    if let Err(error) = not_open(desk, &path) {
+                        return desk.exported(Err(error), cx);
                     }
-                    return;
+                    match output {
+                        Output::Pdf => desk.render_pdf(id, Some(path), cx),
+                        _ => desk.write_output(id, output, path, cx),
+                    }
                 }
-            };
-            desk.update(cx, |desk, cx| {
-                if let Err(error) = not_open(desk, &path) {
-                    return desk.exported(Err(error), cx);
-                }
-                match output {
-                    Output::Pdf => desk.render_pdf(id, Some(path), cx),
-                    _ => desk.write_output(id, output, path, cx),
-                }
-            })
-            .ok();
+                Ok(None) => log::info!("mark: the export panel was cancelled"),
+                Err(why) => desk.panel_failed(&why, cx),
+            });
+            if done.is_err() {
+                log::info!("mark: the window closed before the export panel");
+            }
         })
         .detach();
     }
