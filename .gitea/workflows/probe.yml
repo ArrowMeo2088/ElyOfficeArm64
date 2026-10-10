@@ -1,0 +1,18 @@
+name: probe
+on: workflow_dispatch
+jobs:
+  probe:
+    strategy:
+      matrix:
+        os: [macos-arm64, windows, linux]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Where this runner is
+        shell: bash
+        run: |
+          uname -a; echo "home=$HOME pwd=$PWD"; whoami
+          for d in "$HOME/Documents/GitHub/ElyOffice" "$HOME/Documents/Github/ElyOffice" /c/Users/zhang/Documents/Github/ElyOffice; do
+            [ -d "$d" ] && { echo "clone: $d"; ls "$d/engines" 2>/dev/null | tr '\n' ' '; echo; git -C "$d" log --oneline -1; }
+          done
+          which cargo rustc git python3 cmake ninja makensis 2>/dev/null || true
+          df -h . | tail -1

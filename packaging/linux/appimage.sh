@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds dist/<Name>-<arch>.AppImage. Usage: appimage.sh <slug> | --desktop <slug>
+# Builds dist/<Name>-<version>-linux-<arch>.AppImage. Usage: appimage.sh [--desktop] <slug>
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -72,15 +72,31 @@ fetch_tool "$pack" "https://github.com/AppImage/appimagetool/releases/download/1
 fetch_tool "$deploy" "https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-$arch.AppImage" "$deploy_sha"
 fetch_tool "$runtime" "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-$arch" "$runtime_sha"
 
-cargo build --manifest-path "$root/Cargo.toml" --release -p "$slug"
+stage=$root/target/stage/$slug
+"$root/packaging/stage.sh" "$slug" "$stage"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 desktop_entry >"$work/$slug.desktop"
+appdir=$work/$name.AppDir
+bin=$appdir/usr/bin
+mkdir -p "$bin"
+cp -R "$stage"/. "$bin/"
+deployed=(--executable "$bin/$slug")
+for helper in ely-lok-worker ely-pdf-worker; do
+  if [ -f "$bin/$helper" ]; then
+    deployed+=(--executable "$bin/$helper")
+  fi
+done
+if [ -f "$bin/libcef.so" ]; then
+  deployed+=(--library "$bin/libcef.so")
+fi
 
 # linuxdeploy bundles libraries and fails on a missing one.
-"$deploy" --appimage-extract-and-run --appdir "$work/$name.AppDir" \
-  --executable "$root/target/release/$slug" --desktop-file "$work/$slug.desktop" --icon-file "$icon"
+"$deploy" --appimage-extract-and-run --appdir "$appdir" "${deployed[@]}" \
+  --desktop-file "$work/$slug.desktop" --icon-file "$icon"
 
 mkdir -p "$dist"
-ARCH=$arch "$pack" --appimage-extract-and-run --runtime-file "$runtime" "$work/$name.AppDir" "$dist/$name-$arch.AppImage"
-echo "$dist/$name-$arch.AppImage"
+version=$(awk -F'"' '/^version = / { print $2; exit }' "$root/Cargo.toml")
+out=$dist/$name-$version-linux-$arch.AppImage
+ARCH=$arch "$pack" --appimage-extract-and-run --runtime-file "$runtime" "$appdir" "$out"
+echo "$out"
