@@ -19,6 +19,8 @@ pub struct Queued {
     doc: Doc,
     /// The edit may add, drop, move or reshape pages.
     pages: bool,
+    /// Aimed at a point: runs on the state it meets.
+    follow: bool,
 }
 
 /// The document as an edit left it.
@@ -39,6 +41,23 @@ impl PdfView {
         cx: &mut Context<Self>,
     ) {
         self.queue_edit(what, None, false, op, cx);
+    }
+
+    /// Queues a point-aimed edit; only moving pages refuse it.
+    pub fn edit_at(
+        &mut self,
+        what: &'static str,
+        op: impl FnOnce(&mut Worker, Doc) -> io::Result<String> + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        if self.moving || self.queue.iter().any(|queued| queued.pages) {
+            let text = crate::viewer::Viewer::text(cx, "pdf.pages.changed", &[]);
+            cx.emit(crate::view::Failed(text.to_string()));
+            return cx.notify();
+        }
+        log::info!("pdf: queues {what}");
+        self.queue.push_back(Queued { what, op: Box::new(op), pick: None, doc: self.doc, pages: false, follow: true });
+        self.next_edit(cx);
     }
 
     /// Queues an edit to the pages themselves.
@@ -62,7 +81,7 @@ impl PdfView {
     ) {
         log::info!("pdf: queues {what}");
         // Aimed at what is shown now; later states refuse it.
-        self.queue.push_back(Queued { what, op: Box::new(op), pick, doc: self.doc, pages });
+        self.queue.push_back(Queued { what, op: Box::new(op), pick, doc: self.doc, pages, follow: false });
         self.next_edit(cx);
     }
 
@@ -70,10 +89,12 @@ impl PdfView {
         if self.editing {
             return;
         }
-        let Some(Queued { what, op, pick, doc, pages }) = self.queue.pop_front() else {
+        let Some(Queued { what, op, pick, doc, pages, follow }) = self.queue.pop_front() else {
             return;
         };
-        self.editing = true;
+        // Earlier edits have landed; a point still means the same.
+        let doc = if follow { self.doc } else { doc };
+        (self.editing, self.moving) = (true, pages);
         self.off(
             move |worker| {
                 let mark = op(worker, doc)?;
@@ -83,7 +104,7 @@ impl PdfView {
                 Ok(Fresh { doc, mark, pages, first, marks: worker.outline(doc)? })
             },
             move |view, fresh, cx| {
-                view.editing = false;
+                (view.editing, view.moving) = (false, false);
                 match fresh {
                     Ok(fresh) => {
                         view.refresh(fresh, pages, cx);

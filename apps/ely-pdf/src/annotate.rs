@@ -254,11 +254,11 @@ impl PdfView {
             return;
         }
         let author = ely_ui::settings::current(cx).author.clone();
-        self.settled_edit(what, cx, move |worker, doc| {
+        self.edit_at(what, move |worker, doc| {
             let name = ely_platform::user::named(&author)?;
             annots.iter_mut().for_each(|annot| annot.author = name.clone());
             worker.annotate(doc, &annots)
-        });
+        }, cx);
     }
 
     /// A press with a drawing or form tool.

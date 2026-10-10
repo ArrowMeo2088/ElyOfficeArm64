@@ -92,15 +92,16 @@ impl PdfView {
                     rgb: 0,
                     bx: [at[0], at[1], self.sizes[page].0 - at[0]],
                 };
-                self.settled_edit("placing a typed signature", cx, move |worker, doc| match worker.put_text(doc, page, &writing, 0.0)? {
+                let write = move |worker: &mut ely_pdf_engine::Worker, doc| match worker.put_text(doc, page, &writing, 0.0)? {
                     Wrote::Done(mark) => Ok(mark),
                     Wrote::Missing(c) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the font has no “{c}”"))),
                     Wrote::Preview(..) => Err(io::Error::other("a preview where a write was asked")),
-                });
+                };
+                self.edit_at("placing a typed signature", write, cx);
             }
             Stamp::Picture { path, aspect } => {
                 let at = placed(aspect, rect, click);
-                self.settled_edit("placing a signature picture", cx, move |worker, doc| worker.add_image(doc, page, &path, at));
+                self.edit_at("placing a signature picture", move |worker, doc| worker.add_image(doc, page, &path, at), cx);
             }
         }
     }

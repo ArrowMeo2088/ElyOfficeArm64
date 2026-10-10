@@ -65,6 +65,8 @@ pub struct PdfView {
     /// Edits waiting their turn, and whether one runs.
     pub queue: VecDeque<crate::edits::Queued>,
     pub editing: bool,
+    /// The running edit may move pages.
+    pub moving: bool,
     /// History marks: now, and at the last load or save.
     pub mark: String,
     pub saved: String,
@@ -186,6 +188,7 @@ impl PdfView {
             edited: 0,
             queue: VecDeque::new(),
             editing: false,
+            moving: false,
             saved: loaded.mark.clone(),
             mark: loaded.mark,
             thumbs: HashMap::new(),
