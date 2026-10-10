@@ -37,6 +37,20 @@ pub const LARGE: usize = 2 * 1024 * 1024;
 /// A render's answer: the page's reply, or why not.
 type Rendered = Box<dyn FnOnce(Result<Value, String>, &mut gpui::App)>;
 
+/// Renders the page will never answer end with `why`.
+fn end_renders(pending: Vec<Rendered>, why: &str, cx: &mut gpui::App) {
+    if pending.is_empty() {
+        return;
+    }
+    log::warn!("mark: {} renders end: {why}", pending.len());
+    let why = why.to_string();
+    cx.defer(move |cx| {
+        for done in pending {
+            done(Err(why.clone()), cx);
+        }
+    });
+}
+
 /// The page failed; the shell shows why.
 pub struct Failed(pub String);
 
@@ -186,7 +200,7 @@ impl MarkView {
         self.saved = mark(&text);
         // Reports and renders from before belong to the old text.
         let lapsed = self.tally.restart();
-        self.end_renders(lapsed, "the text was replaced from disk", cx);
+        end_renders(lapsed, "the text was replaced from disk", cx);
         crate::page::refresh(self.web.read(cx), &text, self.tally.load());
         cx.emit(Reported);
     }
@@ -209,9 +223,13 @@ impl MarkView {
         done: impl FnOnce(Result<Value, String>, &mut gpui::App) + 'static,
         cx: &mut Context<Self>,
     ) {
-        let ask = self.tally.ask(Box::new(done));
-        let ask = serde_json::json!({ "kind": kind, "ask": ask });
-        crate::page::call(self.web.read(cx), "render", &ask);
+        match self.tally.ask(Box::new(done)) {
+            Ok(ask) => {
+                let ask = serde_json::json!({ "kind": kind, "ask": ask });
+                crate::page::call(self.web.read(cx), "render", &ask);
+            }
+            Err((done, why)) => end_renders(vec![done], &why, cx),
+        }
     }
 
     /// `text` replaces the editor's, as one undoable edit.
@@ -257,8 +275,8 @@ impl MarkView {
         match event {
             // A reload shows the last text that arrived.
             Event::Loaded => {
-                let lapsed = self.tally.restart();
-                self.end_renders(lapsed, "the page reloaded", cx);
+                let lapsed = self.tally.loaded();
+                end_renders(lapsed, "the page reloaded", cx);
                 self.shown = false;
                 let text = self.doc.lock().expect("the text lock").current.clone();
                 let at = (self.mode, self.tally.load(), self.place);
@@ -268,28 +286,14 @@ impl MarkView {
             Event::Query(said, reply) => self.query(said, reply, cx),
             Event::Leave(url) => self.follow(url, cx),
             Event::Failed(why) => {
-                let lapsed = self.tally.lapse();
-                self.end_renders(lapsed, why, cx);
+                let lapsed = self.tally.fail(why.clone());
+                end_renders(lapsed, why, cx);
                 cx.emit(Failed(why.clone()));
             }
             Event::Printed(path, _) => {
                 log::error!("mark: an editor page printed {}", path.display())
             }
         }
-    }
-
-    /// Renders the old page will never answer end with `why`.
-    fn end_renders(&mut self, pending: Vec<Rendered>, why: &str, cx: &mut Context<Self>) {
-        if pending.is_empty() {
-            return;
-        }
-        log::warn!("mark: {} renders lost with the page", pending.len());
-        let why = why.to_string();
-        cx.defer(move |cx| {
-            for done in pending {
-                done(Err(why.clone()), cx);
-            }
-        });
     }
 
     /// A clicked link: web and mail open outside.
@@ -486,3 +490,6 @@ impl Render for MarkView {
         div().size_full().on_drop(drop).child(self.web.clone())
     }
 }
+
+#[cfg(test)]
+mod tests;

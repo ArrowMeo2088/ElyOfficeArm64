@@ -201,8 +201,6 @@ fn clear(dir: &Path) -> io::Result<()> {
     }
 }
 
-/// What tab `id` restores: by file, or untitled by number.
-
 impl Desk {
     /// A tab just shown takes its kept mode, place, text.
     pub fn restore_shown(&mut self, id: u64, cx: &mut Context<Self>) {
