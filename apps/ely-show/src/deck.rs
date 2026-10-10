@@ -220,6 +220,7 @@ impl Deck {
         }
         (tab.extra.reading, tab.extra.read) = (true, Some(seen));
         let landed = tab.extra.transition_landed(view.read(cx));
+        let sized = tab.extra.size_landed(view.read(cx));
         let doc = tab.doc.clone();
         ely_lok::read_off(
             &self.core.worker,
@@ -296,12 +297,6 @@ impl Deck {
                         {
                             tab.extra.stale = tab.extra.thumbs.keys().cloned().collect();
                         }
-                        let read = crate::design::mm100(size);
-                        if tab.extra.size_asked.is_some_and(|(w, h)| {
-                            (w - read.0).abs() <= 50 && (h - read.1).abs() <= 50
-                        }) {
-                            tab.extra.size_asked = None;
-                        }
                         (tab.extra.slides, tab.extra.design) = (slides, Some(design));
                         tab.extra.objects = Some(objects);
                         (tab.extra.notes, tab.extra.remarks) = (Some(notes), remarks);
@@ -309,6 +304,7 @@ impl Deck {
                         tab.extra.settle_transition(landed);
                         tab.extra.reads += 1;
                         tab.extra.size = size;
+                        tab.extra.settle_size(sized);
                         tab.extra.failed.clear();
                         deck.paint_next(id, cx);
                         deck.read_fonts(id, cx);

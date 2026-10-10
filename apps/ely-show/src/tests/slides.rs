@@ -417,3 +417,47 @@ fn a_check_row_does_not_jump_among_masters() {
     });
     assert!(cx.update(|app| deck.read(app).dialog.is_some()), "the check stays open");
 }
+
+#[test]
+fn a_refused_size_does_not_stay_shown() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(deck) = blank(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    let before = cx.update(|app| deck.read(app).active_tab().expect("a tab").extra.size);
+    update(&mut cx, &deck, |deck, cx| deck.resize((-500, -500), cx));
+    settle(&cx, |app| {
+        deck.read(app).active_tab().is_some_and(|tab| tab.extra.size_asked.is_none())
+    });
+    let extra = cx.update(|app| {
+        let tab = deck.read(app).active_tab().expect("a tab");
+        (tab.extra.size, tab.extra.shown_size())
+    });
+    assert_eq!(extra.0, before, "the kernel kept its size");
+    assert_eq!(extra.1, crate::design::mm100(before), "the fields show it");
+}
+
+#[test]
+fn a_size_the_kernel_does_not_take_clears_after_its_read() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(deck) = blank(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    update(&mut cx, &deck, |deck, cx| {
+        deck.resize((30_000, 19_050), cx);
+        // As if the kernel refused: it keeps another size.
+        let id = deck.core.active.expect("a tab");
+        let tab = deck.tab_mut(id).expect("a tab");
+        let (_, seq) = tab.extra.size_asked.expect("asked");
+        tab.extra.size_asked = Some(((40_000, 19_050), seq));
+    });
+    settle(&cx, |app| {
+        deck.read(app).active_tab().is_some_and(|tab| tab.extra.size_asked.is_none())
+    });
+    let read = cx.update(|app| crate::design::mm100(deck.read(app).active_tab().expect("a tab").extra.size));
+    assert!((read.0 - 30_000).abs() <= 50, "the kernel's own size shows: {read:?}");
+}
