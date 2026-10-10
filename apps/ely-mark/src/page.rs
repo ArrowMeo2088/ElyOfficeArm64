@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, bail};
 use ely_web_content::WebView;
 use gpui::App;
-use serde_json::json;
+use serde_json::{Value, json};
+
+use crate::view::Heading;
 
 /// The app's Resources, else this build's `engines/content`.
 pub fn content() -> Result<PathBuf> {
@@ -94,4 +96,19 @@ pub fn folder(view: &WebView, folder: &Path) {
 /// Calls `ely.<name>(argument)` in the page.
 pub fn call(view: &WebView, name: &str, argument: &serde_json::Value) {
     view.run_js(&format!("ely.{name}({argument})"));
+}
+
+/// Headings from the page; anything malformed is None.
+pub fn headings(items: &Value) -> Option<Vec<Heading>> {
+    let heading = |item: &Value| {
+        let level = item["level"]
+            .as_u64()
+            .filter(|level| (1..=6).contains(level))?;
+        let title = item["title"].as_str()?.to_owned();
+        Some(Heading {
+            level: level as usize,
+            title,
+        })
+    };
+    items.as_array()?.iter().map(heading).collect()
 }

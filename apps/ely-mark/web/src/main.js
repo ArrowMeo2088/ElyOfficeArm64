@@ -89,7 +89,6 @@ async function build(text, mode) {
       made = await visual(place, body, mode === 'visual', texts, edited, edge, linked)
     } catch (error) {
       // A broken editor falls back to source and says so.
-      console.error(`ely: the visual editor failed: ${error.name}`)
       entry.broke = error.name
     }
     if (made) {
@@ -262,8 +261,8 @@ function reveal(place) {
   }
   const shown =
     'heading' in place ? current.heading(place.heading) : current.line(place.line, place.query)
-  // Logs keep no search text; a line number at most.
-  if (shown === false) console.warn('heading' in place ? 'ely: no such heading' : `ely: nothing at line ${place.line}`)
+  // The app logs a line number, never the query.
+  if (shown === false) tell({ kind: 'missed', generation, line: place.line ?? null })
 }
 
 /** The app's find box hears where the search stands. */

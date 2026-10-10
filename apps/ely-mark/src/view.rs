@@ -353,7 +353,11 @@ impl MarkView {
                 log::error!("mark: the page built no editor ({what})");
                 cx.emit(Failed(ely_ui::i18n::text(cx, "mark.page.broke", &[("what", what)]).to_string()));
             }
-            (Some("outline"), ..) => match headings(&said["items"]) {
+            (Some("missed"), ..) => match said["line"].as_u64() {
+                Some(line) => log::warn!("mark: nothing to reveal at line {line}"),
+                None => log::warn!("mark: no such heading to reveal"),
+            },
+            (Some("outline"), ..) => match crate::page::headings(&said["items"]) {
                 Some(outline) => {
                     self.outline = outline;
                     cx.notify();
@@ -464,21 +468,6 @@ fn found(said: &Value) -> Option<crate::finding::Found> {
         total,
         error: None,
     })
-}
-
-/// Headings from the page; anything malformed is None.
-fn headings(items: &Value) -> Option<Vec<Heading>> {
-    let heading = |item: &Value| {
-        let level = item["level"]
-            .as_u64()
-            .filter(|level| (1..=6).contains(level))?;
-        let title = item["title"].as_str()?.to_owned();
-        Some(Heading {
-            level: level as usize,
-            title,
-        })
-    };
-    items.as_array()?.iter().map(heading).collect()
 }
 
 impl Render for MarkView {

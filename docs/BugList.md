@@ -428,6 +428,13 @@
 - 位置：`apps/ely-mark/src/export.rs:276-282`（渲染回调里 `inline`、`read_to_string`、`fs::write`）；对照 `:172-176` 的 `write_output` 已在后台
 - 修法：暂存步骤移到 `background_spawn`。
 
+
+### M-15 打印与导出 PDF 的暂存页执行文档里的脚本
+- 严重度：中 ｜ 置信度：已确认（M-11 第 2、3 轮审查在 Windows 与 WSL 的 CEF 上复现）
+- 位置：`apps/ely-mark/web/src/render.js`（`allowDangerousHtml` 原样保留 HTML 块）、`apps/ely-mark/src/export.rs`（`render_pdf`、打印把同一 HTML 暂存后交不显示的 CEF 视图）
+- 现象：Markdown 里的 `<script src="data:...">` 在打印与导出 PDF 时运行，可调 `console`、`elyQuery`，可读暂存页。
+- 修法：暂存页不运行脚本。
+
 ## G ElyTree（Git）
 
 ### G-01 打开“文件历史”或“逐行追溯”后，中间区不再响应任何别的选择
