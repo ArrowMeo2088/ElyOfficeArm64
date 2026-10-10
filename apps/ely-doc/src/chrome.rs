@@ -80,7 +80,8 @@ impl Docs {
         let shown = self
             .active_tab()
             .map(|tab| (tab.view.clone(), tab.doc.clone()));
-        let tab = shown.as_ref().map(|(view, doc)| (view, doc));
+        // Hidden, it follows nothing: no reads on every move.
+        let tab = shown.as_ref().filter(|_| self.navigating).map(|(view, doc)| (view, doc));
         self.navigator
             .update(cx, |navigator, cx| navigator.show(tab, cx));
         shown.filter(|_| self.navigating)?;

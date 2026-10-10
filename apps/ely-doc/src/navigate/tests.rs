@@ -253,6 +253,30 @@ fn pdfs_export_a_range_and_locked_files_ask() {
     );
 }
 
+#[test]
+fn a_hidden_navigator_reads_nothing() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(docs) = docs(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    crate::tests::blank(&mut cx, &docs);
+    let follows = |cx: &mut TestAppContext| cx.update(|app| docs.read(app).navigator.read(app).shown.is_some());
+    cx.update(|app| docs.update(app, |docs, cx| docs.left_view(cx)));
+    assert!(follows(&mut cx), "shown: it follows the tab");
+    cx.update(|app| docs.update(app, |docs, cx| {
+        docs.navigating = false;
+        docs.left_view(cx)
+    }));
+    assert!(!follows(&mut cx), "hidden: no tab to reread");
+    cx.update(|app| docs.update(app, |docs, cx| {
+        docs.navigating = true;
+        docs.left_view(cx)
+    }));
+    assert!(follows(&mut cx), "shown again: it reads once more");
+}
+
 /// The navigator alone as a window's view.
 struct Host(Entity<Navigator>);
 
