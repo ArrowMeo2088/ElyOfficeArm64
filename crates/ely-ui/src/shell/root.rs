@@ -157,16 +157,30 @@ impl Root {
     }
 
     fn attempt(&mut self, id: &'static str, cx: &mut Context<Self>) {
-        if let Some(reason) = commands::blocked(id, self.document, cx) {
-            log::info!("command: {id} blocked: {reason}");
-            self.last = Some(format!("{id} blocked").into());
-            self.toaster.update(cx, |toaster, cx| {
-                toaster.push(Toast::new(reason).severity(Severity::Warning), cx);
-            });
-            cx.notify();
-            return;
+        if !self.refused(id, cx) {
+            self.ran(id, cx);
         }
-        self.ran(id, cx);
+    }
+
+    /// Runs a palette pick; views act first, so check here.
+    pub fn run_from_palette(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.refused(id, cx) {
+            commands::run(id, window, cx);
+        }
+    }
+
+    /// Whether `id` is blocked here; the reason shows.
+    fn refused(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
+        let Some(reason) = commands::blocked(id, self.document, cx) else {
+            return false;
+        };
+        log::info!("command: {id} blocked: {reason}");
+        self.last = Some(format!("{id} blocked").into());
+        self.toaster.update(cx, |toaster, cx| {
+            toaster.push(Toast::new(reason).severity(Severity::Warning), cx);
+        });
+        cx.notify();
+        true
     }
 
     /// Shows `text` in the window's toaster.
@@ -305,6 +319,7 @@ impl Render for Root {
         if !self.palette {
             return frame.into_any_element();
         }
+        let run = cx.entity();
         let palette = CommandPalette::new("command-palette", move |_, cx| {
             this.update(cx, |this, cx| this.close_palette(cx));
         })
@@ -319,7 +334,7 @@ impl Render for Root {
             }),
         )
         .recent(self.recent.clone())
-        .on_run(move |value, window, cx| commands::run(value, window, cx));
+        .on_run(move |value, window, cx| run.update(cx, |root, cx| root.run_from_palette(value, window, cx)));
         frame.child(raise("palette", palette)).into_any_element()
     }
 }
@@ -331,4 +346,45 @@ fn view(path: &Path) -> std::io::Result<()> {
         return ely_platform::apps::open(AppId::Pdf, &[path.to_path_buf()]);
     }
     ely_platform::apps::open_default(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::{FocusHandle, InteractiveElement as _, IntoElement, Render, TestAppContext, div};
+
+    /// A focused view that counts the saves it gets.
+    struct Saves(FocusHandle, usize);
+
+    impl Render for Saves {
+        fn render(&mut self, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+            div().track_focus(&self.0).on_action(cx.listener(|saves, _: &crate::commands::Save, _, _| saves.1 += 1))
+        }
+    }
+
+    #[gpui::test]
+    fn a_blocked_palette_pick_never_reaches_the_view(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            ely_gpui_component::init_for_tests(cx);
+            crate::settings::install_defaults(cx);
+            crate::i18n::install(cx);
+        });
+        let window = cx.add_window(|_, cx| Saves(cx.focus_handle(), 0));
+        let (saves, root) = window
+            .update(cx, |view, window, cx| {
+                let saves = cx.entity();
+                let root = super::tool_root(ely_platform::AppId::Tree, saves.clone().into(), Vec::new(), window, cx);
+                // The root takes focus as it builds; give it back.
+                window.focus(&view.0, cx);
+                (saves, root)
+            })
+            .expect("the window lives");
+        cx.run_until_parked();
+        // Save without a document is blocked; so is Print unbuilt.
+        window
+            .update(cx, |_, window, cx| root.update(cx, |root, cx| root.run_from_palette("file.save", window, cx)))
+            .expect("the window lives");
+        cx.run_until_parked();
+        assert_eq!(cx.update(|cx| saves.read(cx).1), 0, "the view never gets it");
+        assert_eq!(cx.update(|cx| root.read(cx).toasts(cx).len()), 1, "the reason shows");
+    }
 }

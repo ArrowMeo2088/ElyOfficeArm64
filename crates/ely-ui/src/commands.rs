@@ -131,6 +131,9 @@ fn label(command: &Command, cx: &App) -> SharedString {
 
 /// Why `id` cannot run; a document lifts the no-document block.
 pub fn blocked(id: &str, document: bool, cx: &App) -> Option<SharedString> {
+    if id == PRINT.id && !ely_platform::print::BUILT {
+        return Some(i18n::text(cx, "command.blocked.unbuilt", &[]));
+    }
     let command = RENAMING.iter().find(|command| command.id == id)?;
     let key = command.blocked.filter(|_| !document)?;
     Some(i18n::text(cx, key, &[]))
@@ -187,6 +190,10 @@ pub fn menus(
 }
 
 pub fn bind_keys(cx: &mut App) {
+    // Without a print panel, Print stays off the keyboard.
+    if ely_platform::print::BUILT {
+        cx.bind_keys([KeyBinding::new(PRINT.keys, Print, Some(CONTEXT))]);
+    }
     cx.bind_keys([
         KeyBinding::new(NEW.keys, New, Some(CONTEXT)),
         KeyBinding::new(OPEN.keys, Open, Some(CONTEXT)),
@@ -194,7 +201,6 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new(SAVE_AS.keys, SaveAs, Some(CONTEXT)),
         KeyBinding::new(RENAME.keys, Rename, Some(CONTEXT)),
         KeyBinding::new(EXPORT.keys, Export, Some(CONTEXT)),
-        KeyBinding::new(PRINT.keys, Print, Some(CONTEXT)),
         KeyBinding::new("secondary-w", CloseTab, Some(CONTEXT)),
         KeyBinding::new(TOGGLE_PALETTE, ToggleCommandPalette, Some(CONTEXT)),
         KeyBinding::new("secondary-q", Quit, None),
