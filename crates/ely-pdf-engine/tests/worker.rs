@@ -186,6 +186,7 @@ fn a_reply_to_another_request_is_refused() {
 }
 
 /// A noisy RGB PNG, stored uncompressed: large on disk.
+#[cfg(unix)]
 fn big_png(path: &Path, side: u32) {
     let crc = |bytes: &[u8]| {
         let mut crc = 0xffff_ffffu32;

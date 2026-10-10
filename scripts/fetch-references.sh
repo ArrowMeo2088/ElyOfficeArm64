@@ -21,6 +21,9 @@ fetch() { # name url rev [sparse paths...]
   fi
   rm -rf "$dir"
   git init -q "$dir"
+  # Upstream bytes, whatever the host's line-ending setting.
+  git -C "$dir" config core.autocrlf false
+  git -C "$dir" config core.eol lf
   git -C "$dir" remote add origin "$url"
   if [ $# -gt 0 ]; then
     git -C "$dir" sparse-checkout init --cone

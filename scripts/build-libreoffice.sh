@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the pinned LibreOffice with the macOS LOK patches.
+# Builds the pinned LibreOffice with Ely's LOK patches.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -40,10 +40,44 @@ options=(
   --with-myspell-dicts
 )
 
-[ "$(uname)" = Darwin ] || {
-  echo "build-libreoffice.sh: macOS only; Linux and Windows use the TDF builds" >&2
-  exit 1
-}
+case $(uname) in
+  Darwin)
+    app=$src/instdir/LibreOffice.app/Contents/Resources
+    jobs=$(sysctl -n hw.ncpu)
+    ;;
+  Linux)
+    # Collabora's LOKit set: headless, bundled libraries.
+    options+=(
+      --disable-gui
+      --enable-cairo-rgba
+      --disable-dbus
+      --disable-gio
+      --disable-dconf
+      --disable-randr
+      --disable-gstreamer-1-0
+      --without-system-cairo
+      --without-system-fontconfig
+      --without-system-freetype
+      --without-system-graphite
+      --without-system-harfbuzz
+      --without-system-openssl
+      --without-system-libpng
+      --without-system-libxml
+      --without-system-jpeg
+      --without-system-expat
+      --without-system-curl
+      --without-system-icu
+      --without-system-nss
+      --without-system-zlib
+    )
+    app=$src/instdir/share
+    jobs=$(nproc)
+    ;;
+  *)
+    echo "build-libreoffice.sh: no build for $(uname)" >&2
+    exit 1
+    ;;
+esac
 if [ ! -d "$src/.git" ]; then
   git init -q "$src"
   git -C "$src" remote add origin https://github.com/LibreOffice/core.git
@@ -59,21 +93,23 @@ git -C "$src" submodule update -q --init --depth 1 dictionaries
 }
 "$root/scripts/apply-lo-patches.sh" "$src"
 
-for tool in make gnu-sed bison flex gettext; do
-  prefix=$(brew --prefix "$tool")
-  PATH=$prefix/libexec/gnubin:$prefix/bin:$PATH
-done
-export PATH PKG_CONFIG_LIBDIR=/var/empty PKG_CONFIG_PATH=
+if [ "$(uname)" = Darwin ]; then
+  for tool in make gnu-sed bison flex gettext; do
+    prefix=$(brew --prefix "$tool")
+    PATH=$prefix/libexec/gnubin:$prefix/bin:$PATH
+  done
+  export PATH PKG_CONFIG_LIBDIR=/var/empty PKG_CONFIG_PATH=
+fi
 
 cd "$src"
 if [ ! -f config_host.mk ] || ! printf '%s\n' "${options[@]}" | cmp -s - autogen.lastrun; then
   ./autogen.sh "${options[@]}"
 fi
-make -j"$(sysctl -n hw.ncpu)"
+make -j"$jobs"
 
 # Bundled dictionaries: English only; each one slows LOK start (PERF-01).
 keep=(dict-en)
-extensions=$src/instdir/LibreOffice.app/Contents/Resources/extensions
+extensions=$app/extensions
 for dict in "$extensions"/dict-*; do
   name=$(basename "$dict")
   if [[ " ${keep[*]} " != *" $name "* ]]; then
@@ -82,6 +118,8 @@ for dict in "$extensions"/dict-*; do
 done
 echo "build-libreoffice.sh: dictionaries kept: $(ls "$extensions" | tr '\n' ' ')"
 # Ely's kernel defaults: Excel A1 formulas.
-cp "$root/packaging/libreoffice/ely.xcd" "$src/instdir/LibreOffice.app/Contents/Resources/registry/"
+cp "$root/packaging/libreoffice/ely.xcd" "$app/registry/"
 
-"$root/scripts/inert-lo.sh" "$src/instdir/LibreOffice.app"
+if [ "$(uname)" = Darwin ]; then
+  "$root/scripts/inert-lo.sh" "$src/instdir/LibreOffice.app"
+fi

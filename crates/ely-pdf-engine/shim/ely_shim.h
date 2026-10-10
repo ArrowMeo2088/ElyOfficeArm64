@@ -38,7 +38,7 @@ void ely_read_block(fz_context *ctx, fz_document *doc, pdf_page *page, int numbe
 void ely_remove_block(fz_context *ctx, pdf_document *pdf, pdf_page *page, ely_shape *shape);
 void ely_drop_shape(fz_context *ctx, ely_shape *shape);
 pdf_obj *ely_append_content(fz_context *ctx, pdf_document *pdf, pdf_obj *page, fz_buffer *buf);
-const char *ely_add_resource(fz_context *ctx, pdf_document *pdf, pdf_obj *page, pdf_obj *type, const char *stem,
+const char *ely_add_resource(fz_context *ctx, pdf_obj *page, pdf_obj *type, const char *stem,
 	pdf_obj *ref, char *name, size_t room);
 void ely_json_string(fz_context *ctx, fz_output *out, const char *s);
 fz_json *ely_member(fz_context *ctx, fz_json *obj, const char *key, int type);

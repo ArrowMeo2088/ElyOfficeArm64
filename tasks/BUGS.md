@@ -2,6 +2,12 @@
 
 `docs/BugList.md` 的 93 条，按清单次序逐条处理：先核对当前代码，已由先前改动修好的写明出处，其余修好、审查、提交、推送后勾上。
 
+## 0.1.3（用户 2026-10-10 定：修完全部缺陷与 K-01，Windows、Linux 与 macOS 同等可用，零错误零警告；Omarchy 上主题随 Omarchy；三端确认后经 Gitea 运行器发布 0.1.3）
+
+次序：先 E-01（审查要能编译），再按下列清单次序逐条审查未审的修复与 K-01，最后三端与发布。
+
+- [x] E-01 Windows 与 Linux（WSL）的构建环境：工具链、MuPDF、CEF、ElyMark 页面、tessdata、Git，`cargo check --workspace --all-targets` 两端通过（LibreOffice 随 L-01、W-01） — R1 CEF 未设 API 版本、macOS 编译回归、日志测试不触发错误、Windows 硬链接不认作同一文件、WSL 无 Git；R2 注释超长；R3 PASS
+
 ## 0.1.2 先做（用户 2026-10-09 定：先修致命与高，加自动更新，发布 0.1.2；其余随后按清单次序）
 
 次序：S-03、P-01、X-01、D-01、D-02、P-02、P-03、P-04、M-01、X-02、X-03、K-01（Linux、Windows，本机不能运行）、UPD-1、REL-1、REL-2。K-01 不进 0.1.2：只影响 Linux 与 Windows 的 worker，本机不能运行验证，0.1.2 只发 macOS；留在下面的清单里，未勾。T-05 已改一半（审查查出缩放后尺寸不重测），暂放，补丁存在草稿区。
@@ -107,3 +113,23 @@
 - [x] UPD-2 复核 UPD-1 第五轮的两处修复：启动检查（含 Gitea 查询）失败写日志；失败记录先于重开，以替身 open 断言 — R1 PASS
 - [x] REL-1 dmg 里有指向“应用程序”的快捷方式，可直接拖入安装（用户 2026-10-09 报） — release.sh 在 dmg 里放“应用程序”替身，随 UPD-1 审查
 - [x] REL-2 修完上列各条后打包、发布 0.1.2，官网指向新发布页 — v0.1.2 发在 git.zacharyzhang.com（六个 dmg、两个源码包、六份更新清单；release-macos.sh 通过；经 API 取清单与 dmg 散列核对一致），官网显示 0.1.2
+
+## 0.1.3 三端与发布
+
+- [ ] L-01 Linux 的 LibreOffice：钉住的源码加全部补丁在 Linux 构建，LOK 探测通过
+- [ ] L-02 Linux 全工作区零警告构建，`cargo test --workspace` 通过（引擎齐全，无 SKIP）
+- [ ] N-01 打印：Windows、Linux 交系统打印（与 macOS 同一份 PDF、纸张与取消规则），不再禁用
+- [ ] N-02 ElyShow 媒体：Windows 以 Media Foundation、Linux 以 GStreamer 实现 `media::Player`（载入、可播、失败原因、帧、循环与播完）
+- [ ] N-03 自动更新的安装与重开：Windows 安装程序、Linux AppImage，照 macOS 的退出后替换、失败记录与重开
+- [ ] N-04 签名验证的证书信任：Windows 系统信任库、Linux 系统 CA，禁网，不核吊销
+- [ ] N-05 ElyTree 与系统：停止 Git（Windows 结束进程树）、打开终端、在文件管理器中显示，Windows、Linux
+- [ ] N-06 应用之间：Windows、Linux 的同级应用查找与启动、系统默认程序打开、单实例与诊断的崩溃报告位置
+- [ ] L-03 Linux 真窗口：六个应用开样本、编辑、保存、打印禁用说明、设置、更新检查
+- [ ] O-01 Omarchy：外观为“系统”时随 Omarchy 主题，切换主题即刻跟随（Omarchy 虚拟机里实测）
+- [ ] L-04 Linux 打包：六个 AppImage，带引擎、许可与桌面项；更新清单含 linux-x86_64
+- [ ] W-01 Windows 的 LibreOffice：同一源码与补丁在 Windows 构建，LOK 探测通过
+- [ ] W-02 Windows 全工作区零警告构建，`cargo test --workspace` 通过（引擎齐全，无 SKIP）
+- [ ] W-03 Windows 真窗口：六个应用开样本、编辑、保存、设置、更新检查
+- [ ] W-04 Windows 打包：六个安装程序，带引擎、许可、文件类型；更新清单含 windows-x86_64
+- [ ] CI-01 Gitea 工作流：打标签即在 macOS、Windows、Linux 运行器上构建、测试、打包并上传到发布
+- [ ] REL-3 版本号 0.1.3，打标签触发运行器，三端产物与清单上传，官网指向新发布

@@ -2229,6 +2229,7 @@ dependencies = [
  "objc2 0.6.4",
  "serde_json",
  "tempfile",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

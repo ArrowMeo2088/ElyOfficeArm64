@@ -68,7 +68,7 @@ static int lay_out(fz_context *ctx, ely_pen *p, const int *u, int n, float size,
 }
 
 /* A resource name in `type` that is free, given `ref`. */
-const char *ely_add_resource(fz_context *ctx, pdf_document *pdf, pdf_obj *page, pdf_obj *type, const char *stem,
+const char *ely_add_resource(fz_context *ctx, pdf_obj *page, pdf_obj *type, const char *stem,
 	pdf_obj *ref, char *name, size_t room)
 {
 	pdf_obj *res = pdf_dict_get_inheritable(ctx, page, PDF_NAME(Resources));

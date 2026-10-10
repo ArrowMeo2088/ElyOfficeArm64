@@ -158,7 +158,7 @@ fn a_signed_file_saved_as_a_copy_reopens_as_the_copy() {
     settle(cx, |app| view.read(app).edited == 1);
     let copy = dir.path().join("copy.pdf");
     let reopened = save_signed_as(cx, &viewer, &view, &copy);
-    let tab = cx.update(|_, app| (viewer.read(app).active_tab().map(|tab| (tab.risk, tab.dirty(app)))));
+    let tab = cx.update(|_, app| viewer.read(app).active_tab().map(|tab| (tab.risk, tab.dirty(app))));
     assert_eq!(tab, Some((None, false)), "an unsigned, saved copy");
     assert!(!shows_signed(cx, &viewer, &reopened), "the copy holds no signature");
     assert_eq!(cx.update(|_, app| reopened.read(app).sizes[0]), (792.0, 612.0), "the edit is in the copy");

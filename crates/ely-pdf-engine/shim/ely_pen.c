@@ -132,7 +132,7 @@ const char *ely_pen_resource(fz_context *ctx, pdf_document *pdf, pdf_page *page,
 		p->ref = pdf_add_cjk_font(ctx, pdf, p->font, p->ordering, 0, 0);
 		break;
 	}
-	return ely_add_resource(ctx, pdf, page->obj, PDF_NAME(Font), "ElyF", p->ref, name, room);
+	return ely_add_resource(ctx, page->obj, PDF_NAME(Font), "ElyF", p->ref, name, room);
 }
 
 /* The own font's code for `u`, or -1. */

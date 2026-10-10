@@ -461,7 +461,14 @@ fn a_worktree_registered_through_a_link_lists_its_real_path() {
     )
     .expect("adds");
     // Other tools may write the path through a link.
+    #[cfg(unix)]
     std::os::unix::fs::symlink(dir.path(), dir.path().join("link")).expect("links");
+    #[cfg(windows)]
+    {
+        let link = dir.path().join("link");
+        let made = std::process::Command::new("cmd").arg("/C").arg("mklink").arg("/J").arg(&link).arg(dir.path()).output().expect("cmd");
+        assert!(made.status.success(), "a junction: {}", String::from_utf8_lossy(&made.stderr));
+    }
     let gitdir = root.join(".git/worktrees/tree/gitdir");
     std::fs::write(
         &gitdir,

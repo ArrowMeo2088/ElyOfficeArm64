@@ -181,7 +181,6 @@ fn the_current_heading_follows_the_cursor_across_columns() {
     settle(&cx, |app| current(app) == Some(0));
 }
 
-#[cfg(unix)]
 #[test]
 fn pdfs_export_a_range_and_locked_files_ask() {
     let dir = tempfile::tempdir().expect("a temp dir");
@@ -205,11 +204,17 @@ fn pdfs_export_a_range_and_locked_files_ask() {
     });
     written(&cx, &pdf, None);
     let source = dir.path().join("long.fodt");
-    let alias = dir.path().join("alias.pdf");
-    std::os::unix::fs::symlink(&source, &alias).expect("the alias");
     let link = dir.path().join("link.pdf");
     std::fs::hard_link(&source, &link).expect("the hard link");
-    for target in [&source, &alias, &link] {
+    #[cfg(unix)]
+    let aliases = {
+        let alias = dir.path().join("alias.pdf");
+        std::os::unix::fs::symlink(&source, &alias).expect("the alias");
+        vec![alias]
+    };
+    #[cfg(not(unix))]
+    let aliases: Vec<std::path::PathBuf> = Vec::new();
+    for target in [source.clone(), link].iter().chain(&aliases) {
         cx.update(|app| {
             docs.update(app, |docs, cx| {
                 docs.export_to(id, target.clone(), ely_lok::Pdf::default(), cx)

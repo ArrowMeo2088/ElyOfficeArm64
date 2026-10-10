@@ -14,6 +14,12 @@ pub const PROGRAM: &str = "git";
 /// The oldest system Git counted as verified (user decision).
 pub const LEAST: (u32, u32) = (2, 40);
 
+/// Git inside a Git install: MinGit's on Windows.
+#[cfg(windows)]
+const GIT: &str = "cmd/git.exe";
+#[cfg(not(windows))]
+const GIT: &str = "bin/git";
+
 /// `ELY_GIT`, ElyTree's setting, else Ely's own Git.
 pub fn locate() -> io::Result<(PathBuf, bool)> {
     if let Some(path) = std::env::var_os("ELY_GIT") {
@@ -62,12 +68,12 @@ pub fn system_version(path: &Path) -> io::Result<String> {
 /// Beside `dir`, in its bundle, in ElyTree's, or built.
 fn own(dir: &Path) -> PathBuf {
     // ElyTree carries Git; the other apps use its copy.
-    let tree = format!("../../../{}.app/Contents/Resources/git/bin/git", AppId::Tree.name());
-    let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../engines/git/bin/git");
+    let tree = format!("../../../{}.app/Contents/Resources/git", AppId::Tree.name());
+    let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../engines/git").join(GIT);
     [
-        dir.join("git/bin/git"),
-        dir.join("../Resources/git/bin/git"),
-        dir.join(tree),
+        dir.join("git").join(GIT),
+        dir.join("../Resources/git").join(GIT),
+        dir.join(tree).join(GIT),
     ]
     .into_iter()
     .find(|path| path.is_file())
@@ -113,17 +119,17 @@ mod tests {
         assert_eq!(super::parse_version("hello"), None);
     }
 
-    use super::own;
+    use super::{GIT, own};
 
     #[test]
     fn apps_beside_elytree_use_its_git() {
         let apps = tempfile::tempdir().expect("a temp dir");
         let mark = apps.path().join("ElyMark.app/Contents/MacOS");
-        let git = apps.path().join("ElyTree.app/Contents/Resources/git/bin");
+        let git = apps.path().join("ElyTree.app/Contents/Resources/git").join(GIT);
         std::fs::create_dir_all(&mark).expect("ElyMark");
-        assert!(own(&mark).ends_with("engines/git/bin/git"));
-        std::fs::create_dir_all(&git).expect("ElyTree's Git");
-        std::fs::write(git.join("git"), "").expect("git");
-        assert_eq!(own(&mark), mark.join("../../../ElyTree.app/Contents/Resources/git/bin/git"));
+        assert!(own(&mark).ends_with(std::path::Path::new("engines/git").join(GIT)));
+        std::fs::create_dir_all(git.parent().expect("a folder")).expect("ElyTree's Git");
+        std::fs::write(&git, "").expect("git");
+        assert_eq!(own(&mark), mark.join("../../../ElyTree.app/Contents/Resources/git").join(GIT));
     }
 }

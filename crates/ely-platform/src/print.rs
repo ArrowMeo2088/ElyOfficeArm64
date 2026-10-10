@@ -73,6 +73,7 @@ pub fn print_pdf(pdf: &Path) -> anyhow::Result<bool> {
 }
 
 /// One paper holding every page, turned as needed.
+#[cfg(any(target_os = "macos", test))]
 fn paper_for(sizes: &[(f64, f64)]) -> Option<(f64, f64)> {
     let long = sizes.iter().map(|(w, h)| w.max(*h)).fold(None, |most: Option<f64>, side| Some(most.map_or(side, |m| m.max(side))))?;
     let short = sizes.iter().map(|(w, h)| w.min(*h)).fold(0.0, f64::max);

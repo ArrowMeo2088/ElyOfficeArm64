@@ -97,6 +97,10 @@ static int take_glyph(fz_context *ctx, void *opaque, int *ucs, int ucslen, fz_ma
 	fz_rect bbox, int tr, float ca, float CA)
 {
 	targets *t = opaque;
+	(void)bbox;
+	(void)tr;
+	(void)ca;
+	(void)CA;
 	fz_point at = fz_transform_point(fz_transform_point(fz_make_point(0, 0), trm), ctm);
 	/* MuPDF gives at most PDF_MRANGE_CAP; each spells to 18. */
 	int i, k, found = 0, spelt[18 * PDF_MRANGE_CAP], n = 0;

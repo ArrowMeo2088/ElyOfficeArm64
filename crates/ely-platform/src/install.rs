@@ -3,8 +3,9 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
 };
+#[cfg(target_os = "macos")]
+use std::process::{Command, Stdio};
 
 /// The `.app` running this process; none in dev builds.
 pub fn running_bundle() -> io::Result<Option<PathBuf>> {
@@ -50,6 +51,7 @@ fn stage(from: &Path, parent: &Path, name: &std::ffi::OsStr) -> io::Result<PathB
 }
 
 /// Puts `staged` at `bundle`; on failure the old returns.
+#[cfg(any(target_os = "macos", test))]
 fn swap(staged: &Path, bundle: &Path) -> io::Result<()> {
     let name = bundle.file_name().ok_or_else(|| io::Error::other("the app has no name"))?;
     let old = bundle.with_file_name(format!(".{}.old", name.to_string_lossy()));

@@ -448,7 +448,7 @@ fn an_empty_sheet_scrolls_on_without_waiting() {
         eprintln!("SKIP: no pinned LOK build");
         return;
     };
-    let mut cx = gpui::TestAppContext::single();
+    let cx = gpui::TestAppContext::single();
     let (view, worker) = cx.update(|app| live_view_of(app, &install, "short.fods", SHORT_ROWS));
     let json = cx.update(|app| worker.lock().expect("the worker lock").values(&view.read(app).doc, crate::sheet::GEOMETRY).expect("geometry"));
     let geometry = crate::sheet::geometry(&json).expect("parsed");
