@@ -132,6 +132,20 @@ for dict in "$extensions"/dict-*; do
   fi
 done
 echo "build-libreoffice.sh: dictionaries kept: $(ls "$extensions" | tr '\n' ' ')"
+# Lightproof is Python: inert without it, a hang on Windows.
+en=$extensions/dict-en
+rm -rf "$en/Lightproof.py" "$en/Lightproof.components" "$en/Linguistic.xcu" "$en/pythonpath" "$en/dialog"
+python3 - "$en/META-INF/manifest.xml" <<'PY'
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+gone = r'\s*<manifest:file-entry[^>]*?"(?:Lightproof\.components|Linguistic\.xcu|dialog/[^"]*)"[^>]*/>'
+kept = re.sub(gone, "", text, flags=re.S)
+for left in ("Lightproof", "Linguistic.xcu", "dialog/"):
+    if left in kept:
+        sys.exit(f"build-libreoffice.sh: {left} is still in {path}")
+open(path, "w", encoding="utf-8").write(kept)
+PY
 # Ely's kernel defaults: Excel A1 formulas.
 cp "$root/packaging/libreoffice/ely.xcd" "$app/registry/"
 

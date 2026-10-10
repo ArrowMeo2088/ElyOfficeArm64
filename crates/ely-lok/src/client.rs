@@ -150,7 +150,9 @@ impl Worker {
         command
             .arg(install)
             .arg(profile_dir)
-            .env("SAL_FORCE_HIDPI_SCALING", "1");
+            .env("SAL_FORCE_HIDPI_SCALING", "1")
+            // A killed worker's profile lock would hang the next.
+            .env("SAL_NOLOCK_PROFILE", "1");
         // Linux tiles via cairo are BGRA; Skia there is RGBA.
         match cfg!(target_os = "linux") {
             true => command.env("SAL_DISABLESKIA", "1"),
