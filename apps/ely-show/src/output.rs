@@ -148,7 +148,8 @@ impl Deck {
             |worker, doc| ely_lok::show::slide_show(&worker.values(doc, ely_lok::show::SLIDE_SHOW)?),
             move |deck, read, _, cx| match read {
                 Ok(slides) if deck.dialog_due(asked, id) => {
-                    deck.dialog = Some(Dialog::Output(Output {
+                    // Refused while another dialog is open; it says so.
+                    let output = Output {
                         tab: id,
                         print,
                         kind: Kind::Slides,
@@ -156,8 +157,8 @@ impl Deck {
                         per: 3,
                         current,
                         hidden: slides.iter().map(|slide| slide.hidden).collect(),
-                    }));
-                    cx.notify();
+                    };
+                    let _ = deck.open_dialog(Dialog::Output(output), cx);
                 }
                 Ok(_) => log::info!("show: the output dialog is no longer due"),
                 Err(error) => deck.engine_failed(&format!("the slides: {error}"), cx),

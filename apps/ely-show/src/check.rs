@@ -128,8 +128,8 @@ impl Deck {
                 Ok((check, slides)) if deck.dialog_due(asked, id) => {
                     let found = findings(&check, &slides, &missing);
                     log::info!("show: the check found {} things", found.len());
-                    deck.dialog = Some(Dialog::Check(found));
-                    cx.notify();
+                    // Refused while another dialog is open; it says so.
+                    let _ = deck.open_dialog(Dialog::Check(found), cx);
                 }
                 Ok(_) => log::info!("show: the check is no longer due"),
                 Err(error) => deck.engine_failed(&format!("the check: {error}"), cx),

@@ -77,8 +77,8 @@ impl Deck {
             input.set_text(text, cx);
             input
         });
-        self.dialog = Some(Dialog::Remark { tab, edit, field });
-        cx.notify();
+        // Refused while another dialog is open; it says so.
+        let _ = self.open_dialog(Dialog::Remark { tab, edit, field }, cx);
     }
 
     /// Sends the dialog's text: a new comment or an edit.

@@ -105,6 +105,23 @@ fn the_table_dialog_inserts_a_table() {
 }
 
 #[test]
+fn an_open_dialog_is_not_pushed_aside() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(deck) = blank(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    update(&mut cx, &deck, |deck, cx| deck.ask_table(cx));
+    update(&mut cx, &deck, |deck, cx| deck.ask_new(cx));
+    // The chart dialog opens after a background read.
+    update(&mut cx, &deck, |deck, cx| deck.ask_chart(cx));
+    cx.run_until_parked();
+    let kept = cx.update(|app| matches!(deck.read(app).dialog, Some(crate::dialog::Dialog::Table { .. })));
+    assert!(kept, "the table dialog stays");
+}
+
+#[test]
 fn typed_notes_reach_the_slide() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let mut cx = TestAppContext::single();

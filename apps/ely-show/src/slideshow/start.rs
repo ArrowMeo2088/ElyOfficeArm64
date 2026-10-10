@@ -196,11 +196,11 @@ impl Deck {
                 };
                 match cx.displays().len() {
                     1 => deck.open_show(starting, cx),
-                    _ => {
-                        deck.show_starting = true;
-                        deck.dialog = Some(Dialog::Show(starting));
-                        cx.notify();
-                    }
+                    _ => match deck.open_dialog(Dialog::Show(starting), cx) {
+                        Ok(()) => deck.show_starting = true,
+                        Err(Dialog::Show(refused)) => discard(worker, refused.doc, refused.copy, cx),
+                        Err(_) => unreachable!("the show dialog comes back"),
+                    },
                 }
             },
             cx,

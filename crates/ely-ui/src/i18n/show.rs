@@ -2,6 +2,7 @@
 
 pub(super) const EN: &[(&str, &str)] = &[
     ("menu.slide", "Slide"),
+    ("show.dialog.busy", "Finish or close the open dialog first"),
     ("show.slide.new", "New Slide"),
     ("show.slide.duplicate", "Duplicate Slide"),
     ("show.slide.delete", "Delete Slide"),
@@ -189,6 +190,7 @@ pub(super) const EN: &[(&str, &str)] = &[
 
 pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("menu.slide", "幻灯片"),
+    ("show.dialog.busy", "请先完成或关闭已打开的对话框"),
     ("show.slide.new", "新建幻灯片"),
     ("show.slide.duplicate", "复制幻灯片"),
     ("show.slide.delete", "删除幻灯片"),
