@@ -425,3 +425,20 @@ fn a_zoom_stays_through_later_reports() {
         assert_eq!(view.read(app).zoom(), zoom, "the zoom stays");
     });
 }
+
+#[test]
+fn a_check_row_does_not_jump_among_masters() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let mut cx = TestAppContext::single();
+    let Some(deck) = blank(&mut cx, dir.path()) else {
+        eprintln!("SKIP: no LOK build");
+        return;
+    };
+    update(&mut cx, &deck, |deck, cx| deck.masters(true, cx));
+    settle(&cx, |app| deck.read(app).active_tab().is_some_and(|tab| tab.extra.masters));
+    update(&mut cx, &deck, |deck, cx| {
+        deck.dialog = Some(crate::dialog::Dialog::Check(Vec::new()));
+        deck.go_to_finding(0, cx);
+    });
+    assert!(cx.update(|app| deck.read(app).dialog.is_some()), "the check stays open");
+}
