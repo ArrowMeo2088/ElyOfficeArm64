@@ -131,6 +131,7 @@ scripts/review.sh ID 轮次 路径  审查一条任务
 scripts/apply-lo-patches.sh engines/lo-src  找出源码已到补丁序列第几个，补上其余（构建脚本调用）
 tests/scripts/lo-patches.sh    补丁序列从中途接着打、再打一次为空操作
 tests/scripts/media-targets.sh 媒体播放接口在 Linux、Windows 目标可编译（缺目标时 SKIP）
+tests/scripts/linux-idle.sh      真窗口 ElyTree：打开仓库后、Omarchy 换主题与改设置后，空闲时不读主题、设置，不跑 git status；照样跟随换主题、改设置与改文件，经内存映射的写入也跟随
 tests/scripts/linux-backends.sh  Linux 构建带 Wayland 与 X11；Hyprland 上 ElyTree 在两者上都映射出窗口、画出页面与起始页文字（截窗口量色，tesseract 读字）
 cargo test -p ely-show --test compose  切换半程帧经 Metal 取像素（主线程，仅 macOS）
 tests/scripts/*.sh *.py        脚本测试（缺工具时报 SKIP）
@@ -294,3 +295,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-11：ElyMark 的 AppImage（0.1.3 的 Linux 发布查出）。`linuxdeploy` 把可执行文件的 RUNPATH 改成 `$ORIGIN/../lib`，并把它找得到的 `libcef.so` 拷进 `usr/lib`：原先 `libcef.so` 与 CEF 的资料在 `usr/bin`，结果是两份 1.45 GB 的内核、程序载入 `usr/lib` 那份、CEF 在它旁边找不到 ICU 数据而退出（从未在 AppImage 里启动过）。现在 `appimage.sh` 把从 `engines/cef` 分装来的全部条目移进 `usr/lib`（按名字对照 CEF 文件夹，清单仍只在 `stage.sh`），以 `LD_LIBRARY_PATH=AppDir/usr/lib` 运行 `linuxdeploy`，`libcef.so` 只此一份、依赖照样带上，CEF 按所载 `libcef.so` 的文件夹取资料（`ely-web-content` 的 `open`）。ElyMark 的 AppImage 由 715 MB 降到 423 MB；WSL 里启动后 CEF 载入、窗口打开（WSL 里各应用都不出首帧，未在真桌面上验证）。
 - 2026-10-09（用户定）：代码与发布从 GitHub 搬到自建的 Gitea（git.zacharyzhang.com；GitHub 账号被封，推送与发布都被拒）。公开仓库 `ZacharyZhang-NY/ElyOffice`（原样推上 main、缺陷清单分支与 v0.1.0、v0.1.1 标签），组件库为同站的 `ZacharyZhang-NY/Ely-GPUI-Components`（Cargo 的 git 依赖与 `fetch-references.sh` 随之改址，钉的提交不变）。v0.1.1 的六个 dmg 与两个源码包重新发在 Gitea 的 v0.1.1 发布里。官网的下载与源码链接指向 Gitea（`releases/latest` 会跳到最新发布页）。`.github/workflows` 删去（它们靠 GitHub 的 macOS 机器与 `gh`，发布改在本机以 `packaging/macos/release.sh` 构建、经 Gitea API 上传）。发布视频里写的地址已在源文件改为 Gitea，已发布的成片仍是旧地址，重渲染后才更新。上游项目（LibreOffice、MuPDF、git-lfs、tessdata 等）照旧从它们自己的 GitHub 地址取。
 - 2026-10-11（用户报：Omarchy 上六个 AppImage 都打不开）：`gpui-pre-platform` 对 `gpui-pre-linux` 关了默认特性，Wayland 与 X11 只经它自己的 `wayland`、`x11` 特性打开；工作区原只开 `font-kit`，Linux 上 gpui 退成无头平台，日志照写“window open”，合成器里从无窗口。工作区的 `gpui_platform` 加开两者；`tests/scripts/linux-backends.sh` 核对特性，在 Hyprland 上核对 Wayland 与 X11 两路都映射出窗口、截图里有均匀的深色页面，tesseract 读出起始页的 “Open a repository”（不交缓冲的窗口 Hyprland 不映射；不画字形时读不出）。
+- 2026-10-11：Linux 的 inotify 把打开文件报成事件（notify 的 `Access`），macOS 的 FSEvents 不报；四处文件监视原把任何事件当作改动，重读本身又触发下一次：Omarchy 主题与通用设置在第一次改动后、ElyTree 打开仓库起（`git status` 读仓库），空闲时每 250 毫秒重读。四处都经 `ely_ui::watching::only_read` 略去读取（打开、读、只读关闭），写后关闭照算改动（经内存映射的写入只报 CLOSE_WRITE，不报 MODIFY）；`tests/scripts/linux-idle.sh` 以 inotifywait 从外面数空闲时的读取与 git status 次数。

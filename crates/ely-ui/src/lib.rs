@@ -7,6 +7,7 @@ mod shell;
 pub mod tasks;
 mod theme;
 pub mod updates;
+pub mod watching;
 
 pub use opening::{launch_files, on_open};
 pub use run::run;

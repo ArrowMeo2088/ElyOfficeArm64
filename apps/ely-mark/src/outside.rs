@@ -376,6 +376,10 @@ impl Desk {
 fn watch(dirs: &[PathBuf], cx: &mut Context<Desk>) -> notify::Result<RecommendedWatcher> {
     let (sender, mut changes) = mpsc::unbounded();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+        // Reads, ours included, are no change.
+        if event.as_ref().is_ok_and(|event| ely_ui::watching::only_read(&event.kind)) {
+            return;
+        }
         let _ = sender.unbounded_send(event.map(|_| ()).map_err(|error| error.to_string()));
     })?;
     for dir in dirs {
