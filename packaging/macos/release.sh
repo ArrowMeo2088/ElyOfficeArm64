@@ -12,17 +12,7 @@ releases=https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice/releases
   echo "release.sh: notarizing needs ELY_SIGN_IDENTITY, a Developer ID" >&2
   exit 1
 }
-# Our source as published: the committed tree.
-source=$dist/ElyOffice-$version-source.tar.gz
-mkdir -p "$dist"
-git -C "$root" archive --format=tar.gz --prefix="ElyOffice-$version/" -o "$source" HEAD
-echo "$source"
-# Copyleft upstream as shipped: patched MuPDF (AGPL), Git (GPLv2).
-upstream=$dist/ElyOffice-$version-upstream-source.tar.gz
-[ -f "$root/engines/mupdf-src/COPYING" ] || { echo "release.sh: no engines/mupdf-src; run the MuPDF build" >&2; exit 1; }
-tar -czf "$upstream" --exclude .git --exclude .DS_Store \
-  -C "$root/engines" mupdf-src -C "$root/reference" git
-echo "$upstream"
+"$root/packaging/source.sh" "$dist"
 awk -F'\t' -v batch="$batch" '$4 == batch { print $1 "\t" $2 }' "$root/packaging/apps.tsv" |
   while IFS=$'\t' read -r slug name; do
     "$root/packaging/macos/bundle.sh" "$slug" release

@@ -13,6 +13,9 @@ version=$(awk -F'"' '/^version = / { print $2; exit }' "$root/Cargo.toml")
 : "${ELY_RELEASE_TOKEN:?the Gitea token that uploads}"
 [ -z "${ELY_PATH:-}" ] || PATH=$ELY_PATH:$PATH
 cd "$root"
+# Linux builds and packages in the Ubuntu 26.04 container.
+inside=()
+[ "$os" != linux ] || inside=(packaging/linux/container.sh)
 
 # Engines another clone on this host built; else built here.
 if [ -n "${ELY_SHARE:-}" ]; then
@@ -26,13 +29,13 @@ if [ -n "${ELY_SHARE:-}" ]; then
   done
 else
   scripts/fetch-references.sh
-  scripts/build-mupdf.sh
-  scripts/fetch-cef.sh
-  scripts/build-git.sh
-  scripts/fetch-git-lfs.sh
-  scripts/fetch-tessdata.sh
-  scripts/build-mark-content.sh
-  scripts/build-libreoffice.sh
+  ${inside[@]+"${inside[@]}"} scripts/build-mupdf.sh
+  ${inside[@]+"${inside[@]}"} scripts/fetch-cef.sh
+  ${inside[@]+"${inside[@]}"} scripts/build-git.sh
+  ${inside[@]+"${inside[@]}"} scripts/fetch-git-lfs.sh
+  ${inside[@]+"${inside[@]}"} scripts/fetch-tessdata.sh
+  ${inside[@]+"${inside[@]}"} scripts/build-mark-content.sh
+  ${inside[@]+"${inside[@]}"} scripts/build-libreoffice.sh
 fi
 
 dist=$root/dist
@@ -41,12 +44,15 @@ batch=$(awk -F'\t' '$4 == 1 { print $1 }' packaging/apps.tsv)
 case $os in
   macos) packaging/macos/release.sh 1 ;;
   windows) for slug in $batch; do packaging/windows/installer.sh "$slug"; done ;;
-  linux) for slug in $batch; do packaging/linux/package.sh "$slug"; done ;;
+  linux) for slug in $batch; do ${inside[@]+"${inside[@]}"} packaging/linux/package.sh "$slug"; done ;;
   *)
     echo "ci.sh: no release for $os" >&2
     exit 1
     ;;
 esac
+
+# macOS's release.sh writes its own source archives.
+[ "$os" = macos ] || packaging/source.sh "$dist"
 
 # The tag's release, made by whichever platform comes first.
 api=https://git.zacharyzhang.com/api/v1/repos/ZacharyZhang-NY/ElyOffice
