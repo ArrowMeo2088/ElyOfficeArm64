@@ -133,6 +133,8 @@ tests/scripts/lo-patches.sh    补丁序列从中途接着打、再打一次为�
 tests/scripts/media-targets.sh 媒体播放接口在 Linux、Windows 目标可编译（缺目标时 SKIP）
 tests/scripts/linux-idle.sh      真窗口 ElyTree：打开仓库后、Omarchy 换主题与改设置后，空闲时不读主题、设置，不跑 git status；照样跟随换主题、改设置与改文件，经内存映射的写入也跟随
 tests/scripts/linux-backends.sh  Linux 构建带 Wayland 与 X11；Hyprland 上 ElyTree 在两者上都映射出窗口、画出页面与起始页文字（截窗口量色，tesseract 读字）
+packaging/linux/container.sh 命令  在 Ubuntu 26.04 镜像里运行（引擎、应用、打包；目标在 target/ubuntu）
+tests/scripts/linux-glibc.sh     Linux 的应用、worker 与引擎要求的 glibc 不高于 2.43
 cargo test -p ely-show --test compose  切换半程帧经 Metal 取像素（主线程，仅 macOS）
 tests/scripts/*.sh *.py        脚本测试（缺工具时报 SKIP）
 packaging/macos/bundle.sh ely-doc debug    出 dist/ElyDoc.app（带图标、文档类型与该应用的引擎）
@@ -296,3 +298,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-09（用户定）：代码与发布从 GitHub 搬到自建的 Gitea（git.zacharyzhang.com；GitHub 账号被封，推送与发布都被拒）。公开仓库 `ZacharyZhang-NY/ElyOffice`（原样推上 main、缺陷清单分支与 v0.1.0、v0.1.1 标签），组件库为同站的 `ZacharyZhang-NY/Ely-GPUI-Components`（Cargo 的 git 依赖与 `fetch-references.sh` 随之改址，钉的提交不变）。v0.1.1 的六个 dmg 与两个源码包重新发在 Gitea 的 v0.1.1 发布里。官网的下载与源码链接指向 Gitea（`releases/latest` 会跳到最新发布页）。`.github/workflows` 删去（它们靠 GitHub 的 macOS 机器与 `gh`，发布改在本机以 `packaging/macos/release.sh` 构建、经 Gitea API 上传）。发布视频里写的地址已在源文件改为 Gitea，已发布的成片仍是旧地址，重渲染后才更新。上游项目（LibreOffice、MuPDF、git-lfs、tessdata 等）照旧从它们自己的 GitHub 地址取。
 - 2026-10-11（用户报：Omarchy 上六个 AppImage 都打不开）：`gpui-pre-platform` 对 `gpui-pre-linux` 关了默认特性，Wayland 与 X11 只经它自己的 `wayland`、`x11` 特性打开；工作区原只开 `font-kit`，Linux 上 gpui 退成无头平台，日志照写“window open”，合成器里从无窗口。工作区的 `gpui_platform` 加开两者；`tests/scripts/linux-backends.sh` 核对特性，在 Hyprland 上核对 Wayland 与 X11 两路都映射出窗口、截图里有均匀的深色页面，tesseract 读出起始页的 “Open a repository”（不交缓冲的窗口 Hyprland 不映射；不画字形时读不出）。
 - 2026-10-11：Linux 的 inotify 把打开文件报成事件（notify 的 `Access`），macOS 的 FSEvents 不报；四处文件监视原把任何事件当作改动，重读本身又触发下一次：Omarchy 主题与通用设置在第一次改动后、ElyTree 打开仓库起（`git status` 读仓库），空闲时每 250 毫秒重读。四处都经 `ely_ui::watching::only_read` 略去读取（打开、读、只读关闭），写后关闭照算改动（经内存映射的写入只报 CLOSE_WRITE，不报 MODIFY）；`tests/scripts/linux-idle.sh` 以 inotifywait 从外面数空闲时的读取与 git status 次数。
+- 2026-10-11（用户定）：Linux 的引擎、应用与包都在 `ubuntu:26.04` 容器里构建（`packaging/linux/Dockerfile`，钉摘要；glibc 2.43），不在本机（Arch 的 glibc 更新，建出的程序在 Ubuntu 上起不来）。`packaging/linux/container.sh` 以本人身份运行，Cargo 的目标与家目录另放 `target/ubuntu*`；`stage.sh` 取 `CARGO_TARGET_DIR`；Git 2.56 用自己的 `target/` 链接其 Rust 部分，`build-git.sh` 为它去掉该变量。`tests/scripts/linux-glibc.sh` 核对每个动态链接的 ELF（静态的 git-lfs 不算）。

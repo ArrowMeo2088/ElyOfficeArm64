@@ -25,16 +25,17 @@ need() { # path, what to run
   }
 }
 build() { cargo build --manifest-path "$root/Cargo.toml" --release "$@"; }
+release=${CARGO_TARGET_DIR:-$root/target}/release
 
 rm -rf "$out"
 mkdir -p "$out"
 build -p "$slug"
-cp "$root/target/release/$slug$exe" "$out/"
+cp "$release/$slug$exe" "$out/"
 if uses ely-lok; then
   lo=${ELY_LO_DIR:-$root/engines/lo-src/instdir}
   need "$lo/program" scripts/build-libreoffice.sh
   build -p ely-lok --bin ely-lok-worker
-  cp "$root/target/release/ely-lok-worker$exe" "$out/"
+  cp "$release/ely-lok-worker$exe" "$out/"
   # The kernel in LibreOffice's layout, beside the app.
   mkdir "$out/libreoffice"
   cp -R "$lo/program" "$lo/share" "$lo/presets" "$out/libreoffice/"
@@ -56,7 +57,7 @@ if uses ely-pdf-engine; then
   tessdata=${ELY_TESSDATA:-$root/engines/tessdata}
   need "$tessdata/eng.traineddata" scripts/fetch-tessdata.sh
   build -p ely-pdf-engine --bin ely-pdf-worker
-  cp "$root/target/release/ely-pdf-worker$exe" "$out/"
+  cp "$release/ely-pdf-worker$exe" "$out/"
   mkdir "$out/tessdata"
   cp "$tessdata"/{eng,chi_sim,chi_tra}.traineddata "$out/tessdata/"
 fi

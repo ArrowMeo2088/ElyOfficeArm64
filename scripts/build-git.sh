@@ -38,6 +38,6 @@ if [ "$(cat "$out/.flags" 2>/dev/null)" != "$flags" ]; then
   rm -rf "$out"
 fi
 # shellcheck disable=SC2086
-make -C "$src" $flags -j"$jobs" install
+env -u CARGO_TARGET_DIR make -C "$src" $flags -j"$jobs" install # Git's Rust uses its target/
 echo "$flags" >"$out/.flags"
 "$out/bin/git" --version
