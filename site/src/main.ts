@@ -21,7 +21,12 @@ title.textContent = "Ely Office";
 const source = document.createElement("a");
 source.href = REPO;
 source.textContent = "Source";
-hero.append(title, said("p", "tagline"), said("p", "platforms"), source);
+const download = said("a", "get");
+download.href = RELEASES;
+const links = document.createElement("div");
+links.className = "links";
+links.append(download, source);
+hero.append(title, said("p", "tagline"), said("p", "platforms"), links);
 const { section, host, svg } = tour(hero);
 rhythm(host, svg);
 

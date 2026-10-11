@@ -3,7 +3,7 @@ import { TEXT, type Key, type Lang } from "../src/text.ts";
 
 const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
-const RELEASES = `${REPO}/releases/latest`;
+const RELEASES = `${REPO}/releases/tag/v0.1.3`;
 
 test.use({ reducedMotion: "reduce" });
 
@@ -84,8 +84,9 @@ test.describe("English locale", () => {
     for (const i of APPS.keys()) await expect(page.locator(".tour .get").nth(i)).toHaveAttribute("href", RELEASES);
     await expect(page.locator("#download a")).toHaveCount(1);
     await expect(page.locator("#download [data-t=get]")).toHaveAttribute("href", RELEASES);
-    await expect(page.locator(".hero > a")).toHaveText("Source");
-    await expect(page.locator(".hero > a")).toHaveAttribute("href", REPO);
+    await expect(page.locator(".hero .links a").last()).toHaveText("Source");
+    await expect(page.locator(".hero .links a").last()).toHaveAttribute("href", REPO);
+    await expect(page.locator(".hero [data-t=get]")).toHaveAttribute("href", RELEASES);
     const files = await page.locator("a[href]").evaluateAll((as) =>
       as.map((a) => (a as HTMLAnchorElement).href).filter((h) => /\.(dmg|tar\.gz|zip|exe|AppImage)$/.test(h)),
     );
