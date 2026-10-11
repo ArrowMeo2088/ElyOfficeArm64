@@ -252,10 +252,10 @@ fn worktrees_list_branches_and_prunable_folders() {
     .expect("adds");
     let list = structure::worktrees(&git(), &root).expect("reads");
     assert_eq!(list.len(), 2);
-    assert_eq!(list[0].path, std::fs::canonicalize(&root).expect("real"));
+    assert_eq!(list[0].path, dunce::canonicalize(&root).expect("real"));
     assert_eq!(
         (list[1].path.clone(), list[1].branch.as_deref()),
-        (std::fs::canonicalize(&other).expect("real"), Some("side"))
+        (dunce::canonicalize(&other).expect("real"), Some("side"))
     );
     std::fs::remove_dir_all(&other).expect("removes");
     let list = structure::worktrees(&git(), &root).expect("reads");
@@ -497,5 +497,5 @@ fn a_worktree_registered_through_a_link_lists_its_real_path() {
     )
     .expect("writes");
     let list = structure::worktrees(&git(), &root).expect("reads");
-    assert_eq!(list[1].path, std::fs::canonicalize(&other).expect("real"));
+    assert_eq!(list[1].path, dunce::canonicalize(&other).expect("real"));
 }

@@ -156,7 +156,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
 /// `file` as Git names it; a symlink stays itself.
 pub(crate) fn inside(root: &Path, file: &Path) -> io::Result<String> {
     let name = file.file_name().ok_or_else(|| io::Error::other("a path without a name"))?;
-    let dir = std::fs::canonicalize(file.parent().unwrap_or(Path::new(".")))?;
+    let dir = dunce::canonicalize(file.parent().unwrap_or(Path::new(".")))?;
     let rel = dir.join(name);
     let rel = rel.strip_prefix(root).map_err(io::Error::other)?;
     rel.to_str().map(str::to_owned).ok_or_else(|| io::Error::other("a path that is not UTF-8"))

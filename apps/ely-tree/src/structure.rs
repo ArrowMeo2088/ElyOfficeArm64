@@ -66,7 +66,7 @@ pub fn worktrees(git: &Git, root: &Path) -> io::Result<Vec<Worktree>> {
     found.extend(now);
     // Real paths, as the open repository's root is.
     for tree in &mut found {
-        match std::fs::canonicalize(&tree.path) {
+        match dunce::canonicalize(&tree.path) {
             Ok(real) => tree.path = real,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),

@@ -101,7 +101,7 @@ fn one_tab_per_repository_and_reopening_selects_it() {
     let recent = cx.update(|_, app| tree.read(app).recent.clone());
     assert_eq!(
         recent[0],
-        std::fs::canonicalize(&first).expect("real"),
+        dunce::canonicalize(&first).expect("real"),
         "newest first"
     );
     cx.update(|_, app| tree.update(app, |tree, cx| tree.close_active(cx)));

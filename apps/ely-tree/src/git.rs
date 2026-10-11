@@ -6,13 +6,10 @@ use std::{
     process::{Command, Output, Stdio},
 };
 
-/// A Git binary and its version.
+/// A Git binary whose version was checked.
 #[derive(Clone, Debug)]
 pub struct Git {
     pub path: PathBuf,
-    pub version: String,
-    /// Ely's own build, not a system Git.
-    pub bundled: bool,
 }
 
 impl Git {
@@ -39,11 +36,7 @@ impl Git {
             path.display(),
             if bundled { "bundled" } else { "system" }
         );
-        Ok(Git {
-            path,
-            version,
-            bundled,
-        })
+        Ok(Git { path })
     }
 
     /// Runs Git in `dir`; failure carries Git's words.

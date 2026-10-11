@@ -97,21 +97,6 @@ impl Tree {
                 StatusBarItem::new("tree-path").label(opened.repo.root.display().to_string()),
             );
         }
-        if let Ok(git) = &self.git {
-            let key = if git.bundled {
-                "tree.git.bundled"
-            } else {
-                "tree.git.system"
-            };
-            bar = bar.right(StatusBarItem::new("tree-git").label(text(
-                cx,
-                key,
-                &[
-                    ("version", &git.version),
-                    ("path", &git.path.display().to_string()),
-                ],
-            )));
-        }
         bar
     }
 
