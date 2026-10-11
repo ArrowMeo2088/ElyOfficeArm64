@@ -103,7 +103,7 @@ impl Worker {
 
     /// Spawns `bin`; one from other sources is refused.
     pub fn spawn_from(bin: &Path) -> io::Result<Self> {
-        let mut child = Command::new(bin)
+        let mut child = ely_ipc::windowless(&mut Command::new(bin))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

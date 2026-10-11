@@ -12,6 +12,7 @@ license = "AGPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]
+embed-resource = "=3.0.11"
 csv = "1"
 encoding_rs = "0.8"
 jiff = "0.2"

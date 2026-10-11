@@ -1,3 +1,6 @@
+// Release builds open no console on Windows.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod annotate;
 mod ask;
 mod attach;

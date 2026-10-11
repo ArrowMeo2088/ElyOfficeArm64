@@ -147,7 +147,7 @@ impl Worker {
         let worker_bin = worker_bin()?;
         log::info!("lok: worker from {}", worker_bin.display());
         let mut command = Command::new(worker_bin);
-        command
+        ely_ipc::windowless(&mut command)
             .arg(install)
             .arg(profile_dir)
             .env("SAL_FORCE_HIDPI_SCALING", "1")

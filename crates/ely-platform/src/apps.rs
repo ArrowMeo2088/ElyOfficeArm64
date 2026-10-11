@@ -118,7 +118,7 @@ pub fn open_default(path: &Path) -> io::Result<()> {
     } else {
         Command::new("xdg-open")
     };
-    let out = command.arg(path).output()?;
+    let out = ely_ipc::windowless(&mut command).arg(path).output()?;
     if !out.status.success() {
         let said = String::from_utf8_lossy(&out.stderr).trim().to_owned();
         return Err(io::Error::other(said));

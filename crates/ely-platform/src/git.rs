@@ -45,7 +45,7 @@ pub fn parse_version(text: &str) -> Option<(u32, u32)> {
 
 /// What `git --version` says, once it succeeds.
 pub fn version_of(path: &Path) -> io::Result<(String, (u32, u32))> {
-    let output = Command::new(path).arg("--version").output()?;
+    let output = ely_ipc::windowless(&mut Command::new(path)).arg("--version").output()?;
     if !output.status.success() {
         let said = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(io::Error::other(format!("{} --version failed ({}): {said}", path.display(), output.status)));
@@ -83,7 +83,7 @@ fn own(dir: &Path) -> PathBuf {
 /// Git at `git` in `dir`, as Ely runs it.
 pub fn command(git: &Path, dir: &Path, args: &[&str]) -> Command {
     let mut command = Command::new(git);
-    command
+    ely_ipc::windowless(&mut command)
         .args(args)
         .current_dir(dir)
         // Reads never take the index lock from an outside Git.
