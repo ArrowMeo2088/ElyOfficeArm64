@@ -327,6 +327,7 @@ int ely_insert_file(fz_context *ctx, fz_document *doc, int at, const char *path,
 	fz_var(links);
 	fz_var(n);
 	fz_var(begun);
+	fz_var(room);
 	fz_try(ctx)
 	{
 		pdf = ely_pdf_of(ctx, doc);

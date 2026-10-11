@@ -169,6 +169,7 @@ static int reachable(fz_context *ctx, pdf_document *pdf, pdf_page *page, fz_stex
 	fz_var(t.at);
 	fz_var(t.c);
 	pdf_begin_operation(ctx, pdf, "Look at text");
+	fz_var(ok);
 	fz_try(ctx)
 	{
 		block_targets(ctx, block, ely_to_user(ctx, page), &t);
@@ -203,6 +204,7 @@ static void reachable_all(fz_context *ctx, pdf_document *pdf, pdf_page *page, fz
 	fz_var(t.seen);
 	fz_var(count);
 	pdf_begin_operation(ctx, pdf, "Look at text");
+	fz_var(all);
 	fz_try(ctx)
 	{
 		for (block = text->first_block; block; block = block->next)
