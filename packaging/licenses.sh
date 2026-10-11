@@ -74,7 +74,8 @@ case $slug in
     done
     case $(uname) in
       MINGW* | MSYS*) put OpenSSL "$root/engines/vcpkg/installed/x64-windows-static/share/openssl/copyright" ;;
-      *) put OpenSSL "$(pkg-config --variable=prefix libcrypto)/LICENSE.txt" ;;
+      Darwin) put OpenSSL "$(pkg-config --variable=prefix libcrypto)/LICENSE.txt" ;;
+      *) put OpenSSL /usr/share/doc/libssl-dev/copyright /usr/share/common-licenses/Apache-2.0 ;;
     esac
     put tessdata "${ELY_TESSDATA:-$root/engines/tessdata}/LICENSE"
     put GreatVibes "$root/crates/ely-pdf-engine/fonts/OFL.txt"
