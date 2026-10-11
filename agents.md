@@ -138,6 +138,9 @@ tests/scripts/linux-glibc.sh     Linux 的应用、worker 与引擎要求的 gli
 packaging/linux/package.sh 应用  出该应用的 AppImage、deb、rpm 与 Arch 包到 dist/（在容器里运行）
 tests/scripts/linux-packages.sh  deb、rpm、Arch 包在干净的 Ubuntu 26.04、Fedora 44、Arch 容器里装上，每个 ELF 都找得到库
 tests/scripts/linux-pins.sh      Linux 打包工具（appimagetool、linuxdeploy、运行时、nfpm）的下载与钉的散列相符
+tests/scripts/linux-installed.sh installed|appimage  Hyprland 上装好的六个应用或 AppImage：一个窗口、随 Omarchy（Catppuccin）、读出页面文字（PDF、Markdown 经各自引擎），ElyTree 随换主题到 Latte（grim 按窗口截取）
+tests/scripts/linux-mark-idle.sh 真窗口 ElyMark：启动后、换主题、改设置、外部改文件（窗口显示新文字）后，空闲时不读主题、设置与文件
+tests/scripts/linux-distros.sh   deb 在 Ubuntu 26.04、rpm 在 Fedora 44 容器里装上，各应用在 Xvfb（Mesa 软件 Vulkan）下画出窗口、随 Omarchy、读出页面文字（与 linux-installed.sh 共用 linux-common.sh）
 cargo test -p ely-show --test compose  切换半程帧经 Metal 取像素（主线程，仅 macOS）
 tests/scripts/*.sh *.py        脚本测试（缺工具时报 SKIP）
 packaging/macos/bundle.sh ely-doc debug    出 dist/ElyDoc.app（带图标、文档类型与该应用的引擎）
@@ -303,3 +306,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-11：Linux 的 inotify 把打开文件报成事件（notify 的 `Access`），macOS 的 FSEvents 不报；四处文件监视原把任何事件当作改动，重读本身又触发下一次：Omarchy 主题与通用设置在第一次改动后、ElyTree 打开仓库起（`git status` 读仓库），空闲时每 250 毫秒重读。四处都经 `ely_ui::watching::only_read` 略去读取（打开、读、只读关闭），写后关闭照算改动（经内存映射的写入只报 CLOSE_WRITE，不报 MODIFY）；`tests/scripts/linux-idle.sh` 以 inotifywait 从外面数空闲时的读取与 git status 次数。
 - 2026-10-11（用户定）：Linux 的引擎、应用与包都在 `ubuntu:26.04` 容器里构建（`packaging/linux/Dockerfile`，钉摘要；glibc 2.43），不在本机（Arch 的 glibc 更新，建出的程序在 Ubuntu 上起不来）。`packaging/linux/container.sh` 以本人身份运行，Cargo 的目标与家目录另放 `target/ubuntu*`；`stage.sh` 取 `CARGO_TARGET_DIR`；Git 2.56 用自己的 `target/` 链接其 Rust 部分，`build-git.sh` 为它去掉该变量。`tests/scripts/linux-glibc.sh` 核对每个动态链接的 ELF（静态的 git-lfs 不算）。
 - 2026-10-11（用户要求：Linux 不只 AppImage）：`packaging/linux/package.sh` 由同一个 AppDir 出四种包：AppImage，以及经 nfpm v2.47.0（钉散列）的 deb、rpm、Arch 包。包把 AppDir 的 `usr` 装到 `/opt/ely-office/<应用>`，`/usr/bin/<应用>` 为链接，桌面项与 512 像素图标在 `/usr/share`。依赖由 AppDir 里每个 ELF 所需而未随包的库，加 gpui 按名载入的 Vulkan 与 Wayland 客户端库得出：deb 与 Arch 按 `packaging/linux/depends.tsv` 换成包名（表里没有即打包失败），rpm 直接依赖库名（`libxcb.so.1()(64bit)`）。同级应用多找一处 `/opt/ely-office/<应用>/bin`（ElyMark 打开 ElyTree）。LibreOffice 的 cairo 由 meson 构建，内核直接拷其构建目录的产物，RUNPATH 仍指向构建树里的 pixman 与 fontconfig（别的机器上找不到）；`build-libreoffice.sh` 在 Linux 上把指向源码树的 RUNPATH 改为 `$ORIGIN`（patchelf）。
+- 2026-10-11：Linux 包的实测（L1.6）。本机（Omarchy，Hyprland 0.56）装上六个 Arch 包与六个 AppImage，`linux-installed.sh` 两种都过；deb、rpm、Arch 包在 Ubuntu 26.04、Fedora 44、Arch 容器里装上、全部 ELF 找得到库；deb 与 rpm 的六个应用在各自容器的 Xvfb 下画出窗口（`linux-distros.sh`）。截图按窗口（`grim -T` 加 Hyprland 的 `stableId`）：按区域截时用户切换工作区或别的窗口盖住即截错。ElyMark 的文件监视略去读取后不会自激：重读前先比指纹（长度与修改时间），不打开文件。

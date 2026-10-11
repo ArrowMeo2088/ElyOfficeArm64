@@ -206,5 +206,5 @@
 - [x] L1.3 设置的单测在 Linux 上失败（“a menu bar needs menus”）：Linux 未设菜单时给空表而非 None，测试未像应用那样先设菜单；真窗口里 Ctrl+, 打开设置不崩（已实测） — R1 PASS
 - [x] L1.4 Linux 构建环境：`ubuntu:26.04` 容器里构建全部引擎与六个应用（glibc 不高于 2.43）；`packaging/linux/container.sh`、`tests/scripts/linux-glibc.sh` — R1 读不出当作静态、缺件照过、注释超长；R2 链接文件、读错；R3 链接目录；R4 PASS
 - [x] L1.5 Linux 包：deb、rpm、Arch（pkg.tar.zst）、AppImage 出自同一份分装，装到 `/opt/ely-office/<应用>`，带桌面项、图标与文件类型；依赖按 `packaging/linux/depends.tsv`；LibreOffice 的 cairo RUNPATH 改为 `$ORIGIN`；`tests/scripts/linux-packages.sh` — R1 列举与读错被吞、坏入口照过、无执行位；R2 坏 git-lfs 照过；R3 PASS
-- [ ] L1.6 本机出六个应用的四种包；Omarchy 上装 Arch 包与 AppImage 出窗口；deb、rpm 在各自发行版的容器里装上并冒烟
+- [x] L1.6 本机出六个应用的四种包；Omarchy 上装 Arch 包与 AppImage 出窗口；deb、rpm 在各自发行版的容器里装上并冒烟；`linux-installed.sh`、`linux-distros.sh`、`linux-mark-idle.sh` — R1 deb/rpm 未运行、外部改动未核对显示；R2 内核未出图也过、OCR 大小写、清理竞态；R3 公式栏冒充网格、OCR 与 pgrep 错误被吞；R4 取色、存活、截图错误被吞；R5 hyprctl 查询失败被当作未出窗口（第五轮后修正并以注入失败核对）
 - [ ] L1.7 v0.1.3：删去旧 AppImage，上传新包；`ci.sh` 的 Linux 产出四种包；agents.md 与官网随之
