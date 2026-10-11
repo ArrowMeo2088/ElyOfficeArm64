@@ -198,3 +198,12 @@
 - [x] R2.18 官网（用户定）：下载一律指向 GitHub 的 v0.1.x 发布页，不直接链 DMG — R1 截图文案死代码（连同 screen() 与截图一并删去）；R2 PASS；已上线
 - [x] R2.19 发布 0.1.1：版本号、打包、GitHub Release、官网指向新发布页 — v0.1.1 已发布（六个 arm64 dmg 与两个源码包，releases/latest），官网显示 0.1.1；release-macos.sh 通过
 - [x] R2.20 ElyShow：放映图层一次回复超过 64 MB 帧上限（大屏上 4 张以上图层的幻灯片报 “layers pass 67107840 bytes”，放映起不来） — R1 单层仍超帧上限、暂存不随文档释放；R2 测试只核长度；R3 PASS
+
+## L1 Linux 发布（用户 2026-10-11 报：Omarchy 上六个 AppImage 都打不开；要 deb、rpm、Arch、AppImage；在 ubuntu:26.04 容器里本机构建，替换 v0.1.3 的 Linux 包）
+
+- [x] L1.1 Linux 显示后端：`gpui_platform` 开 `wayland` 与 `x11`（原样无头，“window open”而合成器里没有窗口）；Omarchy（Hyprland）上 ElyTree 在 Wayland 与 X11 上画出窗口（其余五个要引擎，随 L1.5 实测）；`tests/scripts/linux-backends.sh` — R1 锁文件、目标目录、未证明交帧；R2 产物路径、字形未核；R3 语言、OCR 错误被吞；R4 PASS
+- [ ] L1.2 Omarchy 主题同步：查清空闲时每秒数次重套主题的根因并修；Omarchy 换主题时应用跟随
+- [ ] L1.3 Linux 构建环境：`ubuntu:26.04` 容器里构建全部引擎与六个应用（glibc 不高于 2.43）
+- [ ] L1.4 Linux 包：deb、rpm、Arch（pkg.tar.zst）、AppImage 出自同一份分装，装到 `/opt/ely-office/<应用>`，带桌面项、图标与文件类型
+- [ ] L1.5 本机出六个应用的四种包；Omarchy 上装 Arch 包与 AppImage 出窗口；deb、rpm 在各自发行版的容器里装上并冒烟
+- [ ] L1.6 v0.1.3：删去旧 AppImage，上传新包；`ci.sh` 的 Linux 产出四种包；agents.md 与官网随之
