@@ -20,6 +20,16 @@ inside=()
 # Engines another clone on this host built; else built here.
 if [ -n "${ELY_SHARE:-}" ]; then
   for part in engines reference; do
+    # Never mix this clone's own build with shared engines.
+    if [ "$os" != windows ] && { [ -e "$part" ] || [ -L "$part" ]; }; then
+      # A sentinel keeps a trailing newline in the target.
+      target=$( (readlink "$part" || true) && printf x)
+      target=${target%x}
+      [ "$target" = "$ELY_SHARE/$part"$'\n' ] || {
+        echo "ci.sh: $root/$part is not a link to $ELY_SHARE/$part; remove it" >&2
+        exit 1
+      }
+    fi
     if [ ! -e "$part" ]; then
       case $os in
         windows) powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$part' -Target '$(cygpath -w "$ELY_SHARE/$part")' | Out-Null" ;;
