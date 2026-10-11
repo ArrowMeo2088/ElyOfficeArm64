@@ -149,6 +149,26 @@ PY
 # Ely's kernel defaults: Excel A1 formulas.
 cp "$root/packaging/libreoffice/ely.xcd" "$app/registry/"
 
+if [ "$(uname)" = Linux ]; then
+  # Meson leaves build-tree RUNPATHs in copied libraries, as cairo's.
+  files=$(mktemp)
+  find "$src/instdir" -type f -print0 >"$files" || {
+    echo "build-libreoffice.sh: cannot list $src/instdir" >&2
+    exit 1
+  }
+  while IFS= read -r -d '' lib; do
+    magic=$(head -c 4 "$lib" | od -An -c | tr -d ' ') || exit 1
+    [ "$magic" = '177ELF' ] || continue
+    dynamic=$(readelf -dW "$lib") || exit 1
+    paths=$(sed -n 's/.*(R\(UN\)\{0,1\}PATH).*\[\(.*\)\]/\2/p' <<<"$dynamic")
+    if [[ $paths == *"$src"* ]]; then
+      # shellcheck disable=SC2016
+      patchelf --set-rpath '$ORIGIN' "$lib"
+      echo "build-libreoffice.sh: $lib now loads from \$ORIGIN"
+    fi
+  done <"$files"
+  rm "$files"
+fi
 if [ "$(uname)" = Darwin ]; then
   "$root/scripts/inert-lo.sh" "$src/instdir/LibreOffice.app"
 fi

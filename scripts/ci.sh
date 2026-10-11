@@ -41,7 +41,7 @@ batch=$(awk -F'\t' '$4 == 1 { print $1 }' packaging/apps.tsv)
 case $os in
   macos) packaging/macos/release.sh 1 ;;
   windows) for slug in $batch; do packaging/windows/installer.sh "$slug"; done ;;
-  linux) for slug in $batch; do packaging/linux/appimage.sh "$slug"; done ;;
+  linux) for slug in $batch; do packaging/linux/package.sh "$slug"; done ;;
   *)
     echo "ci.sh: no release for $os" >&2
     exit 1

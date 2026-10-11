@@ -8,7 +8,7 @@ RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.s
   && rm -rf /var/lib/apt/lists/*
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    curl ca-certificates git rsync patch file jq python3 nodejs npm rustup \
+    curl ca-certificates git rsync patch patchelf file jq python3 nodejs npm rustup \
     cmake ninja-build pkg-config nasm \
     libssl-dev libjitterentropy3-dev libzstd-dev zlib1g-dev \
     libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev \
