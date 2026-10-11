@@ -203,7 +203,7 @@
 
 - [x] L1.1 Linux 显示后端：`gpui_platform` 开 `wayland` 与 `x11`（原样无头，“window open”而合成器里没有窗口）；Omarchy（Hyprland）上 ElyTree 在 Wayland 与 X11 上画出窗口（其余五个要引擎，随 L1.6 实测）；`tests/scripts/linux-backends.sh` — R1 锁文件、目标目录、未证明交帧；R2 产物路径、字形未核；R3 语言、OCR 错误被吞；R4 PASS
 - [x] L1.2 Linux 上的文件监视把读取当作改动（inotify 报打开，FSEvents 不报）：Omarchy 主题、通用设置在第一次改动后、ElyTree 打开仓库起，每次重读自己又触发下一次，空闲时每 250 毫秒读一遍；四处监视（主题、设置、ElyTree、ElyMark）经 `ely_ui::watching::only_read` 略去读取，写后关闭照算改动；`theme.name` 读不出不再吞掉；`tests/scripts/linux-idle.sh`（ElyMark 要 CEF，随 L1.6 实测） — R1 写后关闭也被略去、注释超长；R2 PASS
-- [ ] L1.3 Linux 上设置窗口打开即崩（无菜单的窗口画菜单条，组件库断言“a menu bar needs menus”）
+- [x] L1.3 设置的单测在 Linux 上失败（“a menu bar needs menus”）：Linux 未设菜单时给空表而非 None，测试未像应用那样先设菜单；真窗口里 Ctrl+, 打开设置不崩（已实测） — R1 PASS
 - [ ] L1.4 Linux 构建环境：`ubuntu:26.04` 容器里构建全部引擎与六个应用（glibc 不高于 2.43）
 - [ ] L1.5 Linux 包：deb、rpm、Arch（pkg.tar.zst）、AppImage 出自同一份分装，装到 `/opt/ely-office/<应用>`，带桌面项、图标与文件类型
 - [ ] L1.6 本机出六个应用的四种包；Omarchy 上装 Arch 包与 AppImage 出窗口；deb、rpm 在各自发行版的容器里装上并冒烟
