@@ -39,8 +39,17 @@ case $slug in
   ely-pdf)
     put MuPDF "$root/engines/mupdf-src/COPYING"
     # Every third party the MuPDF build compiled in.
-    for part in "$root"/engines/mupdf-build/thirdparty/*; do
-      name=${part##*/}
+    case $(uname) in
+      MINGW* | MSYS*)
+        parts=$(python3 "$root/packaging/windows/mupdf-parts.py" "$root/engines/mupdf-src" parts)
+        families=$(python3 "$root/packaging/windows/mupdf-parts.py" "$root/engines/mupdf-src" fonts)
+        ;;
+      *)
+        parts=$(ls "$root/engines/mupdf-build/thirdparty")
+        families=$(ls "$root/engines/mupdf-build/generated/resources/fonts")
+        ;;
+    esac
+    for name in $parts; do
       found=$(find "$root/engines/mupdf-src/thirdparty/$name" -maxdepth 1 -type f \
         \( -iname 'licen[cs]e*' -o -iname 'copying*' -o -iname '*-license.txt' \))
       [ "$name" = libjpeg ] && found=$root/engines/mupdf-src/thirdparty/libjpeg/README
@@ -49,8 +58,7 @@ case $slug in
       put "MuPDF/$name" $found
     done
     # Every font family MuPDF built into the worker.
-    for part in "$root"/engines/mupdf-build/generated/resources/fonts/*; do
-      name=${part##*/}
+    for name in $families; do
       fonts=$root/engines/mupdf-src/resources/fonts/$name
       found=$(find "$fonts" -maxdepth 1 -type f \( -iname 'licen[cs]e*' -o -iname 'copying*' -o -iname 'notice*' -o -iname 'ofl*' \))
       [ -n "$found" ] || { echo "licenses.sh: no licence for MuPDF's $name fonts" >&2; exit 1; }
