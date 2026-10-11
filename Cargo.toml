@@ -67,4 +67,5 @@ ely-ui = { path = "crates/ely-ui" }
 all = { level = "warn", priority = -1 }
 
 [patch.crates-io]
+gpui-pre = { path = "vendor/gpui-pre" }
 gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
