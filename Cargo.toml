@@ -64,3 +64,6 @@ ely-ui = { path = "crates/ely-ui" }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+[patch.crates-io]
+gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
