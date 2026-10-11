@@ -47,7 +47,7 @@ jobs:
           ELY_RELEASE_TOKEN: ${{ secrets.GITEA_TOKEN }}
           WSLENV: ELY_RELEASE_TOKEN
         run: |
-          wsl -d Ubuntu -- bash -lc '
+          wsl -d Ubuntu --exec bash -lc '
             set -euo pipefail
             dir=$HOME/ely-ci/ElyOffice
             [ -d "$dir/.git" ] || git clone https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice.git "$dir"
