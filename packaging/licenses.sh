@@ -44,9 +44,14 @@ case $slug in
         parts=$(python3 "$root/packaging/windows/mupdf-parts.py" "$root/engines/mupdf-src" parts)
         families=$(python3 "$root/packaging/windows/mupdf-parts.py" "$root/engines/mupdf-src" fonts)
         ;;
-      *)
+      Darwin)
         parts=$(ls "$root/engines/mupdf-build/thirdparty")
         families=$(ls "$root/engines/mupdf-build/generated/resources/fonts")
+        ;;
+      *)
+        # Linux links the font files in as objects.
+        parts=$(ls "$root/engines/mupdf-build/thirdparty")
+        families=$(ls "$root/engines/mupdf-build/resources/fonts")
         ;;
     esac
     for name in $parts; do
