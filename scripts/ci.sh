@@ -19,7 +19,7 @@ if [ -n "${ELY_SHARE:-}" ]; then
   for part in engines reference; do
     if [ ! -e "$part" ]; then
       case $os in
-        windows) cmd //c mklink /J "$part" "$(cygpath -w "$ELY_SHARE/$part")" ;;
+        windows) powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$part' -Target '$(cygpath -w "$ELY_SHARE/$part")' | Out-Null" ;;
         *) ln -s "$ELY_SHARE/$part" "$part" ;;
       esac
     fi
