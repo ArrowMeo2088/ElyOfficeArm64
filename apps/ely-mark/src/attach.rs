@@ -39,6 +39,13 @@ impl MarkView {
                 if !others.is_empty() {
                     cx.emit(said("mark.attach.images", cx));
                 }
+                // A link names the file; its name must be text.
+                let (pictures, unnamed): (Vec<&PathBuf>, Vec<&PathBuf>) = pictures
+                    .into_iter()
+                    .partition(|path| path.file_name().is_some_and(|name| name.to_str().is_some()));
+                if !unnamed.is_empty() {
+                    cx.emit(said("mark.attach.name", cx));
+                }
                 pictures.into_iter().cloned().map(Source::File).collect()
             }
             Attachment::Picture(image) => {
@@ -132,10 +139,16 @@ fn link(folder: &Path, copy: &Path) -> String {
     let relative = copy.strip_prefix(folder).expect("copied under the folder");
     let address: Vec<String> = relative
         .components()
-        .map(|part| escaped(&part.as_os_str().to_string_lossy()))
+        .map(|part| escaped(part.as_os_str().to_str().expect("named in text")))
         .collect();
-    let stem = copy.file_stem().unwrap_or_default().to_string_lossy();
+    let stem = copy
+        .file_stem()
+        .unwrap_or_default()
+        .to_str()
+        .expect("named in text");
+    // A line break would end the image.
     let alt = stem
+        .replace(|ch: char| ch.is_control(), " ")
         .replace('\\', "\\\\")
         .replace('[', "\\[")
         .replace(']', "\\]");
@@ -294,6 +307,57 @@ mod tests {
         assert_eq!(
             link(folder, &copy),
             "![a b\\[1\\]](assets/a%20b%5B1%5D.png)"
+        );
+    }
+
+    #[test]
+    fn a_name_with_line_breaks_links_one_image() {
+        let folder = Path::new("/notes");
+        let written = link(
+            folder,
+            &folder.join("assets").join(
+                "a
+
+b.png",
+            ),
+        );
+        let tree =
+            markdown::to_mdast(&written, &markdown::ParseOptions::default()).expect("parses");
+        let blocks = tree.children().expect("a root");
+        let [markdown::mdast::Node::Paragraph(line)] = blocks.as_slice() else {
+            panic!("one paragraph, not {blocks:?}")
+        };
+        assert!(
+            matches!(line.children.as_slice(), [markdown::mdast::Node::Image(_)]),
+            "{written}"
+        );
+    }
+
+    /// A file name that is no text.
+    #[cfg(unix)]
+    fn odd_name() -> std::ffi::OsString {
+        use std::os::unix::ffi::OsStrExt as _;
+        std::ffi::OsStr::from_bytes(b"pic-\xFF.png").to_owned()
+    }
+
+    #[cfg(windows)]
+    fn odd_name() -> std::ffi::OsString {
+        use std::os::windows::ffi::OsStringExt as _;
+        std::ffi::OsString::from_wide(&[0x70, 0xD800, 0x2E, 0x70, 0x6E, 0x67])
+    }
+
+    #[gpui::test]
+    fn a_name_that_is_no_text_is_refused(cx: &mut TestAppContext) {
+        let (view, cx, [_, files], said) = saved(cx);
+        let odd = files.path().join(odd_name());
+        std::fs::write(&odd, "png").expect("an oddly named picture");
+        attach(&view, Attachment::Files(vec![odd]), cx);
+        assert!(!files.path().join("assets").exists());
+        assert_eq!(said.borrow().len(), 1);
+        assert_eq!(
+            current(&view, cx),
+            "a
+"
         );
     }
 }
