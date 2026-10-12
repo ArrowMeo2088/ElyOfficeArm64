@@ -453,3 +453,14 @@ fn a_formula_letter_no_font_has_stays_as_tex() {
         page.html
     );
 }
+
+#[test]
+fn a_large_document_exports_whole() {
+    // Long paragraphs: markdown-rs slows with the block count.
+    let words = "word ".repeat(200);
+    let mut text: String = (0..2_200).map(|n| format!("Paragraph {n}: {words}\n\n")).collect();
+    text.push_str("The last line.\n");
+    assert!(text.len() > ely_gpui_component::documents::LARGEST_READ);
+    assert!(plain(&text).expect("text").ends_with("The last line.\n"));
+    assert!(page(&text, None, &Pictures::Inline).html.ends_with("<p>The last line.</p>"));
+}
