@@ -249,7 +249,7 @@ impl Desk {
             .and_then(|path| path.parent())
             .map(PathBuf::from);
         let (revision, work) = (source.session.revision(), source.work.clone());
-        let pdf = work.join("print.pdf");
+        let pdf = print_copy(&work);
         log::info!("mark: prints tab {tab}");
         cx.spawn(async move |desk, cx| {
             let written = cx
@@ -308,6 +308,13 @@ impl Desk {
             }
         }
     }
+}
+
+/// A file of its own for each print job.
+fn print_copy(work: &std::path::Path) -> PathBuf {
+    static JOBS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let job = JOBS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    work.join(format!("print-{job}.pdf"))
 }
 
 #[cfg(test)]

@@ -86,3 +86,9 @@ fn rich_copy_takes_the_selection_as_html(cx: &mut TestAppContext) {
         "{html}"
     );
 }
+
+#[test]
+fn each_print_job_writes_its_own_file() {
+    let work = std::path::Path::new("work");
+    assert_ne!(super::print_copy(work), super::print_copy(work));
+}
