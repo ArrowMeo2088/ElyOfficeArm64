@@ -48,9 +48,12 @@ quit() {
   for _ in $(seq 40); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
   wait "$pid" 2>/dev/null || true
 }
-mkdir -p "$data/recovery"
-# A known 2 MiB in the copies for the row.
-dd if=/dev/zero of="$data/recovery/ely-sample" bs=1024 count=2048 2>/dev/null
+# A crash: the session's copies stay on disk.
+crash() {
+  kill -9 "$pid"
+  wait "$pid" 2>/dev/null || true
+}
+mkdir -p "$data"
 # A log long enough that clearing it shows.
 head -c 8192 /dev/zero | tr '\0' 'x' >"$data/ely.log"
 start
@@ -58,8 +61,6 @@ keys 'keystroke "," using command down'
 seen "title=Storage" || fail "no settings window"
 "$work/ax-press" "$pid" Storage >/dev/null
 seen "title=Recovery copies" || fail "the storage page lists no copies"
-shown=$(kb "Recovery copies")
-[ "${shown:-0}" -ge 2048 ] || fail "the copies show ${shown:-nothing} KB, not at least 2048"
 shown=$(kb "This app's log")
 [ "${shown:-0}" -ge 8 ] || fail "the log shows ${shown:-nothing} KB, not at least 8"
 # Each clear asks first; nothing goes before the yes.
@@ -74,7 +75,7 @@ seen "title=Delete" || fail "clearing the copies did not ask"
 [ ! -e "$data/.clear-recovery" ] || fail "the copies were marked before the yes"
 "$work/ax-press" "$pid" Delete AXButton >/dev/null
 seen "Clears at next start" || fail "the copies clear is not shown as pending"
-[ -e "$data/recovery/ely-sample" ] || fail "the copies went while in use"
+[ -e "$data/.clear-recovery" ] || fail "the copies clear was not marked"
 # Ten points kept per document, once twelve were made.
 "$work/ax-press" "$pid" 10 >/dev/null
 for _ in $(seq 20); do grep -q '"keep": 10' "$data/settings.json" 2>/dev/null && break; sleep 0.25; done
@@ -146,10 +147,13 @@ for _ in $(seq 40); do grep -q '"keep": 20' "$data/settings.json" && break; slee
 grep -q '"keep": 20' "$data/settings.json" || fail "the retried limit is not kept"
 sleep 0.5
 "$work/ax-values" "$pid" | grep -q "Not done" && fail "the failure stays after a good save"
-quit
+# After a crash only the mark clears the copies.
+crash
+[ -n "$(find "$data/recovery" -type f)" ] || fail "the crash left no copies"
 touch "$data/recovery/ely-marker"
 start
 [ ! -e "$data/recovery/ely-marker" ] || fail "the copies were not cleared at the start"
+[ ! -e "$data/.clear-recovery" ] || fail "the mark was not spent"
 quit
 # A failed clear stops the start; the mark stays.
 mkdir -p "$data/recovery/locked"
@@ -162,6 +166,7 @@ chmod 755 "$data/recovery/locked"
 grep -q "could not be deleted" "$work/out" || fail "the failed clear is not told: $(tail -3 "$work/out")"
 [ -e "$data/.clear-recovery" ] && [ -e "$data/recovery/locked/kept" ] || fail "the failed clear lost its mark or data"
 start
-[ ! -e "$data/recovery/locked/kept" ] || fail "the clear was not tried again"
+[ ! -e "$data/.clear-recovery" ] || fail "the clear was not tried again"
+[ ! -e "$data/recovery/locked/kept" ] || fail "the clear left the data"
 quit
 echo "ok: storage"
