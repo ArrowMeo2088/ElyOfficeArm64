@@ -56,7 +56,8 @@ pub struct Hit {
 
 /// `ch` without case; final sigma folds as Unicode does.
 fn fold(ch: char) -> impl Iterator<Item = char> {
-    ch.to_lowercase().map(|low| if low == 'ς' { 'σ' } else { low })
+    ch.to_lowercase()
+        .map(|low| if low == 'ς' { 'σ' } else { low })
 }
 
 /// Where folded `query` starts in `line`, in characters.
