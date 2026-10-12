@@ -138,3 +138,45 @@ fn a_path_that_cannot_be_read_says_why(cx: &mut TestAppContext) {
     });
     assert!(unread);
 }
+
+#[gpui::test]
+fn a_replace_that_keeps_the_time_still_reloads(cx: &mut TestAppContext) {
+    let (desk, cx, id, path, _dirs) = opened("old text\n", cx);
+    let modified = std::fs::metadata(&path)
+        .expect("meta")
+        .modified()
+        .expect("a time");
+    let next = path.with_extension("new");
+    std::fs::write(&next, "new text\n").expect("a new file");
+    let file = std::fs::File::options()
+        .write(true)
+        .open(&next)
+        .expect("open");
+    file.set_modified(modified).expect("the old time");
+    drop(file);
+    std::fs::rename(&next, &path).expect("a replace");
+    look(&desk, id, cx);
+    assert_eq!(shown(&desk, cx), "new text\n");
+}
+
+#[gpui::test]
+fn a_stale_read_never_lands(cx: &mut TestAppContext) {
+    let (desk, cx, id, path, _dirs) = opened("first\n", cx);
+    std::fs::write(&path, "older\n").expect("an older write");
+    let older = (
+        ely_files::Fingerprint::of(&path).expect("its fingerprint"),
+        crate::text::Source::decode(b"older\n".to_vec()).expect("reads"),
+    );
+    std::fs::write(&path, "newest disk\n").expect("a newer write");
+    look(&desk, id, cx);
+    assert_eq!(shown(&desk, cx), "newest disk\n");
+    let reads = desk.read_with(cx, |desk, _| desk.tab(id).expect("open").extra.reads);
+    for number in [reads - 1, reads] {
+        let (path, older) = (path.clone(), (older.0, older.1.clone()));
+        desk.update(cx, |desk, cx| {
+            desk.disk_read(id, path, number, Ok(older), cx)
+        });
+        cx.run_until_parked();
+        assert_eq!(shown(&desk, cx), "newest disk\n", "read {number}");
+    }
+}

@@ -53,6 +53,8 @@ pub struct Extra {
     pub pointing: bool,
     /// A kept tab's mode, place and text came back once.
     pub restored: bool,
+    /// Disk reads started; only the newest lands.
+    pub reads: u64,
 }
 
 impl Extra {
@@ -76,6 +78,7 @@ impl Default for Extra {
             pointed: None,
             pointing: false,
             restored: false,
+            reads: 0,
         }
     }
 }
@@ -199,13 +202,18 @@ impl Desk {
 
     /// Changed: a clean tab follows, a dirty one asks.
     fn read_disk(&mut self, id: u64, path: PathBuf, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else {
+            return;
+        };
+        tab.extra.reads += 1;
+        let number = tab.extra.reads;
         let reading = path.clone();
         cx.spawn(async move |desk, cx| {
             let read = cx
                 .background_executor()
                 .spawn(async move { read_still(&reading) })
                 .await;
-            desk.update(cx, |desk, cx| desk.disk_read(id, path, read, cx))
+            desk.update(cx, |desk, cx| desk.disk_read(id, path, number, read, cx))
                 .ok();
         })
         .detach();
@@ -215,16 +223,25 @@ impl Desk {
         &mut self,
         id: u64,
         path: PathBuf,
+        number: u64,
         read: io::Result<(Fingerprint, Source)>,
         cx: &mut Context<Self>,
     ) {
         let Some(tab) = self.tab(id).filter(|tab| tab.session.path() == Some(&path)) else {
             return log::info!("mark: a read for a moved or closed tab was dropped");
         };
+        if tab.extra.reads != number {
+            return log::info!("mark: read {number} of tab {id} lapsed");
+        }
         let (fingerprint, disk) = match read {
             Ok(read) => read,
             Err(error) => return self.set_outside(id, Outside::Unread(error.to_string()), cx),
         };
+        // The disk moved on since the read: look again.
+        if Fingerprint::of(&path).ok() != Some(fingerprint) {
+            log::info!("mark: tab {id}'s file changed while read");
+            return self.look(id, cx);
+        }
         let current = tab.doc.lock().expect("the text lock").current.clone();
         let kept = disk.text == tab.extra.base;
         let dirty = tab.dirty(cx);
