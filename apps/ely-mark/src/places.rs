@@ -108,7 +108,7 @@ impl Desk {
         }
     }
 
-    /// Line and column `at` in a tab, or a file once open.
+    /// Line and column `at` in a tab or file.
     pub fn open_at(
         &mut self,
         tab: Option<u64>,
