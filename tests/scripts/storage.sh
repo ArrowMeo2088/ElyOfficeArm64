@@ -86,6 +86,8 @@ sleep 1
 tabs=$(grep -c "as tab" "$data/ely.log" || true)
 keys 'keystroke "n" using command down'
 for _ in $(seq 40); do [ "$(grep -c "as tab" "$data/ely.log")" -gt "$tabs" ] && break; sleep 0.25; done
+# Source mode takes typing in an empty file.
+keys 'keystroke "2" using command down'
 sleep 2
 # Twelve points written, one edit each.
 written() { grep -c "recovery: a point at" "$data/ely.log" || true; }
