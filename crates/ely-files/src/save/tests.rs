@@ -181,6 +181,15 @@ fn an_import_copies_and_never_deletes() {
 }
 
 #[test]
+fn written_bytes_take_a_free_name() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    let first = write_attachment("pasted.png", b"one", dir.path()).expect("the first write");
+    let second = write_attachment("pasted.png", b"two", dir.path()).expect("the second write");
+    assert_ne!(first, second);
+    assert_eq!((read(&first), read(&second)), ("one".into(), "two".into()));
+}
+
+#[test]
 fn a_numbered_import_name_fits_long_file_names() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let source = dir.path().join(format!("{}.png", "x".repeat(251)));

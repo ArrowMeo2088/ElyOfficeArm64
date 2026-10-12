@@ -74,8 +74,8 @@ pub struct MarkView {
     /// The mark at the last load or save.
     saved: String,
     pub mode: Mode,
-    /// The file's folder: pictures resolve here.
-    pub(crate) folder: PathBuf,
+    /// A saved file's folder: pictures resolve and go here.
+    pub(crate) folder: Option<PathBuf>,
     /// The mode first took input (PERF-07).
     pub(crate) shown: bool,
     pub focus: FocusHandle,
@@ -85,13 +85,7 @@ impl EventEmitter<Reported> for MarkView {}
 impl EventEmitter<Failed> for MarkView {}
 
 impl MarkView {
-    pub fn new(
-        doc: Doc,
-        saved: String,
-        folder: PathBuf,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(doc: Doc, saved: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let text = doc.lock().expect("the text lock").current.clone();
         let mode = match text.len() > LARGEST_READ {
             true => Mode::Source,
@@ -100,13 +94,14 @@ impl MarkView {
         let view = cx.weak_entity();
         let document = cx.new(|cx| {
             let mut document = MarkdownDocument::new(text, mode.shown(), window, cx);
-            document.set_base(folder.as_path(), cx);
             document.on_link(move |url, _, cx| {
                 view.update(cx, |view, cx| view.follow(url, cx)).ok();
             });
             document
         });
         cx.subscribe_in(&document, window, Self::heard).detach();
+        cx.subscribe(&document, |view, _, attached, cx| view.attach(attached, cx))
+            .detach();
         // The shell hears the load.
         cx.defer_in(window, |view, _, cx| {
             view.show_once(cx);
@@ -125,7 +120,7 @@ impl MarkView {
             changed: 0,
             saved,
             mode,
-            folder,
+            folder: None,
             shown: false,
             focus,
         }
@@ -251,14 +246,14 @@ impl MarkView {
         }
     }
 
-    /// The file moved; pictures follow it.
+    /// The saved file's folder; pictures follow it.
     pub fn moved(&mut self, folder: PathBuf, cx: &mut Context<Self>) {
-        if folder == self.folder {
+        if self.folder.as_ref() == Some(&folder) {
             return;
         }
         self.document
             .update(cx, |document, cx| document.set_base(folder.as_path(), cx));
-        self.folder = folder;
+        self.folder = Some(folder);
     }
 
     fn heard(

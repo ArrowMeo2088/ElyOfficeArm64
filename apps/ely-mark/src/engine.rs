@@ -4,7 +4,7 @@ use std::{
     convert::Infallible,
     hash::{DefaultHasher, Hash as _, Hasher as _},
     io,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -36,12 +36,6 @@ impl Text {
 
 pub type Doc = Arc<Mutex<Text>>;
 
-/// A load: the file as read, and where it is.
-pub struct Opened {
-    pub source: Source,
-    pub path: PathBuf,
-}
-
 /// The history mark: this text's length and hash.
 pub fn mark(text: &str) -> String {
     let mut hasher = DefaultHasher::new();
@@ -56,10 +50,10 @@ impl Engine for Mark {
     type Worker = ();
     type Doc = Doc;
     type View = MarkView;
-    type Loaded = Opened;
+    type Loaded = Source;
     type Import = Infallible;
 
-    fn load(_: &mut (), from: Load<Infallible>) -> io::Result<Opened> {
+    fn load(_: &mut (), from: Load<Infallible>) -> io::Result<Source> {
         let path = match from {
             Load::File(path, _) => path,
             Load::Import(_, never) => match *never {},
@@ -69,30 +63,19 @@ impl Engine for Mark {
             io::ErrorKind::PermissionDenied => io::Error::other(error),
             _ => error,
         })?;
-        Ok(Opened {
-            source: Source::decode(bytes)?,
-            path: path.to_path_buf(),
-        })
+        Source::decode(bytes)
     }
 
     fn open(
         _: &Arc<Mutex<()>>,
-        loaded: Opened,
+        loaded: Source,
         window: &mut Window,
         cx: &mut App,
     ) -> io::Result<(Doc, Entity<MarkView>, String)> {
-        let Opened {
-            source: loaded,
-            path,
-        } = loaded;
-        let folder = path
-            .parent()
-            .expect("a file sits in a folder")
-            .to_path_buf();
         let mark = mark(&loaded.text);
         let doc = Arc::new(Mutex::new(Text::new(loaded)));
         let saved = mark.clone();
-        let view = cx.new(|cx| MarkView::new(Arc::clone(&doc), saved, folder, window, cx));
+        let view = cx.new(|cx| MarkView::new(Arc::clone(&doc), saved, window, cx));
         Ok((doc, view, mark))
     }
 

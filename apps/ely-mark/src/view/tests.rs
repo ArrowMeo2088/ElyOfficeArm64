@@ -18,9 +18,7 @@ fn open<'a>(
     let source = Source::decode(text.as_bytes().to_vec()).expect("reads");
     let saved = mark(&source.text);
     let doc = Arc::new(Mutex::new(Text::new(source)));
-    let folder = std::env::temp_dir();
-    let (view, cx) =
-        cx.add_window_view(move |window, cx| MarkView::new(doc, saved, folder, window, cx));
+    let (view, cx) = cx.add_window_view(move |window, cx| MarkView::new(doc, saved, window, cx));
     cx.update(|window, _| window.activate_window());
     cx.run_until_parked();
     (view, cx)
@@ -166,8 +164,7 @@ fn the_shell_hears_a_load_it_subscribed_to(cx: &mut TestAppContext) {
         let source = Source::decode(b"# Opened\n".to_vec()).expect("reads");
         let saved = mark(&source.text);
         let doc = Arc::new(Mutex::new(Text::new(source)));
-        let folder = std::env::temp_dir();
-        let view = cx.new(|cx| MarkView::new(doc, saved, folder, window, cx));
+        let view = cx.new(|cx| MarkView::new(doc, saved, window, cx));
         // As the shell: subscribed after the view is made.
         let count = count.clone();
         cx.subscribe(&view, move |_, _, _: &Reported, _| {
