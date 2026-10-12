@@ -16,7 +16,7 @@
 | PDF | MuPDF（C 接口），Tesseract OCR，独立工作进程 |
 | Mail | MailCore 2 + SQLite；正文用 CEF 离屏内容区 |
 | Tree | Git CLI，参数数组启动 |
-| Mark | Milkdown + CodeMirror 6，CEF 离屏内容区 |
+| Mark | 组件库 `documents::MarkdownDocument`（GPUI，原文即文本，无序列化）；markdown-rs 解析，RaTeX 公式，mermaid-rs-renderer 图 |
 | Agent | Kigi CLI 的 Rust 代码直接嵌入（不用 ACP），沿用其提供商登录与模型配置 |
 
 ## 目录
@@ -165,15 +165,6 @@ tests/scripts/theme.sh         真窗口 ElyTable 以深、浅两种外观启动
 tests/scripts/lag.sh ely-doc   真窗口键入，从调试日志算输入落地、图块、按键到新图块的分位数（需辅助功能权限）；ELY_LAG_LOG=路径 留下日志
 tests/scripts/pdf-idle.sh      真窗口 ElyPDF 无文件启动时无 worker 子进程
 scripts/build-mark-content.sh  按锁文件构建 ElyMark 页面到 engines/content/ely-mark（不跑安装脚本）
-tests/scripts/mark-content.sh  真窗口：构建的页面离线渲染各包（可视、预览、源码）
-tests/scripts/mark-session.sh  真窗口 ElyMark：不改保存逐字节相同，键入一字只改该块（需辅助功能权限）
-tests/scripts/mark-modes.sh    真窗口 ElyMark：文档旁图片、三种模式往返、预览只读、跨模式撤销、改名、新建（需辅助功能与屏幕录制权限）
-tests/scripts/mark-places.sh   真窗口 ElyMark：文件夹树、大纲跳转、文件夹搜索、最近列表（需辅助功能权限）
-tests/scripts/mark-output.sh   真窗口 ElyMark：专注模式与外观持久、四种导出、打印、Git 状态与打开 ElyTree、大文件（需辅助功能权限与 pdftotext；ELY_CLIPBOARD_TEST=1 再测富文本复制）
-tests/scripts/mark-outside.sh  真窗口 ElyMark：外部替换、改名、删除、冲突比较、自动保存、退出与崩溃后的恢复（需辅助功能权限）
-tests/scripts/mark-links.mjs   ElyMark 页面（Playwright，三端）：可视模式单击编辑，Cmd（他处 Ctrl）单击交应用，预览单击交应用，地址取文档原文（需 site 的依赖）
-tests/scripts/mark-broken.mjs  ElyMark 页面（Playwright，三端）：可视编辑器建不成即退回源码并告知，两者都建不成即报失败（需 site 的依赖）
-tests/scripts/mark-tools.sh    真窗口 ElyMark：查找替换、正则、Tab、列表、表格、拖放与粘贴图片（需辅助功能权限；ELY_CLIPBOARD_TEST=1 再测粘贴）
 tests/scripts/comments-rules.sh  comments.py 对长注释与跨行注释报错
 tests/scripts/bad-settings.sh  通用设置读不出时 ElyDoc 照样启动，文件不被覆盖
 tests/scripts/one-instance.sh  第二份 ElyDoc 被拒，第一份的工作目录不动

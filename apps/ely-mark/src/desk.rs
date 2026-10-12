@@ -22,13 +22,9 @@ use gpui::{
     ParentElement as _, PathPromptOptions, Render, Styled as _, Window, div,
 };
 
-use crate::engine::{Mark, Pages};
-use crate::keys::{
-    CheckDisk, ColumnLeft, ColumnRight, DeleteColumn, DeleteRow, InsertTable, PreviewMode,
-    RowAbove, RowBelow, SourceMode, VisualMode,
-};
-use crate::page::Mode;
-use crate::view::MarkView;
+use crate::engine::Mark;
+use crate::keys::{CheckDisk, PreviewMode, SourceMode, VisualMode};
+use crate::view::{MarkView, Mode};
 
 pub struct Desk {
     pub core: Core<Desk>,
@@ -40,22 +36,16 @@ pub struct Desk {
     /// Files and folders opened lately, newest first.
     pub recent: Vec<PathBuf>,
     pub recent_file: PathBuf,
-    /// A file asked to open at a place.
-    pub going: Option<(PathBuf, serde_json::Value)>,
+    /// A file asked to open at a line.
+    pub going: Option<(PathBuf, usize)>,
     /// The path each tab last put in the recent list.
     pub remembered: HashMap<u64, PathBuf>,
     side: Entity<crate::side::Side>,
-    pub finder: Option<crate::finding::Finder>,
     pub watcher: Option<notify::RecommendedWatcher>,
     /// The folders the watcher covers.
     pub watched: Vec<PathBuf>,
     pub comparing: Option<crate::compare::Comparing>,
     pub keeping: crate::restore::Keeping,
-    /// The export dialog's choice, while it is open.
-    pub output: Option<crate::export::Output>,
-    /// Pages printing to PDF, by job; several may run.
-    pub printing: HashMap<u64, crate::export::Printing>,
-    pub print_jobs: u64,
     pub look: crate::look::Look,
     pub look_file: PathBuf,
     /// Git's word on the shown file, and which tab asked.
@@ -113,8 +103,6 @@ impl Host for Desk {
     /// Save As or rename moves where images come from.
     fn observed(&mut self, id: u64, view: &Entity<MarkView>, cx: &mut Context<Self>) {
         self.watch_folders(cx);
-        let look = serde_json::to_value(&self.look).expect("a look serializes");
-        view.update(cx, |view, cx| view.set_look(look, cx));
         let changed = view.read(cx).changed();
         self.autosave(id, changed, cx);
         let recheck = self.tab_mut(id).is_some_and(|tab| {
@@ -126,9 +114,7 @@ impl Host for Desk {
         if recheck {
             self.look(id, cx);
         }
-        if view.read(cx).shown {
-            self.restore_shown(id, cx);
-        }
+        self.restore_shown(id, cx);
         // A save changes what Git sees.
         let print = self.active_tab().and_then(|tab| tab.session.fingerprint());
         if print != self.asked_print {
@@ -139,7 +125,6 @@ impl Host for Desk {
             .tab(id)
             .and_then(|tab| tab.session.path().map(PathBuf::from));
         if let Some(path) = path {
-            view.update(cx, |view, _| view.attachable = true);
             if let Some(folder) = path.parent() {
                 view.update(cx, |view, cx| view.moved(folder.to_path_buf(), cx));
             }
@@ -149,9 +134,9 @@ impl Host for Desk {
                 .going
                 .as_ref()
                 .is_some_and(|(file, _)| Some(file) == real.as_ref())
-                && let Some((_, place)) = self.going.take()
+                && let Some((_, line)) = self.going.take()
             {
-                view.update(cx, |view, cx| view.reveal(place, cx));
+                self.reveal_later(view.clone(), line, cx);
             }
         }
         cx.notify();
@@ -162,13 +147,8 @@ impl Host for Desk {
 pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
     let fail = |error: String| -> ! { startup::fail(app, &error) };
     let data = ely_platform::data_dir(app).unwrap_or_else(|error| fail(format!("{error:#}")));
-    if let Err(error) = ely_web_content::start(&data, cx) {
-        fail(format!("{error:#}"));
-    }
-    let dir = crate::page::content().unwrap_or_else(|error| fail(format!("{error:#}")));
     let work = ely_office::fresh_work(&data).unwrap_or_else(|error| fail(format!("{error}")));
     crate::keys::bind(cx);
-    let pages = Arc::new(Mutex::new(Pages { dir }));
     let recent_file = data.join("recent.json");
     let look_file = data.join("look.json");
     // An unreadable look is reported; the default shows.
@@ -187,7 +167,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         let this = cx.entity();
         let side = cx.new(|cx| crate::side::Side::new(&this, window, cx));
         Desk {
-            core: Core::new(pages, work, cx),
+            core: Core::new(Arc::new(Mutex::new(())), work, cx),
             naming: None,
             folder: None,
             listings: 0,
@@ -196,14 +176,10 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
             going: None,
             remembered: HashMap::new(),
             side,
-            finder: None,
             watcher: None,
             watched: Vec::new(),
             comparing: None,
             keeping,
-            output: None,
-            printing: Default::default(),
-            print_jobs: 0,
             look: look.clone(),
             look_file,
             tracked: None,
@@ -337,16 +313,23 @@ impl Desk {
         self.new_from_text("untitled.md", "", cx);
     }
 
-    fn table(&mut self, op: &str, cx: &mut Context<Self>) {
+    fn switch(&mut self, mode: Mode, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(view) = self.active_view() {
-            view.update(cx, |view, cx| view.table(op, cx));
+            view.update(cx, |view, cx| view.switch(mode, window, cx));
         }
     }
 
-    fn switch(&mut self, mode: Mode, cx: &mut Context<Self>) {
-        if let Some(view) = self.active_view() {
-            view.update(cx, |view, cx| view.switch(mode, cx));
-        }
+    /// Brings `line` into view from outside a window update.
+    pub fn reveal_later(&mut self, view: Entity<MarkView>, line: usize, cx: &mut Context<Self>) {
+        cx.spawn(async move |desk, cx| {
+            let shown = ely_office::in_window(&desk, cx, |_, window, cx| {
+                view.update(cx, |view, cx| view.reveal(line, window, cx))
+            });
+            if let Err(error) = shown {
+                log::warn!("mark: line {line} was not shown: {error:#}");
+            }
+        })
+        .detach();
     }
 
     fn status(&self, cx: &mut Context<Self>) -> StatusBar {
@@ -367,9 +350,9 @@ impl Desk {
                 control.segment(mode.name(), crate::keys::label(mode, cx), Some(icon))
             },
         );
-        let modes = modes.on_change(move |key, _, cx| {
+        let modes = modes.on_change(move |key, window, cx| {
             if let Some(mode) = Mode::parse(key) {
-                this.update(cx, |desk, cx| desk.switch(mode, cx));
+                this.update(cx, |desk, cx| desk.switch(mode, window, cx));
             }
         });
         let bar = StatusBar::new().left(state);
@@ -417,27 +400,21 @@ impl Render for Desk {
             .on_action(cx.listener(Self::on_save))
             .on_action(cx.listener(Self::on_save_as))
             .on_action(cx.listener(Self::on_rename))
-            .on_action(cx.listener(Self::on_find))
-            .on_action(cx.listener(Self::on_export))
-            .on_action(cx.listener(Self::on_print))
             .on_action(cx.listener(Self::on_close_tab))
-            .on_action(cx.listener(|desk, _: &InsertTable, _, cx| desk.table("insert", cx)))
-            .on_action(cx.listener(|desk, _: &RowAbove, _, cx| desk.table("row-above", cx)))
-            .on_action(cx.listener(|desk, _: &RowBelow, _, cx| desk.table("row-below", cx)))
-            .on_action(cx.listener(|desk, _: &ColumnLeft, _, cx| desk.table("column-left", cx)))
-            .on_action(cx.listener(|desk, _: &ColumnRight, _, cx| desk.table("column-right", cx)))
-            .on_action(cx.listener(|desk, _: &DeleteRow, _, cx| desk.table("delete-row", cx)))
-            .on_action(cx.listener(|desk, _: &DeleteColumn, _, cx| desk.table("delete-column", cx)))
             .on_action(cx.listener(|desk, _: &CheckDisk, _, cx| desk.look_all(cx)))
-            .on_action(cx.listener(|desk, _: &VisualMode, _, cx| desk.switch(Mode::Visual, cx)))
-            .on_action(cx.listener(|desk, _: &SourceMode, _, cx| desk.switch(Mode::Source, cx)))
-            .on_action(cx.listener(|desk, _: &PreviewMode, _, cx| desk.switch(Mode::Preview, cx)))
+            .on_action(cx.listener(|desk, _: &VisualMode, window, cx| {
+                desk.switch(Mode::Visual, window, cx)
+            }))
+            .on_action(cx.listener(|desk, _: &SourceMode, window, cx| {
+                desk.switch(Mode::Source, window, cx)
+            }))
+            .on_action(cx.listener(|desk, _: &PreviewMode, window, cx| {
+                desk.switch(Mode::Preview, window, cx)
+            }))
             .child(shell)
             .children(self.core_dialog(cx))
             .children(self.naming_element(cx))
-            .children(self.find_bar(cx))
-            .children(self.compare_dialog(cx))
-            .children(self.export_dialog(cx));
+            .children(self.compare_dialog(cx));
         Self::look_actions(root, cx)
     }
 }

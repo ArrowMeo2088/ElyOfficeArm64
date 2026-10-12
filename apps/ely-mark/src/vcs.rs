@@ -175,7 +175,8 @@ mod tests {
     #[test]
     fn spaces_stay_and_broken_repositories_say_why() {
         let dir = tempfile::tempdir().expect("a temp dir");
-        let repo = dir.path().join("repo ");
+        // Windows names end in no space.
+        let repo = dir.path().join(if cfg!(windows) { "re po" } else { "repo " });
         std::fs::create_dir(&repo).expect("the folder");
         git(&repo, &["init", "-q"]);
         std::fs::write(repo.join("t.md"), "a").expect("a file");

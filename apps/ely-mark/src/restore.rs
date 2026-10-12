@@ -14,8 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::desk::Desk;
 use crate::engine::mark;
-use crate::page::Mode;
-use crate::view::Place;
+use crate::view::{Mode, Place};
 
 /// A kept tab: file, mode, place, recovery folder.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -236,7 +235,16 @@ impl Desk {
             self.toast(said, ely_gpui_component::primitives::Severity::Info, cx);
         }
         let back = back.map(|(back, _)| back);
-        view.update(cx, |view, cx| view.reopen(mode, kept.place, back, cx));
+        // Modes take focus: in the window, after this update.
+        cx.spawn(async move |desk, cx| {
+            let shown = ely_office::in_window(&desk, cx, |_, window, cx| {
+                view.update(cx, |view, cx| view.reopen(mode, kept.place, back, window, cx))
+            });
+            if let Err(error) = shown {
+                log::warn!("mark: tab {id} did not restore: {error:#}");
+            }
+        })
+        .detach();
     }
 
     /// Every ten seconds: unsaved text to points, tabs to disk.
@@ -255,7 +263,7 @@ impl Desk {
                 path: tab.session.path().map(Path::to_path_buf),
                 name: tab.name.to_string(),
                 mode: view.mode.name().to_owned(),
-                place: view.place,
+                place: Some(view.place(cx)),
                 slot: tab.extra.slot.clone(),
             });
             let current = tab.doc.lock().expect("the text lock").current.clone();
@@ -399,13 +407,13 @@ fn humantime(at: SystemTime) -> String {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn a_place_without_a_column_reads_zero() {
+    fn a_place_without_a_column_or_top_reads_zero() {
         let kept: super::Kept = serde_json::from_str(
             r#"{"path":null,"name":"a.md","mode":"source","place":{"line":3,"scroll":0},"slot":"s"}"#,
         )
         .expect("an older place reads");
         let place = kept.place.expect("a place");
-        assert_eq!((place.line, place.column), (3, 0));
+        assert_eq!((place.line, place.column, place.top), (3, 0, 0));
     }
 
     #[test]
@@ -415,7 +423,7 @@ mod tests {
             path: None,
             name: name.into(),
             mode: mode.into(),
-            place: Some(super::Place { line: slot.len() as u64, column: 1, scroll: 0.0 }),
+            place: Some(super::Place { line: slot.len() as u64, column: 1, top: 0 }),
             slot: slot.into(),
         };
         let tabs = vec![kept("Untitled1", "visual", "a"), kept("Untitled2", "source", "bb")];

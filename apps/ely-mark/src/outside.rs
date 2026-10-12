@@ -40,7 +40,7 @@ pub struct Extra {
     /// The text as last loaded or saved: the merge base.
     pub base: String,
     pub policy: PolicyEngine,
-    /// The page change autosave last heard.
+    /// The text change autosave last heard.
     pub heard: u64,
     /// The policy revision an autosave writes.
     pub writing: Option<u64>,
@@ -225,10 +225,6 @@ impl Desk {
             Ok(read) => read,
             Err(error) => return self.set_outside(id, Outside::Unread(error.to_string()), cx),
         };
-        // Keys the page has not sent yet count first.
-        if !self.settled(id, cx) {
-            return self.when_settled(id, move |desk, _, cx| desk.disk_read(id, path, Ok((fingerprint, disk)), cx));
-        }
         let current = tab.doc.lock().expect("the text lock").current.clone();
         let kept = disk.text == tab.extra.base;
         let dirty = tab.dirty(cx);

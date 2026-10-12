@@ -108,30 +108,29 @@ impl Desk {
         }
     }
 
-    /// `place` in `tab`, else in `file` once open.
+    /// Line `line`, from zero, in `tab`, else in `file` once open.
     pub fn open_at(
         &mut self,
         tab: Option<u64>,
         file: PathBuf,
-        place: serde_json::Value,
+        line: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let held = tab.or_else(|| self.tab_of(&file));
         if let Some(id) = held.filter(|id| self.tab(*id).is_some()) {
             self.core.active = Some(id);
-            let view = self.tab(id).map(|open| open.view.clone());
-            if let Some(view) = view {
-                view.update(cx, |view, cx| view.reveal(place, cx));
+            if let Some(view) = self.tab(id).map(|open| open.view.clone()) {
                 // After the list's own key handling, which keeps focus.
-                let focus = view.read(cx).focus.clone();
-                window.defer(cx, move |window, cx| window.focus(&focus, cx));
+                window.defer(cx, move |window, cx| {
+                    view.update(cx, |view, cx| view.reveal(line, window, cx))
+                });
             }
             return cx.notify();
         }
         // A file gone is reported by the open itself.
         if let Ok(real) = std::fs::canonicalize(&file) {
-            self.going = Some((real, place));
+            self.going = Some((real, line));
         }
         self.open_file(file, cx);
     }
@@ -148,7 +147,7 @@ impl Desk {
         self.core.tabs.iter().find(held).map(|tab| tab.id)
     }
 
-    /// Tab `id`'s text as the page last sent it.
+    /// Tab `id`'s text now, unsaved edits included.
     pub fn text_of(&self, id: u64) -> Option<String> {
         Some(
             self.tab(id)?

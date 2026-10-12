@@ -30,10 +30,6 @@ pub struct Comparing {
 impl Desk {
     /// Mine, the base and the disk's, side by side.
     pub fn compare(&mut self, id: u64, cx: &mut Context<Self>) {
-        // The page's newest text first.
-        if !self.settled(id, cx) {
-            return self.when_settled(id, move |desk, _, cx| desk.compare(id, cx));
-        }
         let Some(tab) = self.tab(id) else {
             return;
         };

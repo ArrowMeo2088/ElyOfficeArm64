@@ -16,7 +16,6 @@ use gpui::{
     AnyElement, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render,
     SharedString, Styled as _, WeakEntity, Window, div,
 };
-use serde_json::json;
 
 use crate::desk::Desk;
 use crate::folder::{Hit, MOST_HITS, lines_with};
@@ -234,7 +233,7 @@ impl Side {
             )
             .into_any_element();
         };
-        let headings = view.read(cx).outline.clone();
+        let headings = view.read(cx).outline(cx);
         if headings.is_empty() {
             return EmptyState::new(
                 "mark-no-headings",
@@ -251,12 +250,12 @@ impl Side {
         );
         outline
             .on_select(move |key, window, cx| {
-                if let Ok(at) = key.parse::<usize>() {
-                    view.update(cx, |view, cx| view.reveal(json!({ "heading": at }), cx));
-                    // Keys go to the document, at the heading.
-                    let focus = view.read(cx).focus.clone();
-                    window.focus(&focus, cx);
-                }
+                let Some(heading) = key.parse::<usize>().ok().and_then(|at| headings.get(at)) else {
+                    return log::error!("mark: the outline chose no heading");
+                };
+                // Keys go to the document, at the heading.
+                let line = heading.line;
+                view.update(cx, |view, cx| view.reveal(line, window, cx));
             })
             .into_any_element()
     }
@@ -277,7 +276,7 @@ impl Side {
             })
         });
         let opener = desk.downgrade();
-        let (hits, query) = (self.hits.clone(), self.searched.clone());
+        let hits = self.hits.clone();
         // Files not read come first: the results lack them.
         let missed = self.missed.iter().enumerate().map(|(at, (path, why))| {
             let name = path
@@ -312,10 +311,10 @@ impl Side {
                 let Some((tab, hit)) = key.parse::<usize>().ok().and_then(|at| hits.get(at)) else {
                     return;
                 };
-                let (tab, file, line) = (*tab, hit.file.clone(), hit.line);
-                let place = json!({ "line": line, "query": query });
+                // Hits count lines from one.
+                let (tab, file, line) = (*tab, hit.file.clone(), hit.line - 1);
                 opener
-                    .update(cx, |desk, cx| desk.open_at(tab, file, place, window, cx))
+                    .update(cx, |desk, cx| desk.open_at(tab, file, line, window, cx))
                     .ok();
             });
         let more = (self.hits.len() == MOST_HITS)

@@ -3,24 +3,9 @@
 use ely_ui::{commands, i18n::text};
 use gpui::{App, KeyBinding, Menu, MenuItem, actions};
 
-use crate::page::Mode;
+use crate::view::Mode;
 
-actions!(
-    mark,
-    [
-        VisualMode,
-        SourceMode,
-        PreviewMode,
-        InsertTable,
-        RowAbove,
-        RowBelow,
-        ColumnLeft,
-        ColumnRight,
-        DeleteRow,
-        DeleteColumn,
-        CheckDisk
-    ]
-);
+actions!(mark, [VisualMode, SourceMode, PreviewMode, CheckDisk]);
 
 pub fn bind(cx: &mut App) {
     let at = Some(commands::CONTEXT);
@@ -28,7 +13,6 @@ pub fn bind(cx: &mut App) {
         KeyBinding::new("secondary-1", VisualMode, at),
         KeyBinding::new("secondary-2", SourceMode, at),
         KeyBinding::new("secondary-3", PreviewMode, at),
-        KeyBinding::new("secondary-f", crate::finding::Find, at),
         KeyBinding::new("secondary-shift-f", crate::look::FocusMode, at),
         KeyBinding::new("secondary-=", crate::look::Larger, at),
         KeyBinding::new("secondary--", crate::look::Smaller, at),
@@ -51,19 +35,7 @@ pub fn menus(look: &crate::look::Look, cx: &App) -> Vec<Menu> {
         disabled: false,
     };
     let item = |key: &str, action: Box<dyn gpui::Action>| checked(key, action, false);
-    let table = Menu::new(text(cx, "mark.menu.table", &[])).items([
-        item("mark.table.insert", Box::new(InsertTable)),
-        MenuItem::separator(),
-        item("mark.table.row_above", Box::new(RowAbove)),
-        item("mark.table.row_below", Box::new(RowBelow)),
-        item("mark.table.column_left", Box::new(ColumnLeft)),
-        item("mark.table.column_right", Box::new(ColumnRight)),
-        MenuItem::separator(),
-        item("mark.table.delete_row", Box::new(DeleteRow)),
-        item("mark.table.delete_column", Box::new(DeleteColumn)),
-    ]);
     vec![
-        table,
         Menu::new(text(cx, "menu.view", &[])).items([
             MenuItem::action(label(Mode::Visual, cx), VisualMode),
             MenuItem::action(label(Mode::Source, cx), SourceMode),

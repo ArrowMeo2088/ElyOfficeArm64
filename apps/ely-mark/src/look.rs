@@ -66,12 +66,11 @@ pub fn load(file: &Path) -> io::Result<Look> {
 const SIZES: (u32, u32, u32) = (70, 200, 10);
 
 impl Desk {
-    /// Changes the look; pages, file and menus follow.
+    /// Changes the look; its file and menus follow.
     pub fn relook(&mut self, change: impl FnOnce(&mut Look), cx: &mut Context<Self>) {
         change(&mut self.look);
         self.look.size = self.look.size.clamp(SIZES.0, SIZES.1);
         log::info!("mark: the look is now {:?}", self.look);
-        self.show_look(cx);
         let json = serde_json::to_vec_pretty(&self.look).expect("a look serializes");
         if let Err(error) = ely_files::save_atomic(&self.look_file, &json, 0) {
             log::error!("mark: the look did not save: {error}");
@@ -84,15 +83,6 @@ impl Desk {
             cx,
         );
         cx.notify();
-    }
-
-    /// Every tab's page takes the look.
-    pub fn show_look(&mut self, cx: &mut Context<Self>) {
-        let look = serde_json::to_value(&self.look).expect("a look serializes");
-        for tab in &self.core.tabs {
-            let look = look.clone();
-            tab.view.update(cx, |view, cx| view.set_look(look, cx));
-        }
     }
 
     pub fn look_actions(element: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
