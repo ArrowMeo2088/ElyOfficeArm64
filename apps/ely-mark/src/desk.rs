@@ -105,6 +105,7 @@ impl Host for Desk {
     /// Save As or rename moves where images come from.
     fn observed(&mut self, id: u64, view: &Entity<MarkView>, cx: &mut Context<Self>) {
         self.watch_folders(cx);
+        self.look_once(id, cx);
         let changed = view.read(cx).changed();
         self.autosave(id, changed, cx);
         let recheck = self.tab_mut(id).is_some_and(|tab| {

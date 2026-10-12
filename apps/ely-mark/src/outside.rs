@@ -55,6 +55,8 @@ pub struct Extra {
     pub restored: bool,
     /// Disk reads started; only the newest lands.
     pub reads: u64,
+    /// The writing view reached its document.
+    pub looked: bool,
 }
 
 impl Extra {
@@ -79,6 +81,7 @@ impl Default for Extra {
             pointing: false,
             restored: false,
             reads: 0,
+            looked: false,
         }
     }
 }
