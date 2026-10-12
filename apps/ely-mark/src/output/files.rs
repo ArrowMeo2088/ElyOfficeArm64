@@ -2,7 +2,8 @@
 
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::Path,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use super::{Page, Pictures, body, document, plain};
@@ -62,39 +63,30 @@ fn export(target: &Target, bytes: &[u8]) -> io::Result<()> {
 
 /// The page beside a new folder of its pictures.
 fn linked(text: &str, beside: Option<&Path>, target: &Target, title: &str) -> io::Result<Page> {
-    let name = format!("{title}_files");
-    let page = body(text, beside, &Pictures::Folder(name.clone()))?;
-    if page.copies.is_empty() {
-        export(target, document(title, &page.html).as_bytes())?;
-        return Ok(page);
+    let folder = target.path.with_file_name(format!("{title}_files"));
+    let found = folder.exists();
+    let written = body(text, beside, &Pictures::Folder(folder.clone()))
+        .and_then(|page| export(target, document(title, &page.html).as_bytes()).map(|()| page));
+    // A failure takes only the folder it made.
+    if written.is_err()
+        && !found
+        && folder.exists()
+        && let Err(left) = std::fs::remove_dir_all(&folder)
+    {
+        log::error!("mark: the half-made picture folder stays: {left}");
     }
-    let folder = target.path.with_file_name(&name);
-    // A folder already there is someone's: refused.
-    std::fs::create_dir(&folder).map_err(|error| match error.kind() {
-        io::ErrorKind::AlreadyExists => io::Error::new(error.kind(), folder.display().to_string()),
-        _ => error,
-    })?;
-    let written = copy(&page.copies, &folder)
-        .and_then(|()| export(target, document(title, &page.html).as_bytes()));
-    if let Err(error) = written {
-        if let Err(left) = std::fs::remove_dir_all(&folder) {
-            log::error!("mark: the half-made picture folder stays: {left}");
-        }
-        return Err(error);
-    }
-    Ok(page)
+    written
 }
 
-/// The page set by MuPDF, from a scratch folder.
+/// The page set by MuPDF, in its own scratch.
 fn pdf(text: &str, beside: Option<&Path>, target: &Target, title: &str) -> io::Result<Page> {
-    let dir = target.work.join("pdf");
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir)?;
-    }
-    std::fs::create_dir_all(dir.join("files"))?;
+    static JOBS: AtomicU64 = AtomicU64::new(0);
+    let dir = target
+        .work
+        .join(format!("pdf-{}", JOBS.fetch_add(1, Ordering::Relaxed)));
+    std::fs::create_dir_all(&dir)?;
     let set = (|| -> io::Result<Page> {
-        let page = body(text, beside, &Pictures::Pdf("files".into()))?;
-        copy(&page.copies, &dir.join("files"))?;
+        let page = body(text, beside, &Pictures::Pdf(dir.join("files")))?;
         std::fs::write(dir.join("page.html"), document(title, &page.html))?;
         let out = dir.join("out.pdf");
         ely_pdf_engine::Worker::spawn()?.html_pdf(&dir, "page.html", &out)?;
@@ -105,11 +97,4 @@ fn pdf(text: &str, beside: Option<&Path>, target: &Target, title: &str) -> io::R
     let page = set?;
     cleaned?;
     Ok(page)
-}
-
-fn copy(copies: &[(PathBuf, String)], folder: &Path) -> io::Result<()> {
-    for (from, name) in copies {
-        std::fs::copy(from, folder.join(name))?;
-    }
-    Ok(())
 }

@@ -6,13 +6,15 @@ fn page(text: &str, beside: Option<&Path>, pictures: &Pictures) -> super::Page {
     body(text, beside, pictures).expect("a page")
 }
 
+/// A 1×1 PNG, as base64.
+const DOT: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z8AAAAMBAQAY3Y2wAAAAAElFTkSuQmCC";
+
 #[test]
 fn formulas_and_diagrams_draw_as_svg() {
     let text =
         "Inline $x^2$ here.\n\n$$\n\\sqrt{y}\n$$\n\n```mermaid\nflowchart LR\n  A --> B\n```\n";
     let page = page(text, None, &Pictures::Inline);
-    assert!(!page.html.contains("language-math"), "{}", page.html);
-    assert!(!page.html.contains("language-mermaid"), "{}", page.html);
     assert_eq!(page.html.matches("<svg").count(), 3, "{}", page.html);
     assert!(
         page.html.contains("<span class=\"math\"><svg")
@@ -22,36 +24,47 @@ fn formulas_and_diagrams_draw_as_svg() {
 }
 
 #[test]
-fn what_does_not_draw_stays_as_code_with_its_line() {
-    let text = "# Title\n\n$$\n\\frac{\n$$\n\nText $\\sqrt{$ more.\n\n```mermaid\nflowchart LR\n  A -->\n```\n";
+fn what_does_not_draw_stays_as_code_at_its_own_line() {
+    let text = "$$\n\\frac{\n$$\n\n$$\n\\frac{\n$$\n\nText $\\sqrt{$ more.\n\n```mermaid\nflowchart LR\n  A -->\n```\n\n```mermaid\nflowchart LR\n  A[\u{F0000}] --> B\n```\n";
     let page = page(text, None, &Pictures::Inline);
     let lines: Vec<usize> = page.formulas.iter().map(|(line, _)| *line).collect();
-    assert_eq!(lines, [3, 7]);
+    assert_eq!(lines, [1, 5, 9]);
     assert!(page.formulas.iter().all(|(_, why)| !why.is_empty()));
-    assert_eq!(page.diagrams, [9]);
+    assert_eq!(page.diagrams, [11, 16]);
     assert!(
-        page.html.contains("language-math math-display\">\\frac{"),
+        page.html
+            .contains("<pre><code class=\"language-math\">\\frac{"),
         "{}",
         page.html
     );
+    assert!(page.html.contains("<code>\\sqrt{</code>"), "{}", page.html);
     assert!(
         page.html
-            .contains("language-math math-inline\">\\sqrt{</code>"),
-        "{}",
-        page.html
-    );
-    assert!(
-        page.html.contains("language-mermaid\">flowchart LR"),
+            .contains("<pre><code class=\"language-mermaid\">flowchart LR"),
         "{}",
         page.html
     );
 }
 
 #[test]
-fn an_undrawn_formula_after_a_drawn_one_keeps_its_code() {
-    let page = page("$$\nx\n$$\n$$\n\\frac{\n$$\n", None, &Pictures::Inline);
-    assert_eq!(page.formulas.len(), 1);
-    assert!(page.html.contains("\\frac{"), "{}", page.html);
+fn markdown_writes_as_html() {
+    let text = "# T\n\n- [x] done\n- b\n\n3. c\n\n| l | r |\n|:--|--:|\n| 1 | 2 |\n\n~~gone~~ [a](https://x.org \"t\") [r][ref] [bad](javascript:alert(1))\n\nNote[^1].\n\n[^1]: The note.\n\n[ref]: /docs\n";
+    let html = page(text, None, &Pictures::Inline).html;
+    for part in [
+        "<h1>T</h1>",
+        "<li><input type=\"checkbox\" disabled checked> done</li>",
+        "<ol start=\"3\">",
+        "<th style=\"text-align:left\">l</th>",
+        "<td style=\"text-align:right\">2</td>",
+        "<del>gone</del>",
+        "<a href=\"https://x.org\" title=\"t\">a</a>",
+        "<a href=\"/docs\">r</a>",
+        "<a>bad</a>",
+        "<sup><a href=\"#fn-1\">1</a></sup>",
+        "<li id=\"fn-1\"><p>The note.</p></li>",
+    ] {
+        assert!(html.contains(part), "{part} in {html}");
+    }
 }
 
 #[test]
@@ -63,15 +76,17 @@ fn front_matter_and_raw_html_do_not_go_live() {
     );
     assert!(!page.html.contains("Secret"), "{}", page.html);
     assert!(!page.html.contains("<script>"), "{}", page.html);
-    assert!(page.html.contains("Text."));
+    assert!(page.html.contains("<p>Text.</p>"));
 }
 
 #[test]
-fn inline_pictures_are_data_and_web_ones_stay() {
+fn inline_pictures_are_data_and_addresses_stay_as_written() {
     let dir = tempfile::tempdir().expect("a dir");
     std::fs::write(dir.path().join("dot.png"), b"png bytes").expect("writes");
-    let text = "![a](dot.png) ![b](gone.png) ![c](https://example.com/c.png?x=1&y=2)\n";
-    let page = page(text, Some(dir.path()), &Pictures::Inline);
+    let text = format!(
+        "![a](dot.png) ![b](gone.png) ![c](https://example.com/a%2Fb.png?q=a%26b&x=1) ![d](data:image/png;base64,{DOT})\n"
+    );
+    let page = page(&text, Some(dir.path()), &Pictures::Inline);
     assert!(
         page.html
             .contains("src=\"data:image/png;base64,cG5nIGJ5dGVz\""),
@@ -80,78 +95,133 @@ fn inline_pictures_are_data_and_web_ones_stay() {
     );
     assert!(
         page.html
-            .contains("src=\"https://example.com/c.png?x=1&amp;y=2\""),
+            .contains("src=\"https://example.com/a%2Fb.png?q=a%26b&amp;x=1\""),
+        "{}",
+        page.html
+    );
+    assert!(
+        page.html
+            .contains(&format!("src=\"data:image/png;base64,{DOT}\"")),
+        "{}",
+        page.html
+    );
+    assert!(
+        page.html.contains("<img src=\"gone.png\" alt=\"b\">"),
         "{}",
         page.html
     );
     assert_eq!(page.missing, ["gone.png"]);
-    assert!(page.copies.is_empty());
 }
 
 #[test]
 fn folder_pictures_copy_once_under_names_of_their_own() {
     let dir = tempfile::tempdir().expect("a dir");
-    for folder in ["one", "two"] {
+    for (folder, name) in [("one", "image.png"), ("two", "IMAGE.PNG")] {
         std::fs::create_dir(dir.path().join(folder)).expect("makes");
-        std::fs::write(dir.path().join(folder).join("my pic.png"), folder).expect("writes");
+        std::fs::write(dir.path().join(folder).join(name), folder).expect("writes");
     }
-    let text = "![a](one/my%20pic.png) ![b](two/my%20pic.png) ![c](<one/my pic.png>)\n";
-    let page = page(
-        text,
-        Some(dir.path()),
-        &Pictures::Folder("doc_files".into()),
-    );
-    let names: Vec<&str> = page.copies.iter().map(|(_, name)| name.as_str()).collect();
-    assert_eq!(names, ["my pic.png", "my pic-2.png"]);
+    let shelf = dir.path().join("note#1_files");
+    let text = "![a](one/image.png) ![b](two/IMAGE.PNG) ![c](one/image.png)\n";
+    let page = page(text, Some(dir.path()), &Pictures::Folder(shelf.clone()));
+    let mut held: Vec<Vec<u8>> = std::fs::read_dir(&shelf)
+        .expect("the folder")
+        .map(|entry| std::fs::read(entry.expect("an entry").path()).expect("reads"))
+        .collect();
+    held.sort();
     assert_eq!(
-        page.html.matches("src=\"doc_files/my%20pic.png\"").count(),
+        held,
+        [b"one".to_vec(), b"two".to_vec()],
+        "no picture overwrote another"
+    );
+    assert_eq!(
+        page.html
+            .matches("src=\"note%231_files/image.png\"")
+            .count(),
         2,
         "{}",
         page.html
     );
+}
+
+#[test]
+fn a_folder_already_there_is_refused() {
+    let dir = tempfile::tempdir().expect("a dir");
+    std::fs::write(dir.path().join("dot.png"), b"p").expect("writes");
+    let shelf = dir.path().join("taken");
+    std::fs::create_dir(&shelf).expect("makes");
+    let error = body(
+        "![a](dot.png)\n",
+        Some(dir.path()),
+        &Pictures::Folder(shelf),
+    )
+    .expect_err("refused");
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+}
+
+#[test]
+fn a_pdf_leaves_out_what_mupdf_cannot_read_as_words() {
+    let dir = tempfile::tempdir().expect("a dir");
+    std::fs::write(dir.path().join("a.webp"), b"w").expect("writes");
+    let text = "![first](a.webp) ![second](https://example.com/c.png) ![third](gone.png)\n";
+    let page = page(
+        text,
+        Some(dir.path()),
+        &Pictures::Pdf(dir.path().join("files")),
+    );
+    assert_eq!(
+        page.missing,
+        ["a.webp", "https://example.com/c.png", "gone.png"]
+    );
+    assert!(!page.html.contains("<img"), "{}", page.html);
     assert!(
-        page.html.contains("src=\"doc_files/my%20pic-2.png\""),
+        page.html.contains("[first]") && page.html.contains("[third]"),
         "{}",
         page.html
     );
 }
 
 #[test]
-fn a_pdf_leaves_out_what_mupdf_cannot_read() {
+fn other_schemes_and_untitled_pictures_are_missing() {
+    let page = page("![a](a.png) ![b](javascript:x)\n", None, &Pictures::Inline);
+    assert_eq!(page.missing, ["a.png", "javascript:x"]);
+}
+
+#[test]
+fn a_file_address_reads_its_path() {
     let dir = tempfile::tempdir().expect("a dir");
-    std::fs::write(dir.path().join("a.webp"), b"w").expect("writes");
-    std::fs::write(dir.path().join("b.png"), b"p").expect("writes");
-    let text = "![a](a.webp) ![b](b.png) ![c](https://example.com/c.png)\n";
-    let page = page(text, Some(dir.path()), &Pictures::Pdf("files".into()));
-    assert_eq!(page.missing, ["a.webp", "https://example.com/c.png"]);
-    assert_eq!(page.copies.len(), 1);
-}
-
-#[test]
-fn a_blocked_address_is_missing_by_its_text() {
-    let page = page("![the chart](file:///tmp/c.png)\n", None, &Pictures::Inline);
-    assert_eq!(page.missing, ["the chart"]);
-}
-
-#[test]
-fn an_untitled_document_has_no_folder_for_pictures() {
-    let page = page("![a](a.png)\n", None, &Pictures::Inline);
-    assert_eq!(page.missing, ["a.png"]);
+    let picture = dir.path().join("d o t.png");
+    std::fs::write(&picture, b"png").expect("writes");
+    let path = picture
+        .to_string_lossy()
+        .replace('\\', "/")
+        .replace(' ', "%20");
+    let url = if path.starts_with('/') {
+        format!("file://{path}")
+    } else {
+        format!("file:///{path}")
+    };
+    let page = page(&format!("![a](<{url}>)\n"), None, &Pictures::Inline);
+    assert!(page.missing.is_empty(), "{:?}", page.missing);
+    assert!(
+        page.html.contains("data:image/png;base64,cG5n"),
+        "{}",
+        page.html
+    );
 }
 
 #[test]
 fn a_document_wraps_the_body_and_escapes_its_title() {
-    let html = document("a<b & c", "<p>x</p>\n");
+    let html = document("a<b & c", "<p>x</p>");
     assert!(html.starts_with("<!doctype html>"));
     assert!(html.contains("<title>a&lt;b &amp; c</title>") && html.contains("<p>x</p>"));
 }
 
 #[test]
 fn plain_text_keeps_words_code_and_tex() {
-    let text = "---\ntitle: x\n---\n\n# Head *one*\n\n- a\n- b `c`\n\n| h | i |\n|---|---|\n| 1 | 2 |\n\n$$\n\\sqrt{x}\n$$\n\n> quoted $y$\n";
+    let text = "---\ntitle: x\n---\n\n# Head *one*\n\n- a\n- b `c`\n\n| h | i |\n|---|---|\n| 1 | 2 |\n\n$$\n\\sqrt{x}\n$$\n\n> quoted $y$ ![a cat][cat]\n\n[cat]: pic.png\n";
     assert_eq!(
         plain(text).expect("text"),
-        "Head one\n\na\nb c\n\nh\ti\n1\t2\n\n\\sqrt{x}\n\nquoted y\n"
+        "Head one\n\na\nb c\n\nh\ti\n1\t2\n\n\\sqrt{x}\n\nquoted y a cat\n"
     );
 }
 
@@ -159,6 +229,7 @@ mod files {
     use std::path::Path;
 
     use super::super::{Format, Target, write};
+    use super::DOT;
 
     fn target<'a>(path: &'a Path, work: &'a Path) -> Target<'a> {
         Target {
@@ -169,14 +240,10 @@ mod files {
         }
     }
 
-    fn picture(dir: &Path) {
-        std::fs::write(dir.join("dot.png"), b"png").expect("writes");
-    }
-
     #[test]
     fn a_page_carries_its_pictures_inside() {
         let dir = tempfile::tempdir().expect("a dir");
-        picture(dir.path());
+        std::fs::write(dir.path().join("dot.png"), b"png").expect("writes");
         let out = dir.path().join("out.html");
         write(
             Format::Page,
@@ -193,7 +260,7 @@ mod files {
     #[test]
     fn a_linked_page_copies_into_a_new_folder_only() {
         let dir = tempfile::tempdir().expect("a dir");
-        picture(dir.path());
+        std::fs::write(dir.path().join("dot.png"), b"png").expect("writes");
         let out = dir.path().join("out.html");
         write(
             Format::Linked,
@@ -222,6 +289,10 @@ mod files {
         assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
         assert!(error.to_string().contains("out_files"), "{error}");
         assert!(!out.exists(), "nothing written");
+        assert!(
+            dir.path().join("out_files/dot.png").exists(),
+            "the folder found stays"
+        );
     }
 
     #[test]
@@ -261,32 +332,74 @@ mod files {
         );
     }
 
+    /// The text of a PDF's first page.
+    fn words(pdf: &Path) -> String {
+        let mut worker = ely_pdf_engine::Worker::spawn().expect("the worker");
+        let doc = worker.open(pdf).expect("opens").doc;
+        worker
+            .text(doc, 0)
+            .expect("text")
+            .iter()
+            .map(|ch| ch.c)
+            .collect()
+    }
+
     #[test]
     fn a_pdf_sets_the_page_and_leaves_no_scratch() {
         let dir = tempfile::tempdir().expect("a dir");
         let work = tempfile::tempdir().expect("work");
         let out = dir.path().join("out.pdf");
-        let text = "# Heading 标题\n\nInline $x^2$.\n\n```mermaid\nflowchart LR\n  A --> B\n```\n";
+        let text = format!(
+            "# Heading 标题\n\nInline $x^2$.\n\n![dot](data:image/png;base64,{DOT}) ![lost](gone.png)\n\n```mermaid\nflowchart LR\n  A --> B\n```\n"
+        );
         let page = write(
             Format::Pdf,
-            text,
+            &text,
             Some(dir.path()),
             &target(&out, work.path()),
         )
         .expect("writes");
-        assert!(page.missing.is_empty() && page.formulas.is_empty() && page.diagrams.is_empty());
-        assert!(!work.path().join("pdf").exists(), "the scratch is gone");
-        let mut worker = ely_pdf_engine::Worker::spawn().expect("the worker");
-        let doc = worker.open(&out).expect("opens").doc;
-        let words: String = worker
-            .text(doc, 0)
-            .expect("text")
-            .iter()
-            .map(|ch| ch.c)
-            .collect();
+        assert_eq!(page.missing, ["gone.png"]);
+        assert!(page.formulas.is_empty() && page.diagrams.is_empty());
+        assert_eq!(
+            std::fs::read_dir(work.path()).expect("work").count(),
+            0,
+            "the scratch is gone"
+        );
+        let words = words(&out);
         assert!(
-            words.contains("Heading") && words.contains("标题"),
+            words.contains("Heading") && words.contains("标题") && words.contains("[lost]"),
             "{words:?}"
         );
+    }
+
+    #[test]
+    fn pdfs_at_once_keep_to_their_own_pages() {
+        let (dir, work) = (
+            tempfile::tempdir().expect("a dir"),
+            tempfile::tempdir().expect("work"),
+        );
+        let jobs: Vec<_> = (0..4)
+            .map(|n| {
+                let (out, work) = (
+                    dir.path().join(format!("{n}.pdf")),
+                    work.path().to_path_buf(),
+                );
+                std::thread::spawn(move || {
+                    write(
+                        Format::Pdf,
+                        &format!("# Page{n}\n"),
+                        None,
+                        &target(&out, &work),
+                    )
+                    .expect("writes");
+                    out
+                })
+            })
+            .collect();
+        for (n, job) in jobs.into_iter().enumerate() {
+            let out = job.join().expect("the job");
+            assert!(words(&out).contains(&format!("Page{n}")), "job {n}");
+        }
     }
 }

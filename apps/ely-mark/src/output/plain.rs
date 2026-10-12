@@ -56,6 +56,7 @@ fn words(node: &Node) -> String {
         Node::InlineMath(math) => math.value.clone(),
         Node::Break(_) => "\n".into(),
         Node::Image(image) => image.alt.clone(),
+        Node::ImageReference(image) => image.alt.clone(),
         Node::Html(_) => String::new(),
         _ => node.children().into_iter().flatten().map(words).collect(),
     }

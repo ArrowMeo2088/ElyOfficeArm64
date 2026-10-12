@@ -291,16 +291,21 @@ impl Desk {
             .active_tab()
             .and_then(|tab| tab.session.path())
             .and_then(|path| path.parent());
-        let copied = output::body(&markdown, beside, &Pictures::Inline).and_then(|page| {
+        let copied = output::body(&markdown, beside, &Pictures::Inline).and_then(|mut page| {
             let clip = Clip::Html {
-                html: page.html,
+                html: std::mem::take(&mut page.html),
                 text: markdown,
             };
-            clipboard::write(&clip).map_err(|error| std::io::Error::other(format!("{error:#}")))
+            clipboard::write(&clip)
+                .map(|()| page)
+                .map_err(|error| std::io::Error::other(format!("{error:#}")))
         });
-        if let Err(error) = copied {
-            let said = text(cx, "mark.copy.failed", &[("error", &error.to_string())]);
-            self.toast(said, Severity::Danger, cx);
+        match copied {
+            Ok(page) => self.left_out(&page, cx),
+            Err(error) => {
+                let said = text(cx, "mark.copy.failed", &[("error", &error.to_string())]);
+                self.toast(said, Severity::Danger, cx);
+            }
         }
     }
 }
