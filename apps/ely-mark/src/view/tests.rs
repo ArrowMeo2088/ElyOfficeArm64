@@ -95,6 +95,18 @@ fn undo_reaches_across_modes(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn undo_brings_back_a_text_emptied_in_source(cx: &mut TestAppContext) {
+    let (view, cx) = open("Seed\n", cx);
+    view.update_in(cx, |view, window, cx| view.switch(Mode::Source, window, cx));
+    view.update(cx, |view, cx| view.adopt(String::new(), cx));
+    view.update_in(cx, |view, window, cx| view.switch(Mode::Visual, window, cx));
+    focused(&view, cx);
+    cx.simulate_keystrokes("secondary-z");
+    cx.run_until_parked();
+    assert_eq!(current(&view, cx), "Seed\n");
+}
+
+#[gpui::test]
 fn a_new_empty_file_takes_typing_in_visual(cx: &mut TestAppContext) {
     let (view, cx) = open("", cx);
     assert_eq!(view.read_with(cx, |view, _| view.mode), Mode::Visual);
