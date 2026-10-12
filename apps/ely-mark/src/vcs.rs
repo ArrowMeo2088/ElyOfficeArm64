@@ -197,7 +197,7 @@ mod tests {
 ").expect("ignores");
         std::fs::write(repo.join("t.md"), "a").expect("a file");
         git(repo, &["add", "."]);
-        git(repo, &["-c", "user.name=T", "-c", "user.email=t@t", "commit", "-qm", "one"]);
+        git(repo, &["-c", "user.name=T", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "one"]);
         assert_eq!(ask(&repo.join("t.md")), Tracked::Unchanged);
         std::fs::write(repo.join("t.md"), "b").expect("an edit");
         assert_eq!(ask(&repo.join("t.md")), Tracked::Changed);
@@ -214,7 +214,7 @@ mod tests {
         std::fs::write(repo.join("t.md"), "a
 ").expect("a file");
         git(repo, &["add", "."]);
-        git(repo, &["-c", "user.name=T", "-c", "user.email=t@t", "commit", "-qm", "one"]);
+        git(repo, &["-c", "user.name=T", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "one"]);
         let (desk, cx) = crate::desk::tests::start(cx, data.path());
         crate::desk::tests::open(&desk, &repo.join("t.md"), cx);
         let said = |cx: &mut gpui::VisualTestContext| desk.read_with(cx, |desk, _| desk.tracked.clone());
