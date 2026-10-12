@@ -424,7 +424,7 @@ fn large_banner(
     view: &Entity<MarkView>,
     cx: &mut Context<Desk>,
 ) -> Option<ely_gpui_component::feedback::Banner> {
-    if !view.read(cx).large {
+    if !view.read(cx).large() {
         return None;
     }
     let size = view.read(cx).bytes() as f64 / (1024.0 * 1024.0);

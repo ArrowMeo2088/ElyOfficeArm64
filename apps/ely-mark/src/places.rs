@@ -108,7 +108,7 @@ impl Desk {
         }
     }
 
-    /// Line `line`, from zero, in `tab`, else in `file` once open.
+    /// Line `line` in `tab`, or in `file` once open.
     pub fn open_at(
         &mut self,
         tab: Option<u64>,

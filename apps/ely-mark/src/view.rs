@@ -1,4 +1,4 @@
-//! One Markdown file in a document, its text kept for the shell.
+//! One Markdown file, its text kept for the shell.
 
 use std::path::PathBuf;
 
@@ -12,7 +12,7 @@ use gpui::{
 
 use crate::engine::{Doc, mark};
 
-/// The text changed, or a new read of it is in.
+/// The text changed, or a read is in.
 pub struct Reported;
 
 /// What went wrong, for the shell to say.
@@ -58,7 +58,7 @@ pub struct Heading {
     pub line: usize,
 }
 
-/// Where the reader was: the caret, and the first line in view.
+/// The caret and the first line in view.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Place {
     pub line: u64,
@@ -78,8 +78,6 @@ pub struct MarkView {
     pub mode: Mode,
     /// The file's folder: pictures resolve here.
     pub(crate) folder: PathBuf,
-    /// Too long to read: source alone, every byte saved (MARK-14).
-    pub large: bool,
     pub focus: FocusHandle,
 }
 
@@ -95,9 +93,10 @@ impl MarkView {
         cx: &mut Context<Self>,
     ) -> Self {
         let text = doc.lock().expect("the text lock").current.clone();
-        // Past what the document reads: source alone (PERF-07).
-        let large = text.len() > LARGEST_READ;
-        let mode = if large { Mode::Source } else { Mode::Visual };
+        let mode = match text.len() > LARGEST_READ {
+            true => Mode::Source,
+            false => Mode::Visual,
+        };
         let view = cx.weak_entity();
         let document = cx.new(|cx| {
             let mut document = MarkdownDocument::new(text, mode.shown(), window, cx);
@@ -107,7 +106,9 @@ impl MarkView {
             });
             document
         });
-        cx.subscribe(&document, Self::heard).detach();
+        cx.subscribe_in(&document, window, Self::heard).detach();
+        // The shell hears the load.
+        cx.defer_in(window, |_, _, cx| cx.emit(Reported));
         let focus = cx.focus_handle();
         // The view's focus is the document's.
         cx.on_focus(&focus, window, |view, window, cx| {
@@ -122,7 +123,6 @@ impl MarkView {
             saved,
             mode,
             folder,
-            large,
             focus,
         }
     }
@@ -141,6 +141,11 @@ impl MarkView {
         self.doc.lock().expect("the text lock").current.len()
     }
 
+    /// Too long to read: source alone (MARK-14).
+    pub fn large(&self) -> bool {
+        self.bytes() > LARGEST_READ
+    }
+
     pub fn modified(&self) -> bool {
         mark(&self.doc.lock().expect("the text lock").current) != self.saved
     }
@@ -152,7 +157,7 @@ impl MarkView {
 
     /// The same text in `mode` (MARK-02).
     pub fn switch(&mut self, mode: Mode, window: &mut Window, cx: &mut Context<Self>) {
-        if self.large && mode != Mode::Source {
+        if self.large() && mode != Mode::Source {
             log::info!("mark: a large file stays in source");
             let said = ely_ui::i18n::text(cx, "mark.large.modes", &[]).to_string();
             return cx.emit(Failed(said));
@@ -228,7 +233,7 @@ impl MarkView {
             self.document
                 .update(cx, |document, cx| document.reset(text, cx));
         }
-        let mode = if self.large { Mode::Source } else { mode };
+        let mode = if self.large() { Mode::Source } else { mode };
         self.switch(mode, window, cx);
         if let Some(place) = place {
             self.document.update(cx, |document, cx| {
@@ -250,14 +255,19 @@ impl MarkView {
 
     fn heard(
         &mut self,
-        document: Entity<MarkdownDocument>,
+        document: &Entity<MarkdownDocument>,
         event: &DocumentEvent,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if *event == DocumentEvent::Changed {
             let text = document.read(cx).text(cx);
             self.doc.lock().expect("the text lock").current = text;
             self.changed += 1;
+            if self.large() && self.mode != Mode::Source {
+                log::info!("mark: the text grew past the read limit");
+                self.switch(Mode::Source, window, cx);
+            }
         }
         cx.emit(Reported);
     }
