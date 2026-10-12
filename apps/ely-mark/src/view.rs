@@ -2,9 +2,7 @@
 
 use std::path::PathBuf;
 
-use ely_gpui_component::documents::{
-    DocumentEvent, LARGEST_READ, MarkdownDocument, MarkdownMode,
-};
+use ely_gpui_component::documents::{DocumentEvent, LARGEST_READ, MarkdownDocument, MarkdownMode};
 use gpui::{
     AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable as _,
     InteractiveElement as _, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
@@ -78,6 +76,8 @@ pub struct MarkView {
     pub mode: Mode,
     /// The file's folder: pictures resolve here.
     pub(crate) folder: PathBuf,
+    /// The mode first took input (PERF-07).
+    pub(crate) shown: bool,
     pub focus: FocusHandle,
 }
 
@@ -108,7 +108,10 @@ impl MarkView {
         });
         cx.subscribe_in(&document, window, Self::heard).detach();
         // The shell hears the load.
-        cx.defer_in(window, |_, _, cx| cx.emit(Reported));
+        cx.defer_in(window, |view, _, cx| {
+            view.show_once(cx);
+            cx.emit(Reported);
+        });
         let focus = cx.focus_handle();
         // The view's focus is the document's.
         cx.on_focus(&focus, window, |view, window, cx| {
@@ -123,6 +126,7 @@ impl MarkView {
             saved,
             mode,
             folder,
+            shown: false,
             focus,
         }
     }
@@ -269,7 +273,17 @@ impl MarkView {
                 self.switch(Mode::Source, window, cx);
             }
         }
+        self.show_once(cx);
         cx.emit(Reported);
+    }
+
+    /// Logs the first moment the mode takes input.
+    fn show_once(&mut self, cx: &gpui::App) {
+        let ready = self.mode == Mode::Source || self.document.read(cx).read_now(cx);
+        if ready && !self.shown {
+            self.shown = true;
+            log::info!("mark: shown as {:?}", self.mode.name());
+        }
     }
 
     /// A pressed link: web and mail open outside (M-05).

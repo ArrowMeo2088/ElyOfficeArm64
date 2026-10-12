@@ -54,6 +54,69 @@ fn current(view: &Entity<MarkView>, cx: &mut VisualTestContext) -> String {
     })
 }
 
+fn focused(view: &Entity<MarkView>, cx: &mut VisualTestContext) {
+    let focus = view.read_with(cx, |view, _| view.focus.clone());
+    cx.update(|window, cx| window.focus(&focus, cx));
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn switching_modes_writes_no_byte(cx: &mut TestAppContext) {
+    let (view, cx) = open("# A\r\n\r\n* b\r\n", cx);
+    for mode in [Mode::Source, Mode::Preview, Mode::Visual, Mode::Source] {
+        view.update_in(cx, |view, window, cx| view.switch(mode, window, cx));
+        cx.run_until_parked();
+    }
+    let written = view.read_with(cx, |view, _| {
+        let doc = view.doc.lock().expect("the text lock");
+        doc.source.encode(&doc.current)
+    });
+    assert_eq!(written, b"# A\r\n\r\n* b\r\n");
+    let (modified, changed) = view.read_with(cx, |view, _| (view.modified(), view.changed()));
+    assert!(!modified && changed == 0);
+}
+
+#[gpui::test]
+fn undo_reaches_across_modes(cx: &mut TestAppContext) {
+    let (view, cx) = open("# A\n", cx);
+    view.update_in(cx, |view, window, cx| view.switch(Mode::Source, window, cx));
+    focused(&view, cx);
+    cx.simulate_input("x");
+    assert_eq!(current(&view, cx), "x# A\n");
+    view.update_in(cx, |view, window, cx| view.switch(Mode::Visual, window, cx));
+    focused(&view, cx);
+    cx.simulate_keystrokes("secondary-z");
+    cx.run_until_parked();
+    assert_eq!(
+        current(&view, cx),
+        "# A\n",
+        "the source edit undone in visual"
+    );
+}
+
+#[gpui::test]
+fn a_new_empty_file_takes_typing_in_visual(cx: &mut TestAppContext) {
+    let (view, cx) = open("", cx);
+    assert_eq!(view.read_with(cx, |view, _| view.mode), Mode::Visual);
+    focused(&view, cx);
+    cx.simulate_input("Hi");
+    assert_eq!(current(&view, cx), "Hi");
+    assert!(view.read_with(cx, |view, _| view.modified()));
+}
+
+#[gpui::test]
+fn a_long_file_shows_once_its_blocks_are_read(cx: &mut TestAppContext) {
+    let long = "para\n\n".repeat(40_000);
+    let (view, cx) = open(&long, cx);
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(1));
+    cx.run_until_parked();
+    let (shown, read) = view.read_with(cx, |view, cx| {
+        (view.shown, view.document.read(cx).read_now(cx))
+    });
+    assert!(shown && read, "shown with its blocks read");
+}
+
 #[gpui::test]
 fn a_refresh_is_saved_text_and_keeps_no_undo(cx: &mut TestAppContext) {
     let (view, cx) = open("one\n", cx);
