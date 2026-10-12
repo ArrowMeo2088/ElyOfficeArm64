@@ -403,27 +403,4 @@ fn watch(dirs: &[PathBuf], cx: &mut Context<Desk>) -> notify::Result<Recommended
 }
 
 #[cfg(test)]
-mod tests {
-    use std::time::{Duration, Instant};
-
-    use ely_files::Action;
-
-    use super::Extra;
-
-    #[test]
-    fn a_restarted_autosave_saves_the_next_edit() {
-        let mut extra = Extra::default();
-        extra.policy.set_has_path();
-        extra.policy.edit(Instant::now());
-        // A write was in flight when the disk changed.
-        extra.writing = Some(1);
-        extra.restart_autosave();
-        // As autosave settles a heard write, then edits.
-        if let Some(revision) = extra.writing.take() {
-            extra.policy.save_finished(revision, true);
-        }
-        let now = Instant::now();
-        extra.policy.edit(now);
-        assert!(matches!(extra.policy.tick(now + Duration::from_secs(5)), Action::SaveDue(_)));
-    }
-}
+pub(crate) mod tests;
