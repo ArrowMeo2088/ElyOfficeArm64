@@ -68,7 +68,7 @@ fn a_file_opens_with_its_outline_and_joins_the_recent_list(cx: &mut TestAppConte
         [(1, "One".into(), 0), (2, "Two".into(), 4)]
     );
     let view = desk.read_with(cx, |desk, _| desk.active_view().expect("a tab"));
-    view.update_in(cx, |view, window, cx| view.reveal(4, window, cx));
+    view.update_in(cx, |view, window, cx| view.reveal((4, 0), window, cx));
     cx.run_until_parked();
     assert_eq!(
         view.read_with(cx, |view, cx| view.place(cx).line),

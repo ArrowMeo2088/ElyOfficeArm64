@@ -36,8 +36,8 @@ pub struct Desk {
     /// Files and folders opened lately, newest first.
     pub recent: Vec<PathBuf>,
     pub recent_file: PathBuf,
-    /// A file asked to open at a line.
-    pub going: Option<(PathBuf, usize)>,
+    /// A file asked to open at a line and column.
+    pub going: Option<(PathBuf, (usize, usize))>,
     /// The path each tab last put in the recent list.
     pub remembered: HashMap<u64, PathBuf>,
     pub(crate) side: Entity<crate::side::Side>,
@@ -140,9 +140,9 @@ impl Host for Desk {
                 .going
                 .as_ref()
                 .is_some_and(|(file, _)| Some(file) == real.as_ref())
-                && let Some((_, line)) = self.going.take()
+                && let Some((_, at)) = self.going.take()
             {
-                self.reveal_later(view.clone(), line, cx);
+                self.reveal_later(view.clone(), at, cx);
             }
         }
         cx.notify();
@@ -337,14 +337,19 @@ impl Desk {
         }
     }
 
-    /// Brings `line` into view from outside a window update.
-    pub fn reveal_later(&mut self, view: Entity<MarkView>, line: usize, cx: &mut Context<Self>) {
+    /// Shows line and column `at` from outside an update.
+    pub fn reveal_later(
+        &mut self,
+        view: Entity<MarkView>,
+        at: (usize, usize),
+        cx: &mut Context<Self>,
+    ) {
         cx.spawn(async move |desk, cx| {
             let shown = ely_office::in_window(&desk, cx, |_, window, cx| {
-                view.update(cx, |view, cx| view.reveal(line, window, cx))
+                view.update(cx, |view, cx| view.reveal(at, window, cx))
             });
             if let Err(error) = shown {
-                log::warn!("mark: line {line} was not shown: {error:#}");
+                log::warn!("mark: line {} was not shown: {error:#}", at.0);
             }
         })
         .detach();

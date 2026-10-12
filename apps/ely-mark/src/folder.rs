@@ -49,7 +49,22 @@ pub struct Hit {
     pub file: PathBuf,
     /// Counted from one.
     pub line: usize,
+    /// The first match, in characters from zero.
+    pub column: usize,
     pub text: String,
+}
+
+/// Where lowercase `query` starts in `line`, in characters.
+fn column_of(line: &str, query: &str) -> Option<usize> {
+    // Each lowered byte keeps its character's place.
+    let (mut lowered, mut places) = (String::new(), Vec::new());
+    for (place, ch) in line.chars().enumerate() {
+        for low in ch.to_lowercase() {
+            lowered.push(low);
+            places.extend(std::iter::repeat_n(place, low.len_utf8()));
+        }
+    }
+    lowered.find(query).map(|at| places[at])
 }
 
 /// Lines of `text` holding `query`, any case.
@@ -59,11 +74,12 @@ pub fn lines_with(file: &Path, text: &str, query: &str, hits: &mut Vec<Hit>) {
         if hits.len() == MOST_HITS {
             return;
         }
-        if line.to_lowercase().contains(&query) {
+        if let Some(column) = column_of(line, &query) {
             let shown: String = line.trim().chars().take(160).collect();
             hits.push(Hit {
                 file: file.to_path_buf(),
                 line: at + 1,
+                column,
                 text: shown,
             });
         }
@@ -108,8 +124,16 @@ mod tests {
         );
         let lines: Vec<_> = hits
             .iter()
-            .map(|hit| (hit.line, hit.text.as_str()))
+            .map(|hit| (hit.line, hit.column, hit.text.as_str()))
             .collect();
-        assert_eq!(lines, [(2, "some Words here"), (4, "WORDS")]);
+        assert_eq!(lines, [(2, 5, "some Words here"), (4, 0, "WORDS")]);
+    }
+
+    #[test]
+    fn the_column_counts_characters_through_case_changes() {
+        // İ lowers to two characters.
+        assert_eq!(super::column_of("İİ née Word", "word"), Some(7));
+        assert_eq!(super::column_of("中文 搜索", "搜索"), Some(3));
+        assert_eq!(super::column_of("none", "word"), None);
     }
 }

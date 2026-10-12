@@ -186,10 +186,12 @@ impl MarkView {
             .collect()
     }
 
-    /// Line `line` in view and focus.
-    pub fn reveal(&mut self, line: usize, window: &mut Window, cx: &mut Context<Self>) {
-        self.document
-            .update(cx, |document, cx| document.reveal(line, window, cx));
+    /// Line and column `at` in view and focus, caret there.
+    pub fn reveal(&mut self, at: (usize, usize), window: &mut Window, cx: &mut Context<Self>) {
+        self.document.update(cx, |document, cx| {
+            document.reveal(at.0, window, cx);
+            document.set_caret(at.0, at.1, cx);
+        });
     }
 
     /// The caret and the view, to keep across launches.

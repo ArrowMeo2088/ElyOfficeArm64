@@ -108,12 +108,12 @@ impl Desk {
         }
     }
 
-    /// Line `line` in `tab`, or in `file` once open.
+    /// Line and column `at` in a tab, or a file once open.
     pub fn open_at(
         &mut self,
         tab: Option<u64>,
         file: PathBuf,
-        line: usize,
+        at: (usize, usize),
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -123,14 +123,14 @@ impl Desk {
             if let Some(view) = self.tab(id).map(|open| open.view.clone()) {
                 // After the list's own key handling, which keeps focus.
                 window.defer(cx, move |window, cx| {
-                    view.update(cx, |view, cx| view.reveal(line, window, cx))
+                    view.update(cx, |view, cx| view.reveal(at, window, cx))
                 });
             }
             return cx.notify();
         }
         // A file gone is reported by the open itself.
         if let Ok(real) = std::fs::canonicalize(&file) {
-            self.going = Some((real, line));
+            self.going = Some((real, at));
         }
         self.open_file(file, cx);
     }

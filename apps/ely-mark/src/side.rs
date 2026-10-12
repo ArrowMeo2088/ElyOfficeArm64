@@ -256,7 +256,7 @@ impl Side {
                 };
                 // The heading in view, the caret on it.
                 let line = heading.line;
-                view.update(cx, |view, cx| view.reveal(line, window, cx));
+                view.update(cx, |view, cx| view.reveal((line, 0), window, cx));
             });
         ScrollArea::new("mark-outline-scroll")
             .vertical()
@@ -317,9 +317,9 @@ impl Side {
                     return;
                 };
                 // Hits count lines from one.
-                let (tab, file, line) = (*tab, hit.file.clone(), hit.line - 1);
+                let (tab, file, at) = (*tab, hit.file.clone(), (hit.line - 1, hit.column));
                 opener
-                    .update(cx, |desk, cx| desk.open_at(tab, file, line, window, cx))
+                    .update(cx, |desk, cx| desk.open_at(tab, file, at, window, cx))
                     .ok();
             });
         let more = (self.hits.len() == MOST_HITS)

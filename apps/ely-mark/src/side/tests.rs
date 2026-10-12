@@ -45,3 +45,69 @@ fn a_long_outline_scrolls_to_its_last_heading(cx: &mut TestAppContext) {
         "the last heading is in view: {after:?}"
     );
 }
+
+/// Searches the folder for `words`; the hits as found.
+fn search(
+    side: &gpui::Entity<super::Side>,
+    words: &str,
+    cx: &mut gpui::VisualTestContext,
+) -> Vec<(Option<u64>, crate::folder::Hit)> {
+    side.update(cx, |side, cx| {
+        side.query.update(cx, |query, cx| query.set_text(words, cx));
+        side.wide = true;
+        side.search(cx);
+    });
+    cx.run_until_parked();
+    side.read_with(cx, |side, _| side.hits.clone())
+}
+
+#[gpui::test]
+fn a_hit_opens_its_file_with_the_caret_on_the_match(cx: &mut TestAppContext) {
+    let (data, files) = (
+        tempfile::tempdir().expect("data"),
+        tempfile::tempdir().expect("files"),
+    );
+    std::fs::write(files.path().join("a.md"), "# A\n\nNo match.\n").expect("a");
+    std::fs::write(files.path().join("b.md"), "# B\n\nThe Needle here.\n").expect("b");
+    let (desk, cx) = start(cx, data.path());
+    open(&desk, files.path(), cx);
+    let side = desk.read_with(cx, |desk, _| desk.side.clone());
+    let hits = search(&side, "needle", cx);
+    let found: Vec<_> = hits.iter().map(|(_, hit)| (hit.line, hit.column)).collect();
+    assert_eq!(found, [(3, 4)]);
+    let (tab, hit) = hits[0].clone();
+    assert_eq!(tab, None, "b.md is not open");
+    desk.update_in(cx, |desk, window, cx| {
+        desk.open_at(tab, hit.file, (hit.line - 1, hit.column), window, cx)
+    });
+    cx.run_until_parked();
+    let place = desk.read_with(cx, |desk, cx| {
+        desk.active_view().expect("b.md opened").read(cx).place(cx)
+    });
+    assert_eq!((place.line, place.column), (2, 4));
+}
+
+#[gpui::test]
+fn a_hit_in_an_open_file_moves_its_caret(cx: &mut TestAppContext) {
+    let (data, files) = (
+        tempfile::tempdir().expect("data"),
+        tempfile::tempdir().expect("files"),
+    );
+    let path = files.path().join("a.md");
+    std::fs::write(&path, "# A\n\nfirst\n\nsecond Word\n").expect("a");
+    let (desk, cx) = start(cx, data.path());
+    open(&desk, files.path(), cx);
+    open(&desk, &path, cx);
+    let side = desk.read_with(cx, |desk, _| desk.side.clone());
+    let hits = search(&side, "word", cx);
+    let (tab, hit) = hits[0].clone();
+    assert!(tab.is_some(), "the open tab searches");
+    desk.update_in(cx, |desk, window, cx| {
+        desk.open_at(tab, hit.file, (hit.line - 1, hit.column), window, cx)
+    });
+    cx.run_until_parked();
+    let place = desk.read_with(cx, |desk, cx| {
+        desk.active_view().expect("a").read(cx).place(cx)
+    });
+    assert_eq!((place.line, place.column), (4, 7));
+}
