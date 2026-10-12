@@ -6,6 +6,7 @@ use ely_gpui_component::{
     buttons::{Button, SegmentedControl},
     feedback::EmptyState,
     forms::{InputEvent, SearchInput, TextInput},
+    layout::ScrollArea,
     lists::{FileTree, ListItem, Outline, SelectableList},
     primitives::IconName,
     theme::ControlSize,
@@ -13,7 +14,8 @@ use ely_gpui_component::{
 use ely_office::prelude::*;
 use ely_ui::{commands, i18n::text};
 use gpui::{
-    AnyElement, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render,
+    AnyElement, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
+    ParentElement as _, Render,
     SharedString, Styled as _, WeakEntity, Window, div,
 };
 
@@ -248,15 +250,18 @@ impl Side {
                 outline.item(at.to_string(), heading.title.clone(), heading.level)
             },
         );
-        outline
-            .on_select(move |key, window, cx| {
+        let outline = outline.on_select(move |key, window, cx| {
                 let Some(heading) = key.parse::<usize>().ok().and_then(|at| headings.get(at)) else {
                     return log::error!("mark: the outline chose no heading");
                 };
                 // The heading in view, the caret on it.
                 let line = heading.line;
                 view.update(cx, |view, cx| view.reveal(line, window, cx));
-            })
+            });
+        ScrollArea::new("mark-outline-scroll")
+            .vertical()
+            .size_full()
+            .child(div().debug_selector(|| "mark-outline".into()).child(outline))
             .into_any_element()
     }
 
@@ -374,3 +379,6 @@ impl Render for Side {
             .into_any_element()
     }
 }
+
+#[cfg(test)]
+mod tests;

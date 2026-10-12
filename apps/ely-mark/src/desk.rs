@@ -40,7 +40,7 @@ pub struct Desk {
     pub going: Option<(PathBuf, usize)>,
     /// The path each tab last put in the recent list.
     pub remembered: HashMap<u64, PathBuf>,
-    side: Entity<crate::side::Side>,
+    pub(crate) side: Entity<crate::side::Side>,
     pub watcher: Option<notify::RecommendedWatcher>,
     /// The folders the watcher covers.
     pub watched: Vec<PathBuf>,
@@ -449,4 +449,4 @@ fn large_banner(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

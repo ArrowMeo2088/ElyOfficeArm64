@@ -7,7 +7,7 @@ use super::{Desk, open_in};
 use crate::view::Mode;
 
 /// ElyMark over a fresh data folder, as `main` opens it.
-fn start(cx: &mut TestAppContext, data: &Path) -> (Entity<Desk>, &'static mut VisualTestContext) {
+pub(crate) fn start(cx: &mut TestAppContext, data: &Path) -> (Entity<Desk>, &'static mut VisualTestContext) {
     // The file watcher runs on a real thread.
     cx.executor().allow_parking();
     cx.update(ely_gpui_component::init_for_tests);
@@ -33,7 +33,7 @@ fn start(cx: &mut TestAppContext, data: &Path) -> (Entity<Desk>, &'static mut Vi
     (desk, cx)
 }
 
-fn open(desk: &Entity<Desk>, path: &Path, cx: &mut VisualTestContext) {
+pub(crate) fn open(desk: &Entity<Desk>, path: &Path, cx: &mut VisualTestContext) {
     desk.update(cx, |desk, cx| desk.open_path(path.to_path_buf(), cx));
     cx.run_until_parked();
 }
