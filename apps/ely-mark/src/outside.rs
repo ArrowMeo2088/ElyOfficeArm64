@@ -53,7 +53,7 @@ pub struct Extra {
     pub pointing: bool,
     /// When a point last landed, and the failure last shown.
     pub pointed_at: Option<std::time::SystemTime>,
-    pub point_failed: Option<String>,
+    pub point_failed: Option<std::io::ErrorKind>,
     /// A kept tab's mode, place and text came back once.
     pub restored: bool,
     /// Disk reads started; only the newest lands.

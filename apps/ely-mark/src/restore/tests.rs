@@ -309,4 +309,136 @@ mod window {
             "once"
         );
     }
+
+    /// Types `typed` into the shown tab, then keeps.
+    fn type_and_keep(
+        desk: &Entity<Desk>,
+        view: &Entity<MarkView>,
+        typed: &str,
+        cx: &mut VisualTestContext,
+    ) {
+        view.update(cx, |view, cx| view.adopt(typed.into(), cx));
+        cx.executor()
+            .advance_clock(std::time::Duration::from_secs(1));
+        cx.run_until_parked();
+        desk.update(cx, |desk, cx| desk.keep(cx));
+        cx.run_until_parked();
+    }
+
+    #[gpui::test]
+    fn a_recovered_tab_names_its_point_when_the_next_fails(
+        first: &mut TestAppContext,
+        second: &mut TestAppContext,
+    ) {
+        let (data, files) = (
+            tempfile::tempdir().expect("data"),
+            tempfile::tempdir().expect("files"),
+        );
+        let a = files.path().join("a.md");
+        std::fs::write(
+            &a, "Text.
+",
+        )
+        .expect("a");
+        let (desk, cx) = start(first, data.path());
+        open(&desk, &a, cx);
+        let view = show(&desk, "a.md", cx);
+        type_and_keep(
+            &desk,
+            &view,
+            "Changed.
+",
+            cx,
+        );
+        std::fs::write(data.path().join("session.lock"), "open 4294967295").expect("a lock");
+        let (desk, cx) = start(second, data.path());
+        let copy = desk.read_with(cx, |desk, _| {
+            let tab = desk
+                .core
+                .tabs
+                .iter()
+                .find(|tab| tab.session.path().is_none());
+            tab.expect("an untitled copy").name.to_string()
+        });
+        let view = show(&desk, &copy, cx);
+        let recovery = data.path().join("recovery");
+        std::fs::remove_dir_all(&recovery).expect("removes");
+        std::fs::write(&recovery, "not a folder").expect("blocks");
+        type_and_keep(
+            &desk, &view, "Again.
+", cx,
+        );
+        assert_eq!(toasted(&desk, "was not kept for recovery", cx), 1);
+        assert_eq!(
+            toasted(&desk, "none yet", cx),
+            0,
+            "the recovered point's time shows"
+        );
+    }
+
+    /// Every folder under `dir` read-only, or writable again.
+    #[cfg(unix)]
+    fn lock_down(dir: &std::path::Path, locked: bool) {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = if locked { 0o500 } else { 0o700 };
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode)).expect("permissions");
+        for entry in std::fs::read_dir(dir).expect("lists") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                lock_down(&path, locked);
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[gpui::test]
+    fn denied_writes_show_once_each(cx: &mut TestAppContext) {
+        let (data, files) = (
+            tempfile::tempdir().expect("data"),
+            tempfile::tempdir().expect("files"),
+        );
+        let a = files.path().join("a.md");
+        std::fs::write(
+            &a, "Text.
+",
+        )
+        .expect("a");
+        let (desk, cx) = start(cx, data.path());
+        open(&desk, &a, cx);
+        let view = show(&desk, "a.md", cx);
+        type_and_keep(
+            &desk, &view, "One.
+", cx,
+        );
+        lock_down(&data.path().join("recovery"), true);
+        type_and_keep(
+            &desk, &view, "Two.
+", cx,
+        );
+        type_and_keep(
+            &desk, &view, "Three.
+", cx,
+        );
+        lock_down(&data.path().join("recovery"), false);
+        assert_eq!(
+            toasted(&desk, "was not kept for recovery", cx),
+            1,
+            "a point"
+        );
+        lock_down(data.path(), true);
+        for line in [1, 2] {
+            view.update(cx, |view, cx| {
+                view.document()
+                    .update(cx, |document, cx| document.set_caret(line, 0, cx))
+            });
+            desk.update(cx, |desk, cx| desk.keep(cx));
+            cx.run_until_parked();
+        }
+        lock_down(data.path(), false);
+        assert_eq!(
+            toasted(&desk, "were not saved for the next launch", cx),
+            1,
+            "the session"
+        );
+    }
 }

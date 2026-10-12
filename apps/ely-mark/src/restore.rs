@@ -46,8 +46,8 @@ pub struct Keeping {
     crash: Option<Crash>,
     waiting: Vec<Waiting>,
     written: Option<String>,
-    /// The session write failure last shown.
-    unwritten: Option<String>,
+    /// The kind of session write failure last shown.
+    unwritten: Option<io::ErrorKind>,
     /// A quit began: the kept list stays as then.
     pub leaving: bool,
     /// The list as kept when the quit began.
@@ -227,6 +227,8 @@ impl Desk {
         let tab = self.tab_mut(id).expect("open");
         // A recovered copy keeps writing to the same points.
         tab.extra.slot = kept.slot.clone();
+        // Its point stands until a newer lands.
+        tab.extra.pointed_at = back.as_ref().map(|(_, at)| *at);
         let view = tab.view.clone();
         if let Some((_, at)) = &back {
             let at = humantime(*at);
@@ -334,14 +336,15 @@ impl Desk {
                 tab.extra.point_failed = None;
                 return;
             }
-            Err(error) => error.to_string(),
+            Err(error) => error,
         };
         log::error!("mark: a recovery point for tab {id} failed: {error}");
-        // Each failure shows once; the next tick retries.
-        if tab.extra.point_failed.as_ref() == Some(&error) {
+        // Each kind of failure shows once; the next tick retries.
+        if tab.extra.point_failed == Some(error.kind()) {
             return;
         }
-        tab.extra.point_failed = Some(error.clone());
+        tab.extra.point_failed = Some(error.kind());
+        let error = error.to_string();
         let at = match tab.extra.pointed_at {
             Some(at) => humantime(at),
             None => text(cx, "office.stopped.never", &[]).to_string(),
@@ -363,13 +366,13 @@ impl Desk {
                 self.keeping.unwritten = None;
                 return;
             }
-            Err(error) => error.to_string(),
+            Err(error) => error,
         };
         log::error!("mark: the session did not save: {error}");
-        // Each failure shows once; the next tick retries.
-        if self.keeping.unwritten.as_ref() != Some(&error) {
-            self.keeping.unwritten = Some(error.clone());
-            let said = text(cx, "mark.session.failed", &[("error", &error)]);
+        // Each kind of failure shows once; the next tick retries.
+        if self.keeping.unwritten != Some(error.kind()) {
+            self.keeping.unwritten = Some(error.kind());
+            let said = text(cx, "mark.session.failed", &[("error", &error.to_string())]);
             self.toast(said, ely_gpui_component::primitives::Severity::Danger, cx);
         }
     }
