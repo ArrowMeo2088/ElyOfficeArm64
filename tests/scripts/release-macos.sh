@@ -72,7 +72,7 @@ while IFS=$'\t' read -r slug name; do
     ely-doc | ely-table | ely-show) engines=(LibreOffice) ;;
     ely-pdf) engines=(MuPDF MuPDF/fonts/urw MuPDF/fonts/sil MuPDF/fonts/noto MuPDF/fonts/droid MuPDF/fonts/han OpenSSL tessdata GreatVibes) ;;
     ely-tree) engines=(Git git-lfs) ;;
-    ely-mark) engines=(KaTeX) ;;
+    ely-mark) engines=(KaTeX MuPDF MuPDF/fonts/noto OpenSSL GreatVibes) ;;
   esac
   for part in LICENSE rust-crates.txt "${engines[@]}"; do
     [ -n "$(find "$licenses/$part" -type f -size +0 2>/dev/null)" ] || fail "$name lacks the licences of $part"

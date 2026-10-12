@@ -40,8 +40,10 @@ pub fn menus(look: &crate::look::Look, cx: &App) -> Vec<Menu> {
         ColumnLeft, ColumnRight, DeleteColumn, DeleteRow, InsertTable, RowAbove, RowBelow,
     };
     vec![
-        Menu::new(text(cx, "menu.edit", &[]))
-            .items([item("office.find.open", Box::new(ely_office::FindReplace))]),
+        Menu::new(text(cx, "menu.edit", &[])).items([
+            item("office.find.open", Box::new(ely_office::FindReplace)),
+            item("mark.copy.rich", Box::new(crate::export::CopyRich)),
+        ]),
         Menu::new(text(cx, "mark.menu.table", &[])).items([
             item("mark.table.insert", Box::new(InsertTable)),
             MenuItem::separator(),

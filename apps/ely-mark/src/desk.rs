@@ -30,6 +30,8 @@ pub struct Desk {
     pub core: Core<Desk>,
     /// The tab being renamed and its name field.
     pub naming: Option<(u64, Entity<TextInput>)>,
+    /// The export dialog's tab and format.
+    pub exporting: Option<(u64, crate::output::Format)>,
     pub folder: Option<crate::folder::Folder>,
     /// Folder listings so far; searches redo on a new one.
     pub listings: u64,
@@ -186,6 +188,7 @@ pub(crate) fn open_in(
         Desk {
             core: Core::new(Arc::new(Mutex::new(())), work, cx),
             naming: None,
+            exporting: None,
             folder: None,
             listings: 0,
             recent,
@@ -440,8 +443,9 @@ impl Render for Desk {
                 .children(self.core_dialog(cx))
                 .children(self.naming_element(cx))
                 .children(self.compare_dialog(cx))
-                .children(self.find_box(cx));
-        Self::table_actions(Self::look_actions(root, cx), cx)
+                .children(self.find_box(cx))
+                .children(self.export_dialog(cx));
+        Self::output_actions(Self::table_actions(Self::look_actions(root, cx), cx), cx)
     }
 }
 

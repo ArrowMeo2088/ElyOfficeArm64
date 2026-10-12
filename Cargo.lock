@@ -1922,7 +1922,7 @@ dependencies = [
 [[package]]
 name = "ely-gpui-component"
 version = "0.1.1"
-source = "git+https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=7ed4ea832334905a85f8fb6ad4d10df4f04c17c7#7ed4ea832334905a85f8fb6ad4d10df4f04c17c7"
+source = "git+https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=c7a86079fc39c3bfd234ce5b7eca77204f10b7fc#c7a86079fc39c3bfd234ce5b7eca77204f10b7fc"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -2006,9 +2006,11 @@ name = "ely-mark"
 version = "0.1.3"
 dependencies = [
  "anyhow",
+ "base64 0.23.1",
  "ely-files",
  "ely-gpui-component",
  "ely-office",
+ "ely-pdf-engine",
  "ely-platform",
  "ely-ui",
  "embed-resource",

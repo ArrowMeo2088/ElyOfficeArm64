@@ -69,13 +69,16 @@ if uses ely-lok; then
   done < <(find "$app/Contents/Frameworks" -type f)
 fi
 if uses ely-pdf-engine; then
-  tessdata=${ELY_TESSDATA:-$root/engines/tessdata}
-  need "$tessdata/eng.traineddata" scripts/fetch-tessdata.sh
   build -p ely-pdf-engine --bin ely-pdf-worker
   cp "$root/target/$profile/ely-pdf-worker" "$app/Contents/MacOS/"
+  inner+=("$app/Contents/MacOS/ely-pdf-worker")
+fi
+# OCR's languages: ElyPDF alone reads text from pictures.
+if [ "$slug" = ely-pdf ]; then
+  tessdata=${ELY_TESSDATA:-$root/engines/tessdata}
+  need "$tessdata/eng.traineddata" scripts/fetch-tessdata.sh
   mkdir "$app/Contents/Resources/tessdata"
   cp "$tessdata"/{eng,chi_sim,chi_tra}.traineddata "$app/Contents/Resources/tessdata/"
-  inner+=("$app/Contents/MacOS/ely-pdf-worker")
 fi
 if [ "$slug" = ely-tree ]; then
   need "$root/engines/git/bin/git" "scripts/build-git.sh and scripts/fetch-git-lfs.sh"

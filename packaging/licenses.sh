@@ -20,7 +20,7 @@ put() { # into, files...
 put . "$root/LICENSE"
 case $slug in
   ely-doc | ely-table | ely-show) crates=(ely-lok) ;;
-  ely-pdf) crates=(ely-pdf-engine) ;;
+  ely-pdf | ely-mark) crates=(ely-pdf-engine) ;;
   *) crates=() ;;
 esac
 python3 "$root/packaging/crates.py" "$slug" ${crates[@]+"${crates[@]}"} >"$out/rust-crates.txt"
@@ -35,7 +35,7 @@ case $slug in
   ely-doc | ely-table | ely-show)
     put LibreOffice "$lo_licence" "$lo/LICENSE.html" "$lo/NOTICE" "$lo/CREDITS.fodt"
     ;;
-  ely-pdf)
+  ely-pdf | ely-mark)
     put MuPDF "$root/engines/mupdf-src/COPYING"
     # Every third party the MuPDF build compiled in.
     case $(uname) in
@@ -76,9 +76,11 @@ case $slug in
       Darwin) put OpenSSL "$(pkg-config --variable=prefix libcrypto)/LICENSE.txt" ;;
       *) put OpenSSL /usr/share/doc/libssl-dev/copyright /usr/share/common-licenses/Apache-2.0 ;;
     esac
-    put tessdata "${ELY_TESSDATA:-$root/engines/tessdata}/LICENSE"
     put GreatVibes "$root/crates/ely-pdf-engine/fonts/OFL.txt"
     ;;
+esac
+case $slug in
+  ely-pdf) put tessdata "${ELY_TESSDATA:-$root/engines/tessdata}/LICENSE" ;;
   ely-mark)
     # RaTeX embeds KaTeX's fonts.
     katex=$(cargo metadata --format-version 1 --locked --manifest-path "$root/Cargo.toml" |

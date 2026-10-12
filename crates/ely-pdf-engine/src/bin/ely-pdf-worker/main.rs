@@ -331,7 +331,7 @@ impl Worker {
         // A document request names the state it was made for.
         let stamped;
         let payload = match kind {
-            tag::OPEN | tag::HELLO => payload,
+            tag::OPEN | tag::HELLO | tag::HTML_PDF => payload,
             _ => {
                 stamped = self.current(payload)?;
                 &stamped
@@ -415,6 +415,10 @@ impl Worker {
             }
             tag::OUTLINE => self.mupdf.outline(self.doc(ask.u64()?)?),
             tag::HELLO => Ok(Pack::new().str(ely_pdf_engine::proto::BUILD).bytes()),
+            tag::HTML_PDF => {
+                let (dir, page, out) = (ask.str()?, ask.str()?, ask.str()?);
+                self.mupdf.html_pdf(&dir, &page, &out).map(|()| Vec::new())
+            }
             tag::CLOSE => {
                 self.forget(ask.u64()?)?;
                 Ok(Vec::new())

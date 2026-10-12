@@ -34,6 +34,7 @@ unsafe extern "C" {
     fn ely_watch_end(ctx: *mut Context) -> c_int;
     fn ely_check_pictures(ctx: *mut Context, doc: *mut Document) -> c_int;
     fn ely_print_copy(ctx: *mut Context, doc: *mut Document, raw: *const c_char, out: *const c_char, password: *const c_char) -> c_int;
+    fn ely_html_pdf(ctx: *mut Context, dir: *const c_char, page: *const c_char, out: *const c_char) -> c_int;
 }
 
 /// What MuPDF warned while opening the last file.
@@ -54,6 +55,16 @@ impl Mupdf {
             clean(out);
         }
         done.map(|_| ())
+    }
+
+    /// `page` in `dir` set as a PDF at `out`.
+    pub fn html_pdf(&self, dir: &str, page: &str, out: &str) -> io::Result<()> {
+        let (dir_c, page_c, out_c) = (text(dir)?, text(page)?, text(out)?);
+        let done = checked(unsafe { ely_html_pdf(self.ctx, dir_c.as_ptr(), page_c.as_ptr(), out_c.as_ptr()) });
+        if done.is_err() {
+            clean(out.as_ref());
+        }
+        done.map(|_| log::info!("pdf-worker: set an HTML page as a PDF"))
     }
 
     pub fn repaired(&self, doc: &Open) -> io::Result<bool> {

@@ -26,6 +26,7 @@ fn main() {
         "shim/ely_secure.c",
         "shim/ely_sign.c",
         "shim/ely_output.c",
+        "shim/ely_story.c",
         "shim/ely_shim.h",
         "src/proto.rs",
         "src/bin/ely-pdf-worker/main.rs",
@@ -86,6 +87,7 @@ fn main() {
         .file("shim/ely_secure.c")
         .file("shim/ely_sign.c")
         .file("shim/ely_output.c")
+        .file("shim/ely_story.c")
         .include(root.join("reference/mupdf/include"))
         .include(openssl(&root, "includedir"))
         .warnings(true)
