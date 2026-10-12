@@ -258,7 +258,7 @@ fn bare(svg: &str) -> &str {
     svg.find("<svg").map_or(svg, |at| &svg[at..])
 }
 
-/// A plain, web or mail address, as a browser reads it.
+/// A plain, web or mail address, read as browsers do.
 fn safe(url: &str) -> bool {
     // Browsers trim spaces and controls, then drop tabs and newlines.
     let read: String = url

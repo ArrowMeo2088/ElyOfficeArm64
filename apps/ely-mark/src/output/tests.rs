@@ -416,7 +416,7 @@ fn a_disguised_script_link_does_not_follow() {
 fn a_failed_linked_page_takes_the_folder_it_made() {
     let dir = tempfile::tempdir().expect("a dir");
     std::fs::write(dir.path().join("dot.png"), b"png").expect("writes");
-    // A folder where the page goes: the page cannot be written.
+    // A folder in the way: no page.
     let out = dir.path().join("out.html");
     std::fs::create_dir(&out).expect("makes");
     let target = super::Target {
