@@ -145,8 +145,19 @@ impl Host for Desk {
 
 /// The window root; files given at launch open.
 pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
+    let data = ely_platform::data_dir(app)
+        .unwrap_or_else(|error| startup::fail(app, &format!("{error:#}")));
+    open_in(app, data, window, cx).0
+}
+
+/// The window root and its desk, kept in `data`.
+pub(crate) fn open_in(
+    app: AppId,
+    data: PathBuf,
+    window: &mut Window,
+    cx: &mut App,
+) -> (Entity<Root>, Entity<Desk>) {
     let fail = |error: String| -> ! { startup::fail(app, &error) };
-    let data = ely_platform::data_dir(app).unwrap_or_else(|error| fail(format!("{error:#}")));
     let work = ely_office::fresh_work(&data).unwrap_or_else(|error| fail(format!("{error}")));
     crate::keys::bind(cx);
     let recent_file = data.join("recent.json");
@@ -274,7 +285,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
             desk.should_close(window, cx)
         })
     });
-    root
+    (root, desk)
 }
 
 impl Desk {
@@ -391,30 +402,31 @@ impl Render for Desk {
                 .status(self.status(cx)),
         }
         .child(body);
-        let root = div()
-            .size_full()
-            .key_context(commands::CONTEXT)
-            .track_focus(&self.core.focus)
-            .on_action(cx.listener(Self::open_picked))
-            .on_action(cx.listener(Self::on_new))
-            .on_action(cx.listener(Self::on_save))
-            .on_action(cx.listener(Self::on_save_as))
-            .on_action(cx.listener(Self::on_rename))
-            .on_action(cx.listener(Self::on_close_tab))
-            .on_action(cx.listener(|desk, _: &CheckDisk, _, cx| desk.look_all(cx)))
-            .on_action(cx.listener(|desk, _: &VisualMode, window, cx| {
-                desk.switch(Mode::Visual, window, cx)
-            }))
-            .on_action(cx.listener(|desk, _: &SourceMode, window, cx| {
-                desk.switch(Mode::Source, window, cx)
-            }))
-            .on_action(cx.listener(|desk, _: &PreviewMode, window, cx| {
-                desk.switch(Mode::Preview, window, cx)
-            }))
-            .child(shell)
-            .children(self.core_dialog(cx))
-            .children(self.naming_element(cx))
-            .children(self.compare_dialog(cx));
+        let root =
+            div()
+                .size_full()
+                .key_context(commands::CONTEXT)
+                .track_focus(&self.core.focus)
+                .on_action(cx.listener(Self::open_picked))
+                .on_action(cx.listener(Self::on_new))
+                .on_action(cx.listener(Self::on_save))
+                .on_action(cx.listener(Self::on_save_as))
+                .on_action(cx.listener(Self::on_rename))
+                .on_action(cx.listener(Self::on_close_tab))
+                .on_action(cx.listener(|desk, _: &CheckDisk, _, cx| desk.look_all(cx)))
+                .on_action(cx.listener(|desk, _: &VisualMode, window, cx| {
+                    desk.switch(Mode::Visual, window, cx)
+                }))
+                .on_action(cx.listener(|desk, _: &SourceMode, window, cx| {
+                    desk.switch(Mode::Source, window, cx)
+                }))
+                .on_action(cx.listener(|desk, _: &PreviewMode, window, cx| {
+                    desk.switch(Mode::Preview, window, cx)
+                }))
+                .child(shell)
+                .children(self.core_dialog(cx))
+                .children(self.naming_element(cx))
+                .children(self.compare_dialog(cx));
         Self::look_actions(root, cx)
     }
 }
@@ -435,3 +447,6 @@ fn large_banner(
         said,
     ))
 }
+
+#[cfg(test)]
+mod tests;

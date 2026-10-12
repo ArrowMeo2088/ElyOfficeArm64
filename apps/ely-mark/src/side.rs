@@ -253,7 +253,7 @@ impl Side {
                 let Some(heading) = key.parse::<usize>().ok().and_then(|at| headings.get(at)) else {
                     return log::error!("mark: the outline chose no heading");
                 };
-                // Keys go to the document, at the heading.
+                // The heading in view, the caret on it.
                 let line = heading.line;
                 view.update(cx, |view, cx| view.reveal(line, window, cx));
             })

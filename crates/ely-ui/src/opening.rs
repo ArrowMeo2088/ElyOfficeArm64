@@ -39,6 +39,12 @@ pub(crate) fn keep(asked: mpsc::UnboundedReceiver<PathBuf>, cx: &mut App) {
     cx.set_global(Asked(Some(asked)));
 }
 
+/// No files asked at launch, for tests.
+#[cfg(any(test, feature = "test-support"))]
+pub fn install_no_launch_files(cx: &mut App) {
+    keep(mpsc::unbounded().1, cx);
+}
+
 /// Files asked before the app started: arguments and Finder's.
 pub fn launch_files(cx: &mut App) -> Vec<PathBuf> {
     let asked = cx.global_mut::<Asked>().0.as_mut();

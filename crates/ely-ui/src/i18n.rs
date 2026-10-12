@@ -19,7 +19,6 @@ mod tools;
 mod tree;
 mod tree_ops;
 mod tree_places;
-mod web;
 use gpui::{App, SharedString};
 
 const EN: &[(&str, &str)] = &[
@@ -179,7 +178,6 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(tree::EN)
         .chain(tree_ops::EN)
         .chain(tree_places::EN)
-        .chain(web::EN)
         .chain(mark::EN)
         .chain(settings::EN)
         .copied()
@@ -203,7 +201,6 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(tree::ZH_CN)
         .chain(tree_ops::ZH_CN)
         .chain(tree_places::ZH_CN)
-        .chain(web::ZH_CN)
         .chain(mark::ZH_CN)
         .chain(settings::ZH_CN)
         .copied()
