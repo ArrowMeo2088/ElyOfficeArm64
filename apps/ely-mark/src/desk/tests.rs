@@ -75,10 +75,11 @@ fn a_file_opens_with_its_outline_and_joins_the_recent_list(cx: &mut TestAppConte
         4,
         "the jump lands"
     );
-    let real = std::fs::canonicalize(&path).expect("real");
+    let real = dunce::canonicalize(&path).expect("real");
     assert!(desk.read_with(cx, |desk, _| desk.recent.contains(&real)));
     let kept = std::fs::read_to_string(data.path().join("recent.json")).expect("the list");
     assert!(kept.contains("a.md"), "{kept}");
+    assert!(!kept.contains(r"\\\\?\\"), "plain paths only: {kept}");
 }
 
 #[gpui::test]

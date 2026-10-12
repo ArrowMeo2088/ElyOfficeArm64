@@ -91,7 +91,7 @@ impl Keeping {
                 Marker::Clean | Marker::Discarded => None,
             };
             if let Some(path) = &kept.path {
-                match std::fs::canonicalize(path) {
+                match dunce::canonicalize(path) {
                     // The file reopens as it is on disk.
                     Ok(real) => waiting.push(Waiting {
                         kept: Kept {
@@ -215,7 +215,7 @@ impl Desk {
         let real = tab
             .session
             .path()
-            .and_then(|path| std::fs::canonicalize(path).ok());
+            .and_then(|path| dunce::canonicalize(path).ok());
         let Some(Waiting {
             kept, text: back, ..
         }) = self.keeping.take(real.as_ref(), id)

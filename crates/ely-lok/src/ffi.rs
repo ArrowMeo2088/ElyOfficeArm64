@@ -74,7 +74,7 @@ impl Lok {
 
     /// dlopens the LOK library and hooks with the profile URL.
     pub fn hook(install: &Path, profile_url: &str) -> io::Result<Self> {
-        let install = std::fs::canonicalize(install)?;
+        let install = dunce::canonicalize(install)?;
         let install = install.as_path();
         let install_str = install.to_string_lossy().into_owned();
         let install_c = cstring(&install_str)?;

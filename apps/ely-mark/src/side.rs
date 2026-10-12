@@ -111,7 +111,7 @@ impl Side {
         // Open files by real path, as the folder lists them.
         let reals: Vec<(u64, PathBuf)> = open
             .iter()
-            .filter_map(|(id, path, _)| Some((*id, std::fs::canonicalize(path).ok()?)))
+            .filter_map(|(id, path, _)| Some((*id, dunce::canonicalize(path).ok()?)))
             .collect();
         let sources: Vec<(Option<u64>, PathBuf)> = match (self.wide, &desk.folder) {
             (true, Some(folder)) => folder

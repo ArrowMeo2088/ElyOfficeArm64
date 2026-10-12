@@ -221,3 +221,10 @@
 - [x] L1.6 本机出六个应用的四种包；Omarchy 上装 Arch 包与 AppImage 出窗口；deb、rpm 在各自发行版的容器里装上并冒烟；`linux-installed.sh`、`linux-distros.sh`、`linux-mark-idle.sh` — R1 deb/rpm 未运行、外部改动未核对显示；R2 内核未出图也过、OCR 大小写、清理竞态；R3 公式栏冒充网格、OCR 与 pgrep 错误被吞；R4 取色、存活、截图错误被吞；R5 hyprctl 查询失败被当作未出窗口（第五轮后修正并以注入失败核对）
 - [x] L1.7 v0.1.3：删去旧 AppImage，上传新包；`ci.sh` 的 Linux 产出四种包；agents.md 与官网随之（官网只链到发布页，无需改）；`package.sh` 拒绝指向包外的 RUNPATH；Linux CI 进容器；`packaging/source.sh` 随发布上传本提交的源码 — R1 前缀检查可越出、读错被吞、CI 未进容器、无对应源码；R2 空项、拆分错误、未跟踪文件；R3 换行、git 配置；R4 `]` 加换行；R5 末尾换行（第五轮后修正并以编译的 ELF 核对）
 - [x] L1.8 macOS 发布：CI 从零编 LibreOffice 超过 act_runner 的 3 小时被杀（v0.1.3 无 dmg）；Mac 任务以 `ELY_SHARE` 借用 Mac mini 开发克隆 `ElyOfficeSuite` 的引擎，CI 克隆里自建的残留引擎即报错而非混用；`tests/scripts/ci-share.sh` — R1 链接目标末尾换行；R2 测试只看文字；R3 目标仍截换行、reference 未测；R4 未按 macOS 跑；R5 PASS
+
+## R3 0.1.4（用户 2026-10-12 报：Windows 与 Linux 上的路径、缩放、表格指针；修完提交、推送，版本 0.1.4，不发布）
+
+- [ ] R3.1 路径不带 `\?\`：凡取真实路径一律 `dunce::canonicalize`（Windows 上能写成普通路径即普通路径，他处同 `std::fs::canonicalize`）；最近列表读入时去掉旧的 `\?\` 并去重；ElyMark 最近列表、ElyTree 等界面不再显示 `\?\`
+- [ ] R3.2 缩放：Doc、Table、Show、PDF、Mark 以 Ctrl 加滚轮（macOS 为 Cmd）缩放，原认 Windows 键与 Super（Hyprland 占用，Linux 上无效）；滚轮一格为一档（原 Windows 一格三行，一下放大 1.8 倍），触控板的像素滚动照旧连续（LOK）或累积成档（PDF、Mark）；PDF 与 Mark 原无滚轮缩放
+- [ ] R3.3 LOK 视图的指针随内核：`LOK_CALLBACK_MOUSE_POINTER`（单元格上为箭头，编辑单元格或文字时为文字指针，边线为拖动指针，链接为手），原一律为文字指针
+- [ ] R3.4 版本 0.1.4：`Cargo.toml` 与随版本的文档，提交并推送 main（不打标签、不发布）

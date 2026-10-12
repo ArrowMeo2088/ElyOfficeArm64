@@ -14,14 +14,14 @@ use crate::{After, Closing, Dialog, Engine, Host, Opening, Tab, Tabs, in_window,
 
 /// The file a path names, links resolved.
 fn identity(path: &Path) -> io::Result<PathBuf> {
-    match std::fs::canonicalize(path) {
+    match dunce::canonicalize(path) {
         Ok(real) => Ok(real),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             let parent = path.parent().unwrap_or(Path::new("."));
             let name = path
                 .file_name()
                 .ok_or_else(|| io::Error::other("no file name"))?;
-            Ok(std::fs::canonicalize(parent)?.join(name))
+            Ok(dunce::canonicalize(parent)?.join(name))
         }
         Err(error) => Err(error),
     }

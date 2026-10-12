@@ -137,7 +137,7 @@ impl Host for Desk {
                 view.update(cx, |view, cx| view.moved(folder.to_path_buf(), cx));
             }
             self.track_recent(id, &path, cx);
-            let real = std::fs::canonicalize(&path).ok();
+            let real = dunce::canonicalize(&path).ok();
             if self
                 .going
                 .as_ref()

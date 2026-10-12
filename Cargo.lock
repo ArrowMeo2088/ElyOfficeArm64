@@ -1909,6 +1909,7 @@ name = "ely-files"
 version = "0.1.3"
 dependencies = [
  "aes-gcm",
+ "dunce",
  "ely-platform",
  "getrandom 0.4.3",
  "keyring",
@@ -1977,6 +1978,7 @@ name = "ely-lok"
 version = "0.1.3"
 dependencies = [
  "base64 0.23.1",
+ "dunce",
  "ely-gpui-component",
  "ely-ipc",
  "ely-platform",
@@ -2007,6 +2009,7 @@ version = "0.1.3"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
+ "dunce",
  "ely-files",
  "ely-gpui-component",
  "ely-office",
@@ -2031,6 +2034,7 @@ version = "0.1.3"
 dependencies = [
  "anyhow",
  "directories",
+ "dunce",
  "ely-files",
  "ely-gpui-component",
  "ely-lok",
@@ -2049,6 +2053,7 @@ dependencies = [
 name = "ely-pdf"
 version = "0.1.3"
 dependencies = [
+ "dunce",
  "ely-files",
  "ely-gpui-component",
  "ely-office",

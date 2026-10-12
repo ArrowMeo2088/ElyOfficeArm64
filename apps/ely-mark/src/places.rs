@@ -28,7 +28,7 @@ impl Desk {
             let files = cx
                 .background_executor()
                 .spawn(async move {
-                    let real = std::fs::canonicalize(&listed)?;
+                    let real = dunce::canonicalize(&listed)?;
                     Ok::<_, std::io::Error>((markdown_under(&real)?, real))
                 })
                 .await;
@@ -65,7 +65,7 @@ impl Desk {
     /// Puts `path` first in the recent list.
     pub fn remember(&mut self, path: &std::path::Path, cx: &mut Context<Self>) {
         // One spelling per file: its real path.
-        let remembered = std::fs::canonicalize(path)
+        let remembered = dunce::canonicalize(path)
             .and_then(|path| ely_files::recent::remember(&self.recent_file, &path));
         match remembered {
             Ok(list) => self.recent = list,
@@ -82,7 +82,7 @@ impl Desk {
 
     /// Tab `id` shows `path`; the recent list follows.
     pub fn track_recent(&mut self, id: u64, path: &std::path::Path, cx: &mut Context<Self>) {
-        let Ok(real) = std::fs::canonicalize(path) else {
+        let Ok(real) = dunce::canonicalize(path) else {
             return log::warn!("mark: {} is gone; the recent list keeps it", path.display());
         };
         if self.remembered.get(&id) == Some(&real) {
@@ -129,7 +129,7 @@ impl Desk {
             return cx.notify();
         }
         // A file gone is reported by the open itself.
-        if let Ok(real) = std::fs::canonicalize(&file) {
+        if let Ok(real) = dunce::canonicalize(&file) {
             self.going = Some((real, at));
         }
         self.open_file(file, cx);
@@ -137,11 +137,11 @@ impl Desk {
 
     /// The tab showing `path`, by real path.
     pub fn tab_of(&self, path: &std::path::Path) -> Option<u64> {
-        let real = std::fs::canonicalize(path).ok()?;
+        let real = dunce::canonicalize(path).ok()?;
         let held = |tab: &&ely_office::Tab<crate::outside::Extra, crate::engine::Mark>| {
             tab.session
                 .path()
-                .and_then(|open| std::fs::canonicalize(open).ok())
+                .and_then(|open| dunce::canonicalize(open).ok())
                 == Some(real.clone())
         };
         self.core.tabs.iter().find(held).map(|tab| tab.id)
