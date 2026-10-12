@@ -55,7 +55,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 | Table | `tables::{PivotTable, FilterBuilder, SortBuilder}` `misc::{CsvImporter, ExportDialog}` `editor::{CompletionMenu, SignatureHelp, FindWidget}` `forms::{CheckboxGroup, ColorPalette}` |
 | Mail | `mail::{MailboxList, MailList, MailThreadView, MailReader, MailComposer, SignatureEditor, ScheduleSend}` |
 | Tree | `git::{ChangesList, CommitInput, CommitList, lanes, DiffViewer, ConflictResolver, BlameView, BranchList, TagList, StashList, FileHistory}` |
-| Mark | `editor::{CodeEditor, FindWidget}` `documents::{MarkdownRenderer, ZenMode}` |
+| Mark | `documents::{MarkdownDocument, MarkdownRenderer, ZenMode}` `editor::{CodeEditor, FindWidget}` |
 | Agent | `agent::{ToolCallCard, PermissionPrompt, ToolApprovalDialog, AgentStepList, FileChangeCard, MultiFileDiffReview, ArtifactPanel, CostBreakdown}` `chat::{MessageList, PromptInput, StreamingMarkdown, ConversationList}` |
 | 动效 | `motion::{duration, Flip, Reorder, Transition, Stagger, ProgressBar, Spinner, Skeleton}` |
 | 主题 | `theme::{Theme, Mode}`；Omarchy 色板由 `ely-ui` 映射成组件库的调色板 |
