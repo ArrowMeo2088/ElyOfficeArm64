@@ -507,3 +507,6 @@ fn overwrite_resolves_a_conflict_with_the_local_version() {
     assert_eq!(read(&own), "local");
     assert_eq!(session.state(), SaveState::Saved);
 }
+
+#[cfg(windows)]
+mod long;

@@ -183,7 +183,7 @@ pub fn export(
 
 /// The canonical form of a possibly missing path.
 fn resolved(path: &Path) -> io::Result<PathBuf> {
-    match dunce::canonicalize(path) {
+    match std::fs::canonicalize(path) {
         Ok(real) => Ok(real),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             let name = path.file_name().ok_or_else(|| {
@@ -192,7 +192,7 @@ fn resolved(path: &Path) -> io::Result<PathBuf> {
                     format!("{} has no file name", path.display()),
                 )
             })?;
-            Ok(dunce::canonicalize(parent_dir(path))?.join(name))
+            Ok(std::fs::canonicalize(parent_dir(path))?.join(name))
         }
         Err(error) => Err(error),
     }
