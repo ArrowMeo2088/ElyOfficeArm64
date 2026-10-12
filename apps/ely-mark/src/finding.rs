@@ -140,17 +140,28 @@ impl Desk {
         if edits.is_empty() {
             return;
         }
+        // The next match starts past the replaced text.
+        let after = edits[0].0.start + edits[0].1.len();
         let document = view.read(cx).document().clone();
-        document.update(cx, |document, cx| document.replace(edits, cx));
-        self.count(cx);
-        // The next match takes the replaced one's place.
-        let next = self
-            .finding
-            .as_ref()
-            .and_then(|find| find.current.and_then(|at| find.hits.get(at)).cloned());
-        if let Some(range) = next.filter(|_| !every) {
-            document.update(cx, |document, cx| document.show_match(range, window, cx));
+        if !document.update(cx, |document, cx| document.replace(edits, cx)) {
+            let said = text(cx, "mark.preview.read_only", &[]);
+            return self.toast(said, Severity::Info, cx);
         }
+        self.count(cx);
+        if every {
+            return;
+        }
+        let Some(find) = self.finding.as_mut() else {
+            return;
+        };
+        let next = find.hits.iter().position(|hit| hit.start >= after);
+        find.current = next.or((!find.hits.is_empty()).then_some(0));
+        let Some(range) = find.current.map(|at| find.hits[at].clone()) else {
+            return;
+        };
+        let hits = find.hits.clone();
+        mark(&document, &hits, find.current, cx);
+        document.update(cx, |document, cx| document.show_match(range, window, cx));
     }
 
     fn close_find(&mut self, window: &mut Window, cx: &mut Context<Self>) {

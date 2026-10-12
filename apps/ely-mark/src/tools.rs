@@ -1,6 +1,9 @@
 //! The table menu's work on the shown file (MARK-06).
 
-use ely_gpui_component::{documents::TableEdit, primitives::Severity};
+use ely_gpui_component::{
+    documents::{TableEdit, TableRefusal},
+    primitives::Severity,
+};
 use ely_office::prelude::*;
 use ely_ui::i18n::text;
 use gpui::{Context, InteractiveElement as _, actions};
@@ -29,15 +32,20 @@ impl Desk {
         let document = view.read(cx).document().clone();
         let done = document.update(cx, |document, cx| match edit {
             Some(edit) => document.edit_table(edit, cx),
-            None => {
-                document.insert_table(cx);
-                true
-            }
+            None => document.insert_table(cx),
         });
-        if !done {
-            let said = text(cx, "mark.table.none", &[]);
-            self.toast(said, Severity::Info, cx);
-        }
+        let Err(refusal) = done else {
+            return;
+        };
+        let key = match refusal {
+            TableRefusal::Outside => "mark.table.none",
+            TableRefusal::Kept => "mark.table.kept",
+            TableRefusal::Beyond => "mark.table.beyond",
+            TableRefusal::Mixed => "mark.table.mixed",
+            TableRefusal::Preview => "mark.preview.read_only",
+        };
+        let said = text(cx, key, &[]);
+        self.toast(said, Severity::Info, cx);
     }
 
     pub fn table_actions(element: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {

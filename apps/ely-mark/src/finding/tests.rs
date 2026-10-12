@@ -118,3 +118,60 @@ fn the_table_menu_inserts_and_edits_a_table(cx: &mut TestAppContext) {
         current_text(&desk, cx)
     );
 }
+
+fn replace_one(desk: &Entity<Desk>, with: &str, cx: &mut VisualTestContext) {
+    desk.update_in(cx, |desk, window, cx| {
+        let field = cx.new(|cx| TextInput::new(window, cx));
+        field.update(cx, |field, cx| field.set_text(with, cx));
+        desk.finding.as_mut().expect("open").replace = Some(field);
+        desk.replace(false, window, cx);
+    });
+    cx.run_until_parked();
+}
+
+fn current_hit(desk: &Entity<Desk>, cx: &mut VisualTestContext) -> Option<std::ops::Range<usize>> {
+    desk.read_with(cx, |desk, _| {
+        let find = desk.finding.as_ref()?;
+        find.current.map(|at| find.hits[at].clone())
+    })
+}
+
+#[gpui::test]
+fn a_replacement_that_still_matches_moves_on(cx: &mut TestAppContext) {
+    let (desk, cx, _files) = opened("a a\n", cx);
+    query(&desk, "a", cx);
+    desk.update_in(cx, |desk, window, cx| desk.step(true, window, cx));
+    replace_one(&desk, "aa", cx);
+    assert_eq!(current_text(&desk, cx), "aa a\n");
+    assert_eq!(
+        current_hit(&desk, cx),
+        Some(3..4),
+        "the next original match"
+    );
+}
+
+#[gpui::test]
+fn replacing_the_last_match_wraps_to_the_first(cx: &mut TestAppContext) {
+    let (desk, cx, _files) = opened("a b a\n", cx);
+    query(&desk, "a", cx);
+    desk.update_in(cx, |desk, window, cx| desk.step(false, window, cx));
+    replace_one(&desk, "x", cx);
+    assert_eq!(current_text(&desk, cx), "a b x\n");
+    assert_eq!(current_hit(&desk, cx), Some(0..1));
+}
+
+#[gpui::test]
+fn preview_keeps_its_text_from_tables_and_replacement(cx: &mut TestAppContext) {
+    let (desk, cx, _files) = opened("a\n", cx);
+    let view = desk.read_with(cx, |desk, _| desk.active_view().expect("a tab"));
+    view.update_in(cx, |view, window, cx| {
+        view.switch(crate::view::Mode::Preview, window, cx)
+    });
+    let focus = desk.read_with(cx, |desk, _| desk.core.focus.clone());
+    cx.update(|window, cx| window.focus(&focus, cx));
+    cx.dispatch_action(crate::tools::InsertTable);
+    query(&desk, "a", cx);
+    desk.update_in(cx, |desk, window, cx| desk.step(true, window, cx));
+    replace_one(&desk, "x", cx);
+    assert_eq!(current_text(&desk, cx), "a\n");
+}
