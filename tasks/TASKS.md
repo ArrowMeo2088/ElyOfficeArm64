@@ -98,7 +98,7 @@
 用户 2026-10-11 定：ElyMark 不用 CEF，不用 Electron。界面用 Ely-GPUI-Components 的 Markdown 组件（`documents::MarkdownEditor` 一族，缺的在组件库补并推到 Gitea），解析用 markdown-rs，公式用 RaTeX，Mermaid 用 mermaid-rs-renderer，PDF 用 MuPDF Story。删去 CEF 与网页内容，ElyMail 也不用 CEF 与 Electron。旧 C14.0 至 C14.7（CEF 实现）作废，记录在 git 历史。
 
 - [x] C14.0 前置：`reference/` 加 markion 与 markdown-rs 并钉提交；`scripts/review.sh` 照用户新定（gpt-6.1-sol，effort high，fast，每条最多三轮） — R2 ok
-- [ ] C14.1 组件库：`MarkdownRenderer`、`MarkdownEditor`、Markdown 着色、块范围、大纲与链接查找改用 markdown-rs（`documents` 的 `tree`、`markdown`、`render`）；`BlockEditor` 的导入导出不属 ElyMark，仍用 pulldown-cmark；原有测试照过，改了语义的测试写明 markdown-rs 的读法；推送，ElyOffice 钉新提交
+- [x] C14.1 组件库：`MarkdownRenderer`、`MarkdownEditor`、Markdown 着色、块范围、大纲与链接查找改用 markdown-rs（`documents` 的 `tree`、`markdown`、`render`）；`BlockEditor` 的导入导出不属 ElyMark，仍用 pulldown-cmark；原有测试照过，改了语义的测试写明 markdown-rs 的读法；推送，ElyOffice 钉新提交 — R2 ok
 - [ ] C14.2 组件库：公式与 Mermaid（MARK-04）。`typography::Latex` 改由 RaTeX 排出；Mermaid 由 mermaid-rs-renderer 画成图；画不出即显示错误与原文；`MarkdownRenderer` 用二者，本地图片按属主给的文件夹读，网络图片不自动载入
 - [ ] C14.3 组件库：文件级 Markdown 文档组件。一个 `CodeEditor` 持全文与撤销；可视（变高虚拟列表，逐块渲染，按下的块开成源码，写回为一步撤销）、源码（`CodeEditor` 加 Markdown 着色）、预览（只读）；属主可读写文本、模式、插入点行列、滚动，可跳到行；改动发事件
 - [ ] C14.4 ElyMark 文件会话改为原生（MARK-01，§14.3，QA-21）：视图换成 C14.3 的组件，文本即文件原文，无序列化；BOM、CRLF 照旧；新建、打开、保存、另存、重命名照旧；应用不再依赖 `ely-web-content`
