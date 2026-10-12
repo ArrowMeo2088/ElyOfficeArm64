@@ -36,6 +36,8 @@ pub(super) struct Placed<'a> {
     pictures: &'a Pictures,
     /// Pictures copied so far, and their names.
     pub copied: Vec<(PathBuf, String)>,
+    /// This export made the picture folder.
+    pub made: bool,
 }
 
 impl<'a> Placed<'a> {
@@ -44,6 +46,7 @@ impl<'a> Placed<'a> {
             beside,
             pictures,
             copied: Vec::new(),
+            made: false,
         }
     }
 
@@ -117,8 +120,8 @@ impl<'a> Placed<'a> {
     }
 
     /// Copies `source` under a name still free.
-    fn copy(&self, source: &mut File, path: &Path, folder: &Path) -> io::Result<String> {
-        if self.copied.is_empty() {
+    fn copy(&mut self, source: &mut File, path: &Path, folder: &Path) -> io::Result<String> {
+        if !self.made {
             // A folder already there is someone's: refused.
             std::fs::create_dir(folder).map_err(|error| match error.kind() {
                 io::ErrorKind::AlreadyExists => {
@@ -126,6 +129,7 @@ impl<'a> Placed<'a> {
                 }
                 _ => error,
             })?;
+            self.made = true;
         }
         let file = path
             .file_name()

@@ -37,11 +37,15 @@ img,svg{max-width:100%}div.math{text-align:center}span.math svg{vertical-align:m
 
 /// `text`'s body as HTML; pictures go as `pictures` says.
 pub fn body(text: &str, beside: Option<&Path>, pictures: &Pictures) -> io::Result<Page> {
+    page_of(text, &mut pictures::Placed::new(beside, pictures))
+}
+
+/// `text`'s body; `placed` keeps what it copied.
+fn page_of(text: &str, placed: &mut pictures::Placed) -> io::Result<Page> {
     let tree = markdown::to_mdast(text, &markdown_options())
         .map_err(|error| io::Error::other(error.to_string()))?;
     let mut page = Page::default();
-    let mut placed = pictures::Placed::new(beside, pictures);
-    html::write(&tree, &mut placed, &mut page)?;
+    html::write(&tree, placed, &mut page)?;
     log::info!(
         "mark: a page of {} bytes, {} pictures copied, {} missing, {} diagrams and {} formulas as code",
         page.html.len(),

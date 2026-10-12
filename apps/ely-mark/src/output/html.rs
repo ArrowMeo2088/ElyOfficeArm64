@@ -258,9 +258,15 @@ fn bare(svg: &str) -> &str {
     svg.find("<svg").map_or(svg, |at| &svg[at..])
 }
 
-/// A plain, web or mail address.
+/// A plain, web or mail address, as a browser reads it.
 fn safe(url: &str) -> bool {
-    match scheme(url) {
+    // Browsers trim spaces and controls, then drop tabs and newlines.
+    let read: String = url
+        .trim_matches(|ch: char| ch <= ' ')
+        .chars()
+        .filter(|ch| !matches!(ch, '\t' | '\n' | '\r'))
+        .collect();
+    match scheme(&read) {
         None => true,
         Some(scheme) => ["http", "https", "mailto"].contains(&scheme.to_lowercase().as_str()),
     }

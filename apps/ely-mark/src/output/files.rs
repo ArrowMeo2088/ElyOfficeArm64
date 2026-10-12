@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use super::{Page, Pictures, body, document, plain};
+use super::{Page, Pictures, body, document, page_of, pictures::Placed, plain};
 
 /// What an export writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,13 +64,13 @@ fn export(target: &Target, bytes: &[u8]) -> io::Result<()> {
 /// The page beside a new folder of its pictures.
 fn linked(text: &str, beside: Option<&Path>, target: &Target, title: &str) -> io::Result<Page> {
     let folder = target.path.with_file_name(format!("{title}_files"));
-    let found = folder.exists();
-    let written = body(text, beside, &Pictures::Folder(folder.clone()))
+    let pictures = Pictures::Folder(folder.clone());
+    let mut placed = Placed::new(beside, &pictures);
+    let written = page_of(text, &mut placed)
         .and_then(|page| export(target, document(title, &page.html).as_bytes()).map(|()| page));
     // A failure takes only the folder it made.
     if written.is_err()
-        && !found
-        && folder.exists()
+        && placed.made
         && let Err(left) = std::fs::remove_dir_all(&folder)
     {
         log::error!("mark: the half-made picture folder stays: {left}");

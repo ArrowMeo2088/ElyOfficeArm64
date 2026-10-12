@@ -403,3 +403,53 @@ mod files {
         }
     }
 }
+
+#[test]
+fn a_disguised_script_link_does_not_follow() {
+    let text = "[a](< javascript:alert(1)>) [b](java&#x09;script:alert(1)) [c](java&#10;script:alert(1)) [d](< https://x.org>)\n";
+    let html = page(text, None, &Pictures::Inline).html;
+    assert_eq!(html.matches("<a>").count(), 3, "{html}");
+    assert!(html.contains("href=\" https://x.org\""), "{html}");
+}
+
+#[test]
+fn a_failed_linked_page_takes_the_folder_it_made() {
+    let dir = tempfile::tempdir().expect("a dir");
+    std::fs::write(dir.path().join("dot.png"), b"png").expect("writes");
+    // A folder where the page goes: the page cannot be written.
+    let out = dir.path().join("out.html");
+    std::fs::create_dir(&out).expect("makes");
+    let target = super::Target {
+        path: &out,
+        session: None,
+        revision: 1,
+        work: dir.path(),
+    };
+    super::write(
+        super::Format::Linked,
+        "![d](dot.png)\n",
+        Some(dir.path()),
+        &target,
+    )
+    .expect_err("fails");
+    assert!(
+        !dir.path().join("out_files").exists(),
+        "the folder it made is gone"
+    );
+}
+
+#[test]
+fn a_formula_letter_no_font_has_stays_as_tex() {
+    let page = page(
+        "Before\n\n$\text{\u{F0000}}$ after.\n",
+        None,
+        &Pictures::Inline,
+    );
+    let lines: Vec<usize> = page.formulas.iter().map(|(line, _)| *line).collect();
+    assert_eq!(lines, [3]);
+    assert!(
+        page.html.contains("<code>\text{\u{F0000}}</code>"),
+        "{}",
+        page.html
+    );
+}
