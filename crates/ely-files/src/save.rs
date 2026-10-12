@@ -381,8 +381,10 @@ fn write_ticketed(
             return Err(SaveError::Io(error));
         }
     };
+    // Writes keep `\\?\`; the session shows plain.
+    let kept = dunce::simplified(path).to_path_buf();
     session
-        .finish_save(ticket, path.to_path_buf(), written)
+        .finish_save(ticket, kept.clone(), written)
         .map_err(|_| {
             SaveError::Io(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -390,7 +392,7 @@ fn write_ticketed(
             ))
         })?;
     Ok(Saved {
-        path: path.to_path_buf(),
+        path: kept,
         written,
         backup,
     })

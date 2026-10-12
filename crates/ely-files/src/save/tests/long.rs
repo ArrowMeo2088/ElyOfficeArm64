@@ -47,3 +47,18 @@ fn a_trailing_space_name_never_overwrites_the_open_file() {
     assert_eq!(std::fs::read(&open).expect("reads"), b"keep");
     assert_eq!(std::fs::read(&literal).expect("the literal file"), b"exported");
 }
+
+#[test]
+fn a_saved_session_keeps_the_plain_path_unless_it_needs_more() {
+    let root = tempfile::tempdir().expect("a temp dir");
+    let mut session = crate::Session::new_file();
+    let short = root.path().join("short.md");
+    let saved = save_as(&mut session, &short, b"short").expect("saves");
+    assert!(!saved.path.to_string_lossy().starts_with(r"\\?\"), "{}", saved.path.display());
+    assert_eq!(session.path(), Some(saved.path.as_path()));
+    let dir = folder_of(root.path(), 200);
+    let long = dir.join(format!("{}.md", "x".repeat(69)));
+    let saved = save_as(&mut session, &long, b"long").expect("saves");
+    assert!(saved.path.to_string_lossy().starts_with(r"\\?\"), "{}", saved.path.display());
+    assert_eq!(std::fs::read(&saved.path).expect("reads"), b"long");
+}
