@@ -54,22 +54,27 @@ pub struct Hit {
     pub text: String,
 }
 
-/// Where lowercase `query` starts in `line`, in characters.
+/// `ch` without case; final sigma folds as Unicode does.
+fn fold(ch: char) -> impl Iterator<Item = char> {
+    ch.to_lowercase().map(|low| if low == 'ς' { 'σ' } else { low })
+}
+
+/// Where folded `query` starts in `line`, in characters.
 fn column_of(line: &str, query: &str) -> Option<usize> {
-    // Each lowered byte keeps its character's place.
-    let (mut lowered, mut places) = (String::new(), Vec::new());
+    // Each folded byte keeps its character's place.
+    let (mut folded, mut places) = (String::new(), Vec::new());
     for (place, ch) in line.chars().enumerate() {
-        for low in ch.to_lowercase() {
-            lowered.push(low);
+        for low in fold(ch) {
+            folded.push(low);
             places.extend(std::iter::repeat_n(place, low.len_utf8()));
         }
     }
-    lowered.find(query).map(|at| places[at])
+    folded.find(query).map(|at| places[at])
 }
 
 /// Lines of `text` holding `query`, any case.
 pub fn lines_with(file: &Path, text: &str, query: &str, hits: &mut Vec<Hit>) {
-    let query = query.to_lowercase();
+    let query: String = query.chars().flat_map(fold).collect();
     for (at, line) in text.lines().enumerate() {
         if hits.len() == MOST_HITS {
             return;
@@ -135,5 +140,16 @@ mod tests {
         assert_eq!(super::column_of("İİ née Word", "word"), Some(7));
         assert_eq!(super::column_of("中文 搜索", "搜索"), Some(3));
         assert_eq!(super::column_of("none", "word"), None);
+    }
+
+    #[test]
+    fn sigma_matches_in_every_form() {
+        for line in ["ΟΣ", "οσ", "ος"] {
+            for query in ["ΟΣ", "οσ", "ος"] {
+                let mut hits = Vec::new();
+                super::lines_with(Path::new("a.md"), line, query, &mut hits);
+                assert_eq!(hits.len(), 1, "{query} in {line}");
+            }
+        }
     }
 }
