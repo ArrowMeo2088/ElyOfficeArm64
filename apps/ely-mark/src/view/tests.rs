@@ -242,3 +242,29 @@ fn a_file_link_is_refused_and_said(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(said.get() && cx.opened_url().is_none());
 }
+
+#[gpui::test]
+fn a_broken_gif_ends_and_its_error_names_no_path(cx: &mut TestAppContext) {
+    let (_view, cx) = open("x\n", cx);
+    let folder = std::env::temp_dir().join(format!("ely-marker-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).expect("a folder");
+    let gif =
+        "47494638396101000100800000000000ffffff21f90401000000002c0000000001000100000202ffff003b";
+    let bytes: Vec<u8> = (0..gif.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&gif[at..at + 2], 16).expect("hex"))
+        .collect();
+    let path = folder.join("broken.gif");
+    std::fs::write(&path, bytes).expect("the gif");
+    let resource = gpui::Resource::Path(path.into());
+    let loaded = loop {
+        let asked = cx.update(|_, cx| cx.fetch_asset::<gpui::ImageAssetLoader>(&resource));
+        if let Some(loaded) = asked {
+            break loaded;
+        }
+        cx.run_until_parked();
+    };
+    std::fs::remove_dir_all(&folder).expect("cleaned");
+    let error = loaded.expect_err("a broken frame fails the load");
+    assert!(!format!("{error:?}").contains("ely-marker"), "{error:?}");
+}
