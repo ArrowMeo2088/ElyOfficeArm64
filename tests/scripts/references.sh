@@ -4,7 +4,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 script=$root/scripts/fetch-references.sh
-names="Ely-GPUI-Components zed libreoffice-core mupdf git tesseract mailcore2 libetpan cef cef-rs milkdown codemirror-dev marktext colamd magpie agent-client-protocol markion markdown-rs omarchy"
+names="Ely-GPUI-Components zed libreoffice-core mupdf git tesseract mailcore2 libetpan marktext colamd magpie agent-client-protocol markion markdown-rs omarchy"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -29,8 +29,7 @@ for header in \
   tesseract/include/tesseract/capi.h \
   mailcore2/CMakeLists.txt \
   libetpan/src/low-level/gmail/mailgmail.h \
-  libetpan/src/low-level/activesync/mailactivesync.h \
-  cef-rs/Cargo.toml; do
+  libetpan/src/low-level/activesync/mailactivesync.h; do
   [ -s "$root/reference/$header" ] || fail "missing reference/$header"
 done
 

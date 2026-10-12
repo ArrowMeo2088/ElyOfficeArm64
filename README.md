@@ -9,7 +9,7 @@ Offline-first desktop apps in Rust and GPUI. Files stay in your folders; no acco
 | ElyShow | Presentations (PPTX, ODP) | LibreOfficeKit, system media |
 | ElyPDF | PDF reading and editing, OCR, signatures | MuPDF, Tesseract |
 | ElyTree | Git client | Git |
-| ElyMark | Markdown | Milkdown, CodeMirror in CEF |
+| ElyMark | Markdown | markdown-rs, RaTeX, mermaid-rs-renderer |
 | ElyMail, ElyAgent | Second release | — |
 
 ## Build (macOS)
@@ -20,8 +20,7 @@ scripts/fetch-references.sh       # upstream sources at pinned commits
 scripts/build-libreoffice.sh      # patched LibreOffice 26.2.6.3 (about an hour)
 scripts/build-mupdf.sh            # patched MuPDF 1.28.5
 scripts/build-git.sh && scripts/fetch-git-lfs.sh
-scripts/fetch-tessdata.sh && scripts/fetch-cef.sh
-scripts/build-mark-content.sh     # ElyMark's page
+scripts/fetch-tessdata.sh
 cargo build -p ely-lok --bins -p ely-pdf-engine --bins
 cargo run -p ely-doc              # or ely-table, ely-show, ely-pdf, ely-tree, ely-mark
 ```

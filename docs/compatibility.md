@@ -3,7 +3,7 @@
 随发行说明发布，每个版本一份。支持某格式不等于支持它的全部功能；下表只写已验证的内容、已知限制与保存行为。
 
 版本：Ely Office 0.1.3（首版六个应用：ElyDoc、ElyTable、ElyShow、ElyPDF、ElyTree、ElyMark）。日期 2026-10-11。
-内核：LibreOffice 26.2.6.3（8221e31，加 `patches/libreoffice` 0001–0041）；MuPDF 1.28.5（8ad45e9，加 `patches/mupdf` 0001–0005）；Git 2.56.0（a018953）与 git-lfs 3.8.0；CEF 154.0.32。
+内核：LibreOffice 26.2.6.3（8221e31，加 `patches/libreoffice` 0001–0041）；MuPDF 1.28.5（8ad45e9，加 `patches/mupdf` 0001–0005）；Git 2.56.0（a018953）与 git-lfs 3.8.0。
 验证机：macOS 27.0 arm64。Windows 与 Linux 未验证。本机没有 Microsoft Office：与 Office 的交叉检查未做（待做）。
 
 ## 往返验证
@@ -66,9 +66,9 @@
 
 | | 格式 |
 | --- | --- |
-| 编辑与保存 | MD、Markdown（UTF-8，带不带 BOM；保留换行风格；未改动的块逐字节照原文写回） |
-| 导入或受限 | UTF-16 与非 UTF-8 拒绝打开并指出字节位置；Milkdown 不支持的语法以原文块保留；超过 2 MiB 只以源码打开 |
-| 输出 | HTML（单文件或带资源文件夹）、PDF、纯文本、打印（macOS） |
+| 编辑与保存 | MD、Markdown（UTF-8，带不带 BOM；保留换行风格；文本即原文，只写回所改的字） |
+| 导入或受限 | UTF-16 与非 UTF-8 拒绝打开并指出字节位置；markdown-rs 不认的语法照原文显示；超过 2 MiB 只以源码打开 |
+| 输出 | 原生重做中（C14.14），此版没有 |
 
 ## 第二批
 

@@ -40,11 +40,9 @@ if [ -n "${ELY_SHARE:-}" ]; then
 else
   scripts/fetch-references.sh
   ${inside[@]+"${inside[@]}"} scripts/build-mupdf.sh
-  ${inside[@]+"${inside[@]}"} scripts/fetch-cef.sh
   ${inside[@]+"${inside[@]}"} scripts/build-git.sh
   ${inside[@]+"${inside[@]}"} scripts/fetch-git-lfs.sh
   ${inside[@]+"${inside[@]}"} scripts/fetch-tessdata.sh
-  ${inside[@]+"${inside[@]}"} scripts/build-mark-content.sh
   ${inside[@]+"${inside[@]}"} scripts/build-libreoffice.sh
 fi
 

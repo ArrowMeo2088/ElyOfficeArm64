@@ -48,10 +48,6 @@ fetch tesseract https://github.com/tesseract-ocr/tesseract.git db0ec62f81b0737fb
 fetch mailcore2 https://github.com/MailCore/mailcore2.git 1b48bab20b2492fa8ed3965abcbbe099d4ce9d92
 git -C "$ref/mailcore2" submodule update --init --depth 1 --recursive
 fetch libetpan https://github.com/dinhviethoa/libetpan.git 4d478625c4c43721191ae1bd7aed387a66c28ec0
-fetch cef https://github.com/chromiumembedded/cef.git ff57d4eae16d36457895f2de115a71d502e85a08
-fetch cef-rs https://github.com/tauri-apps/cef-rs.git a712ad9bacd234c050631a95b9745b27d346b7cc
-fetch milkdown https://github.com/Milkdown/milkdown.git bbb8bcbbb8ce0aa16f92567c23f6236747be9b3b
-fetch codemirror-dev https://github.com/codemirror/dev.git c010426d06689a7115aa9df08425126b6d3ead2f
 fetch marktext https://github.com/marktext/marktext.git b29cb5621e12cedb801c1cd886d9005159feaa2e
 fetch colamd https://github.com/marswaveai/ColaMD.git 5e0f3c3584bb771180afe1a4670efbaf28dee65b
 fetch magpie https://github.com/yetone/magpie.git e4c8316e3fa9d73683079df3f9142561265bc1bb

@@ -11,18 +11,15 @@ use crate::AppId;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Log,
-    /// The web content cache (ElyMark).
-    Cache,
     Recovery,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 3] = [Kind::Log, Kind::Cache, Kind::Recovery];
+    pub const ALL: [Kind; 2] = [Kind::Log, Kind::Recovery];
 
     fn place(self) -> &'static str {
         match self {
             Kind::Log => "ely.log",
-            Kind::Cache => "web",
             Kind::Recovery => "recovery",
         }
     }
@@ -152,15 +149,14 @@ mod tests {
     #[test]
     fn marked_kinds_go_at_start_and_others_stay() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(dir.path().join("web/Cache")).unwrap();
-        std::fs::write(dir.path().join("web/Cache/blob"), vec![0u8; 4096]).unwrap();
         std::fs::create_dir_all(dir.path().join("recovery/a")).unwrap();
-        std::fs::write(dir.path().join("recovery/a/point"), b"text").unwrap();
-        assert_eq!(size(&dir.path().join("web")).unwrap(), 4096);
-        std::fs::write(dir.path().join(Kind::Cache.mark()), b"").unwrap();
+        std::fs::write(dir.path().join("recovery/a/point"), vec![0u8; 4096]).unwrap();
+        std::fs::write(dir.path().join("ely.log"), b"line").unwrap();
+        assert_eq!(size(&dir.path().join("recovery")).unwrap(), 4096);
+        std::fs::write(dir.path().join(Kind::Recovery.mark()), b"").unwrap();
         clear_marked_in(dir.path()).unwrap();
-        assert!(!dir.path().join("web").exists(), "the cache went");
-        assert!(dir.path().join("recovery/a/point").exists(), "unmarked kinds stay");
-        assert!(!dir.path().join(Kind::Cache.mark()).exists(), "the mark is spent");
+        assert!(!dir.path().join("recovery").exists(), "the copies went");
+        assert!(dir.path().join("ely.log").exists(), "the log stays");
+        assert!(!dir.path().join(Kind::Recovery.mark()).exists(), "the mark is spent");
     }
 }

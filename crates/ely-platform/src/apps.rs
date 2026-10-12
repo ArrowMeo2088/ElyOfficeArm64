@@ -83,32 +83,9 @@ pub fn open(app: AppId, files: &[PathBuf]) -> io::Result<()> {
     }
     let mut command = Command::new(&found);
     command.args(files);
-    let child = fresh_signals(&mut command).spawn()?;
+    let child = command.spawn()?;
     log::info!("apps: started {} as {}", app.name(), child.id());
     Ok(())
-}
-
-/// The started app takes signals as from a shell.
-#[cfg(unix)]
-fn fresh_signals(command: &mut Command) -> &mut Command {
-    use std::os::unix::process::CommandExt as _;
-    // Chromium's ignored or blocked signals would carry over.
-    unsafe {
-        command.pre_exec(|| {
-            for signal in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP, libc::SIGQUIT] {
-                libc::signal(signal, libc::SIG_DFL);
-            }
-            let mut none: libc::sigset_t = std::mem::zeroed();
-            libc::sigemptyset(&mut none);
-            libc::pthread_sigmask(libc::SIG_SETMASK, &none, std::ptr::null_mut());
-            Ok(())
-        })
-    }
-}
-
-#[cfg(not(unix))]
-fn fresh_signals(command: &mut Command) -> &mut Command {
-    command
 }
 
 /// Opens `path` in the default app; a refusal says why.
@@ -168,30 +145,5 @@ mod tests {
         assert!(places.contains(&PathBuf::from(format!(
             "/opt/ely-office/ely-mark/bin/ely-mark{suffix}"
         ))));
-    }
-}
-
-#[cfg(all(test, unix))]
-mod signals {
-    use std::os::unix::process::ExitStatusExt as _;
-
-    /// A starter that ignores and blocks SIGTERM, as Chromium may.
-    #[test]
-    fn a_started_app_still_stops_on_sigterm() {
-        unsafe {
-            libc::signal(libc::SIGTERM, libc::SIG_IGN);
-            let mut term: libc::sigset_t = std::mem::zeroed();
-            libc::sigemptyset(&mut term);
-            libc::sigaddset(&mut term, libc::SIGTERM);
-            libc::pthread_sigmask(libc::SIG_BLOCK, &term, std::ptr::null_mut());
-        }
-        let mut command = std::process::Command::new("/bin/sleep");
-        command.arg("30");
-        let mut child = super::fresh_signals(&mut command).spawn().unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        unsafe { libc::kill(child.id() as i32, libc::SIGTERM) };
-        let status = child.wait().unwrap();
-        unsafe { libc::signal(libc::SIGTERM, libc::SIG_DFL) };
-        assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
     }
 }

@@ -21,7 +21,6 @@ put . "$root/LICENSE"
 case $slug in
   ely-doc | ely-table | ely-show) crates=(ely-lok) ;;
   ely-pdf) crates=(ely-pdf-engine) ;;
-  ely-mark) crates=(ely-web-content) ;;
   *) crates=() ;;
 esac
 python3 "$root/packaging/crates.py" "$slug" ${crates[@]+"${crates[@]}"} >"$out/rust-crates.txt"
@@ -81,8 +80,10 @@ case $slug in
     put GreatVibes "$root/crates/ely-pdf-engine/fonts/OFL.txt"
     ;;
   ely-mark)
-    put CEF "$root/reference/cef/LICENSE.txt" "${ELY_CEF:-$root/engines/cef}/CREDITS.html"
-    put content "$root/engines/content/ely-mark/THIRD-PARTY-NOTICES.txt"
+    # RaTeX embeds KaTeX's fonts.
+    katex=$(cargo metadata --format-version 1 --locked --manifest-path "$root/Cargo.toml" |
+      python3 -c 'import json, pathlib, sys; print(next(pathlib.Path(p["manifest_path"]).parent for p in json.load(sys.stdin)["packages"] if p["name"] == "ratex-katex-fonts"))')
+    put KaTeX "$katex/fonts/OFL.txt" "$katex/fonts/FONT_NOTICE.txt"
     ;;
 esac
 # ElyTree carries Git; on Windows and Linux ElyMark does too.

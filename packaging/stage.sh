@@ -65,16 +65,5 @@ if [ "$slug" = ely-tree ] || [ "$slug" = ely-mark ]; then
   need "$root/engines/git" "scripts/build-git.sh and scripts/fetch-git-lfs.sh"
   cp -R "$root/engines/git" "$out/git"
 fi
-if uses ely-web-content; then
-  cef=${ELY_CEF:-$root/engines/cef}
-  need "$cef/icudtl.dat" scripts/fetch-cef.sh
-  # CEF's runtime sits beside the app, as cef-dll-sys has it.
-  find "$cef" -maxdepth 1 -type f \( -name '*.dll' -o -name '*.so' -o -name '*.so.*' -o -name '*.pak' \
-    -o -name '*.bin' -o -name '*.dat' -o -name '*.json' -o -name chrome-sandbox \) -exec cp {} "$out/" \;
-  cp -R "$cef/locales" "$out/"
-  content=$root/engines/content/$slug
-  need "$content/index.html" "its scripts/build-*-content.sh"
-  cp -R "$content" "$out/content"
-fi
 "$root/packaging/licenses.sh" "$slug" "$out/licenses"
 echo "$out"
