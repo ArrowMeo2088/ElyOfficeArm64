@@ -21,7 +21,7 @@ use crate::view::{Mode, Place};
 pub struct Kept {
     path: Option<PathBuf>,
     name: String,
-    mode: String,
+    mode: Mode,
     place: Option<Place>,
     slot: String,
 }
@@ -219,7 +219,7 @@ impl Desk {
         else {
             return;
         };
-        let mode = Mode::parse(&kept.mode).unwrap_or(Mode::Visual);
+        let mode = kept.mode;
         log::info!("mark: restores tab {id} as {}", mode.name());
         let tab = self.tab_mut(id).expect("open");
         // A recovered copy keeps writing to the same points.
@@ -262,7 +262,7 @@ impl Desk {
             kept.push(Kept {
                 path: tab.session.path().map(Path::to_path_buf),
                 name: tab.name.to_string(),
-                mode: view.mode.name().to_owned(),
+                mode: view.mode,
                 place: Some(view.place(cx)),
                 slot: tab.extra.slot.clone(),
             });
@@ -405,66 +405,4 @@ fn humantime(at: SystemTime) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn a_place_without_a_column_or_top_reads_zero() {
-        let kept: super::Kept = serde_json::from_str(
-            r#"{"path":null,"name":"a.md","mode":"source","place":{"line":3,"scroll":0},"slot":"s"}"#,
-        )
-        .expect("an older place reads");
-        let place = kept.place.expect("a place");
-        assert_eq!((place.line, place.column, place.top), (3, 0, 0));
-    }
-
-    #[test]
-    fn each_untitled_copy_goes_to_the_tab_made_for_it() {
-        let dir = tempfile::tempdir().expect("a temp dir");
-        let kept = |name: &str, mode: &str, slot: &str| super::Kept {
-            path: None,
-            name: name.into(),
-            mode: mode.into(),
-            place: Some(super::Place { line: slot.len() as u64, column: 1, top: 0 }),
-            slot: slot.into(),
-        };
-        let tabs = vec![kept("Untitled1", "visual", "a"), kept("Untitled2", "source", "bb")];
-        for (slot, text) in [("a", "first"), ("bb", "second")] {
-            let mut points = super::Recovery::new(super::recovery(dir.path(), slot));
-            points.write_once(text.as_bytes(), None, std::time::SystemTime::now()).expect("a point");
-        }
-        let saved = serde_json::to_vec(&super::Saved { tabs: tabs.clone() }).expect("a list");
-        std::fs::write(dir.path().join("session.json"), saved).expect("the list");
-        // A pid no process has: the last run crashed.
-        std::fs::write(dir.path().join("session.lock"), "open 4294967295").expect("a lock");
-        let (mut keeping, ..) = super::Keeping::start(dir.path()).expect("a session");
-        let made: Vec<_> = keeping.untitled();
-        assert_eq!(made, [(0, "Untitled1".to_string()), (1, "Untitled2".to_string())]);
-        for (at, _) in made {
-            keeping.made(at, 10 + at as u64);
-        }
-        assert!(keeping.take(None, 12).is_none(), "a new tab takes nothing");
-        // The second tab shows first: each still takes its own.
-        for (id, want, text) in [(11, &tabs[1], "second"), (10, &tabs[0], "first")] {
-            let got = keeping.take(None, id).expect("its copy");
-            assert_eq!((&got.kept, got.text.map(|(text, _)| text)), (want, Some(text.to_string())));
-        }
-    }
-
-    #[test]
-    fn an_unasked_end_keeps_the_lock_and_points_past_release() {
-        let dir = tempfile::tempdir().expect("a temp dir");
-        let point = dir.path().join("recovery/s/point");
-        let (lock, slot) = (dir.path().join("session.lock"), point.parent().expect("a slot"));
-        let (mut held, ..) = super::Keeping::start(dir.path()).expect("a session");
-        std::fs::create_dir_all(slot).expect("a slot");
-        std::fs::write(&point, "unsaved").expect("a point");
-        held.hold();
-        held.close();
-        assert!(lock.exists() && point.exists(), "release after quit wiped them");
-        drop(held);
-        let (mut clean, ..) = super::Keeping::start(dir.path()).expect("a session");
-        std::fs::create_dir_all(slot).expect("a slot");
-        std::fs::write(&point, "unsaved").expect("a point");
-        clean.close();
-        assert!(!lock.exists() && !point.exists(), "a clean end clears");
-    }
-}
+mod tests;

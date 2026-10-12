@@ -17,7 +17,8 @@ pub struct Reported;
 pub struct Failed(pub String);
 
 /// How a document shows (MARK-02).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Mode {
     Visual,
     Source,
