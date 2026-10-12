@@ -221,3 +221,24 @@ fn an_edit_keeps_the_rest_of_the_file_byte_for_byte(cx: &mut TestAppContext) {
     });
     assert_eq!(written, b"\xEF\xBB\xBFx# A\r\n\r\nB\r\n");
 }
+
+#[gpui::test]
+fn a_web_link_opens_outside(cx: &mut TestAppContext) {
+    let (view, cx) = open("x\n", cx);
+    view.update(cx, |view, cx| view.follow("https://ely.dev", cx));
+    assert_eq!(cx.opened_url().as_deref(), Some("https://ely.dev"));
+}
+
+#[gpui::test]
+fn a_file_link_is_refused_and_said(cx: &mut TestAppContext) {
+    let (view, cx) = open("x\n", cx);
+    let said = std::rc::Rc::new(std::cell::Cell::new(false));
+    let heard = said.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&view, move |_, _: &super::Failed, _| heard.set(true))
+            .detach()
+    });
+    view.update(cx, |view, cx| view.follow("file:///etc/hosts", cx));
+    cx.run_until_parked();
+    assert!(said.get() && cx.opened_url().is_none());
+}

@@ -40,7 +40,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 
 ## 组件映射
 
-依赖 `ely-gpui-component`（pin 639521e，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
+依赖 `ely-gpui-component`（pin bbb6071，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
 
 | 需要 | 用 |
 | --- | --- |
