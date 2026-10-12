@@ -219,4 +219,94 @@ mod window {
         );
         assert!(read.is_err(), "an unknown mode is no default");
     }
+
+    /// The window's toasts that hold `words`.
+    fn toasted(desk: &Entity<Desk>, words: &str, cx: &mut VisualTestContext) -> usize {
+        let root = desk.read_with(cx, |desk, _| desk.core.root.upgrade().expect("the window"));
+        let toasts = root.read_with(cx, |root, cx| root.toasts(cx));
+        toasts
+            .iter()
+            .filter(|(said, _)| said.contains(words))
+            .count()
+    }
+
+    #[gpui::test]
+    fn a_failed_recovery_write_shows_once_with_the_last_kept(cx: &mut TestAppContext) {
+        let (data, files) = (
+            tempfile::tempdir().expect("data"),
+            tempfile::tempdir().expect("files"),
+        );
+        let a = files.path().join("a.md");
+        std::fs::write(
+            &a, "Text.
+",
+        )
+        .expect("a");
+        let (desk, cx) = start(cx, data.path());
+        open(&desk, &a, cx);
+        let view = show(&desk, "a.md", cx);
+        for (typed, broken) in [
+            (
+                "One.
+", false,
+            ),
+            (
+                "Two.
+", true,
+            ),
+            (
+                "Three.
+", true,
+            ),
+        ] {
+            if broken && data.path().join("recovery").is_dir() {
+                std::fs::remove_dir_all(data.path().join("recovery")).expect("removes");
+                std::fs::write(data.path().join("recovery"), "not a folder").expect("blocks");
+            }
+            view.update(cx, |view, cx| view.adopt(typed.into(), cx));
+            cx.executor()
+                .advance_clock(std::time::Duration::from_secs(1));
+            cx.run_until_parked();
+            desk.update(cx, |desk, cx| desk.keep(cx));
+            cx.run_until_parked();
+        }
+        assert_eq!(toasted(&desk, "was not kept for recovery", cx), 1, "once");
+        let never = toasted(&desk, "none yet", cx);
+        assert_eq!(never, 0, "the first point landed, so its time shows");
+    }
+
+    #[gpui::test]
+    fn a_failed_session_write_shows_once(cx: &mut TestAppContext) {
+        let (data, files) = (
+            tempfile::tempdir().expect("data"),
+            tempfile::tempdir().expect("files"),
+        );
+        let a = files.path().join("a.md");
+        std::fs::write(
+            &a, "Text.
+",
+        )
+        .expect("a");
+        let (desk, cx) = start(cx, data.path());
+        open(&desk, &a, cx);
+        let session = data.path().join("session.json");
+        if session.exists() {
+            std::fs::remove_file(&session).expect("removes");
+        }
+        std::fs::create_dir(&session).expect("blocks");
+        for line in [1, 2] {
+            let view = show(&desk, "a.md", cx);
+            view.update(cx, |view, cx| {
+                view.document()
+                    .update(cx, |document, cx| document.set_caret(line, 0, cx))
+            });
+            desk.update(cx, |desk, cx| desk.keep(cx));
+            cx.run_until_parked();
+        }
+        assert_eq!(
+            toasted(&desk, "were not saved for the next launch", cx),
+            1,
+            "once"
+        );
+    }
 }

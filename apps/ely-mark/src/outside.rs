@@ -51,6 +51,9 @@ pub struct Extra {
     /// The last recovery point's mark, and one in flight.
     pub pointed: Option<String>,
     pub pointing: bool,
+    /// When a point last landed, and the failure last shown.
+    pub pointed_at: Option<std::time::SystemTime>,
+    pub point_failed: Option<String>,
     /// A kept tab's mode, place and text came back once.
     pub restored: bool,
     /// Disk reads started; only the newest lands.
@@ -79,6 +82,8 @@ impl Default for Extra {
             slot: String::new(),
             pointed: None,
             pointing: false,
+            pointed_at: None,
+            point_failed: None,
             restored: false,
             reads: 0,
             looked: false,

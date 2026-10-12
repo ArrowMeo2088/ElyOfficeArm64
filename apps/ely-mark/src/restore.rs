@@ -46,6 +46,8 @@ pub struct Keeping {
     crash: Option<Crash>,
     waiting: Vec<Waiting>,
     written: Option<String>,
+    /// The session write failure last shown.
+    unwritten: Option<String>,
     /// A quit began: the kept list stays as then.
     pub leaving: bool,
     /// The list as kept when the quit began.
@@ -129,6 +131,7 @@ impl Keeping {
             crash: Some(crash),
             waiting,
             written: None,
+            unwritten: None,
             leaving: false,
             frozen: Vec::new(),
         };
@@ -284,7 +287,7 @@ impl Desk {
                         recovery.write_once(current.as_bytes(), None, now)
                     })
                     .await;
-                desk.update(cx, |desk, _| desk.pointed(id, point, wrote, &slot))
+                desk.update(cx, |desk, cx| desk.pointed(id, point, wrote, &slot, cx))
                     .ok();
             })
             .detach();
@@ -304,11 +307,18 @@ impl Desk {
         }
         if !self.keeping.leaving {
             self.keeping.frozen = kept.clone();
-            self.write_session(Saved { tabs: kept });
+            self.write_session(Saved { tabs: kept }, cx);
         }
     }
 
-    fn pointed(&mut self, id: u64, point: String, wrote: io::Result<Option<PathBuf>>, slot: &Path) {
+    fn pointed(
+        &mut self,
+        id: u64,
+        point: String,
+        wrote: io::Result<Option<PathBuf>>,
+        slot: &Path,
+        cx: &mut Context<Self>,
+    ) {
         // The tab closed while it wrote: the point goes too.
         let Some(tab) = self.tab_mut(id) else {
             if let Err(error) = clear(slot) {
@@ -317,21 +327,50 @@ impl Desk {
             return;
         };
         tab.extra.pointing = false;
-        match wrote {
-            Ok(_) => tab.extra.pointed = Some(point),
-            Err(error) => log::error!("mark: a recovery point for tab {id} failed: {error}"),
+        let error = match wrote {
+            Ok(_) => {
+                tab.extra.pointed = Some(point);
+                tab.extra.pointed_at = Some(SystemTime::now());
+                tab.extra.point_failed = None;
+                return;
+            }
+            Err(error) => error.to_string(),
+        };
+        log::error!("mark: a recovery point for tab {id} failed: {error}");
+        // Each failure shows once; the next tick retries.
+        if tab.extra.point_failed.as_ref() == Some(&error) {
+            return;
         }
+        tab.extra.point_failed = Some(error.clone());
+        let at = match tab.extra.pointed_at {
+            Some(at) => humantime(at),
+            None => text(cx, "office.stopped.never", &[]).to_string(),
+        };
+        let name = tab.name.to_string();
+        let said = text(cx, "mark.recovery.failed", &[("name", &name), ("error", &error), ("at", &at)]);
+        self.toast_unlogged(said, ely_gpui_component::primitives::Severity::Danger, cx);
     }
 
-    fn write_session(&mut self, saved: Saved) {
+    fn write_session(&mut self, saved: Saved, cx: &mut Context<Self>) {
         let json = serde_json::to_string_pretty(&saved).expect("the session serializes");
         if self.keeping.written.as_ref() == Some(&json) {
             return;
         }
         let file = self.keeping.dir.join("session.json");
-        match ely_files::save_atomic(&file, json.as_bytes(), 0) {
-            Ok(_) => self.keeping.written = Some(json),
-            Err(error) => log::error!("mark: the session did not save: {error}"),
+        let error = match ely_files::save_atomic(&file, json.as_bytes(), 0) {
+            Ok(_) => {
+                self.keeping.written = Some(json);
+                self.keeping.unwritten = None;
+                return;
+            }
+            Err(error) => error.to_string(),
+        };
+        log::error!("mark: the session did not save: {error}");
+        // Each failure shows once; the next tick retries.
+        if self.keeping.unwritten.as_ref() != Some(&error) {
+            self.keeping.unwritten = Some(error.clone());
+            let said = text(cx, "mark.session.failed", &[("error", &error)]);
+            self.toast(said, ely_gpui_component::primitives::Severity::Danger, cx);
         }
     }
 
@@ -379,7 +418,7 @@ impl Desk {
             }
         }
         let tabs = self.keeping.frozen.clone();
-        self.write_session(Saved { tabs });
+        self.write_session(Saved { tabs }, cx);
     }
 
     /// A quit or close begins: the tabs now stay kept.
