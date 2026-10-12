@@ -1922,7 +1922,7 @@ dependencies = [
 [[package]]
 name = "ely-gpui-component"
 version = "0.1.1"
-source = "git+https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=edc328aadfaefb78f4b6b3e98b4f4780746a1d52#edc328aadfaefb78f4b6b3e98b4f4780746a1d52"
+source = "git+https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=e162082f6f2e50ee9ea535332d4cbcf1ea5d082a#e162082f6f2e50ee9ea535332d4cbcf1ea5d082a"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
