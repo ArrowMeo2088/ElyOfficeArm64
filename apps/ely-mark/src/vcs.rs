@@ -187,4 +187,51 @@ mod tests {
         std::fs::write(outside.path().join("t.md"), "a").expect("a file");
         assert_eq!(ask(&outside.path().join("t.md")), Tracked::Outside);
     }
+
+    #[test]
+    fn committed_changed_and_ignored_files_say_so() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let repo = dir.path();
+        git(repo, &["init", "-q"]);
+        std::fs::write(repo.join(".gitignore"), "skip.md
+").expect("ignores");
+        std::fs::write(repo.join("t.md"), "a").expect("a file");
+        git(repo, &["add", "."]);
+        git(repo, &["-c", "user.name=T", "-c", "user.email=t@t", "commit", "-qm", "one"]);
+        assert_eq!(ask(&repo.join("t.md")), Tracked::Unchanged);
+        std::fs::write(repo.join("t.md"), "b").expect("an edit");
+        assert_eq!(ask(&repo.join("t.md")), Tracked::Changed);
+        std::fs::write(repo.join("skip.md"), "c").expect("a file");
+        assert_eq!(ask(&repo.join("skip.md")), Tracked::Ignored);
+    }
+
+    #[gpui::test]
+    fn the_status_item_follows_a_save(cx: &mut gpui::TestAppContext) {
+        use ely_office::prelude::*;
+        let (data, dir) = (tempfile::tempdir().expect("data"), tempfile::tempdir().expect("repo"));
+        let repo = dir.path();
+        git(repo, &["init", "-q"]);
+        std::fs::write(repo.join("t.md"), "a
+").expect("a file");
+        git(repo, &["add", "."]);
+        git(repo, &["-c", "user.name=T", "-c", "user.email=t@t", "commit", "-qm", "one"]);
+        let (desk, cx) = crate::desk::tests::start(cx, data.path());
+        crate::desk::tests::open(&desk, &repo.join("t.md"), cx);
+        let said = |cx: &mut gpui::VisualTestContext| desk.read_with(cx, |desk, _| desk.tracked.clone());
+        assert_eq!(said(cx), Some(Tracked::Unchanged));
+        let (id, view) = desk.read_with(cx, |desk, _| {
+            let tab = desk.active_tab().expect("a tab");
+            (tab.id, tab.view.clone())
+        });
+        view.update(cx, |view, cx| view.adopt("b
+".into(), cx));
+        cx.executor().advance_clock(std::time::Duration::from_secs(1));
+        cx.run_until_parked();
+        desk.update_in(cx, |desk, window, cx| desk.save(id, None, window, cx));
+        cx.run_until_parked();
+        assert_eq!(std::fs::read_to_string(repo.join("t.md")).expect("saved"), "b
+");
+        assert_eq!(said(cx), Some(Tracked::Changed));
+    }
 }
+
