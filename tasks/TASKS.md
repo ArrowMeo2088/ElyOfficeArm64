@@ -99,7 +99,7 @@
 
 - [x] C14.0 前置：`reference/` 加 markion 与 markdown-rs 并钉提交；`scripts/review.sh` 照用户新定（gpt-6.1-sol，effort high，fast，每条最多三轮） — R2 ok
 - [x] C14.1 组件库：`MarkdownRenderer`、`MarkdownEditor`、Markdown 着色、块范围、大纲与链接查找改用 markdown-rs（`documents` 的 `tree`、`markdown`、`render`）；`BlockEditor` 的导入导出不属 ElyMark，仍用 pulldown-cmark；原有测试照过，改了语义的测试写明 markdown-rs 的读法；推送，ElyOffice 钉新提交 — R2 ok
-- [ ] C14.2 组件库：公式与 Mermaid（MARK-04）。`typography::Latex` 改由 RaTeX 排出；Mermaid 由 mermaid-rs-renderer 画成图；画不出即显示错误与原文；`MarkdownRenderer` 用二者，本地图片按属主给的文件夹读，网络图片不自动载入
+- [~] C14.2 组件库：公式与 Mermaid（MARK-04）。`typography::Latex` 改由 RaTeX 排出；Mermaid 由 mermaid-rs-renderer 画成图；画不出即显示错误与原文；`MarkdownRenderer` 用二者，本地图片按属主给的文件夹读，网络图片不自动载入 — R1 FAIL 六项已修：版面失败把公式写进日志（只记固定文字）；资源与图集从不释放（`primitives::held` 持有，换内容或离开即释放）；公式失败丢了原文与位置（显示原因、位置与原文）；零边距裁掉字形（按墨迹重取画框）；`file:` 地址把片段当文件名、把主机当相对路径（解析主机，去查询与片段）；Mermaid 节点字色未取 Ely 前景。R2 FAIL 一项已修：一个持有者离开即逐出共享资源（按资源计数）。R3 FAIL 两项已修（不再送审）：最后离开的持有者若未收到图，图集里的图不释放（图存于共享记录，由最后离开者释放，单测 `the_last_holder_frees_the_image_another_painted`）；一行注释 11 词（已缩短）
 - [ ] C14.3 组件库：文件级 Markdown 文档组件。一个 `CodeEditor` 持全文与撤销；可视（变高虚拟列表，逐块渲染，按下的块开成源码，写回为一步撤销）、源码（`CodeEditor` 加 Markdown 着色）、预览（只读）；属主可读写文本、模式、插入点行列、滚动，可跳到行；改动发事件
 - [ ] C14.4 ElyMark 文件会话改为原生（MARK-01，§14.3，QA-21）：视图换成 C14.3 的组件，文本即文件原文，无序列化；BOM、CRLF 照旧；新建、打开、保存、另存、重命名照旧；应用不再依赖 `ely-web-content`
 - [ ] C14.5 删去 CEF：`crates/ely-web-content`、`scripts/fetch-cef.sh`、`scripts/build-mark-content.sh`、`apps/ely-mark/web`、打包里的 CEF 辅助应用与许可、CEF 的测试脚本；PRD 与 `agents.md` 写明新路线，ElyMail 正文不用 CEF 与 Electron

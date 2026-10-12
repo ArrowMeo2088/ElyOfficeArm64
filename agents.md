@@ -40,7 +40,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 
 ## 组件映射
 
-依赖 `ely-gpui-component`（pin 508cc55，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
+依赖 `ely-gpui-component`（pin 9036c92，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
 
 | 需要 | 用 |
 | --- | --- |
@@ -84,6 +84,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 | 幻灯片缩略图条（`documents::PageThumbnailList` 只收图片路径，无隐藏标记、右键菜单与重排） | `apps/ely-show` 的 `slides.rs`，内核按页绘制到内存图 |
 | PDF 页面缩略图（同上，且一次铺全部页，不合 PERF-05） | `apps/ely-pdf` 的 `side.rs`，`uniform_list` 只画可见行，worker 按需渲染 |
 | 演示的参考线：LOK 不把参考线画进图块，也无参考线接口 | 补丁 0027 读写参考线；`apps/ely-show` 的 `guides.rs` 画在画布上，拖动移动，拖出幻灯片即删除 |
+| gpui 文本里不能嵌图片：行内公式无从排版 | 组件库的 `MarkdownRenderer` 把行内公式显示为 TeX 原文（着色），块公式才排版 |
 | `A11yChecker` 的 `audit` 与对照表是私有的；Omarchy 色板要照同一套规则 | `ely-ui` 的 `omarchy/palette.rs` 抄了对照表。上游待办：公开 `audit` |
 | 组件无 role/aria 语义：菜单、列表等控件在 AX 树仍不可见 | 上游已修核心控件（7380afb：Button、TextInput、Tabs、面板行、对话框等）；其余上游待办。项目自绘控件已自带 |
 | gpui 无 aria-disabled API（`AriaProperties` 无 disabled 字段） | 组件 7380afb 起以本地化 aria_description 表达；上游待办：gpui 补 API |
@@ -203,7 +204,7 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 
 ## 决策
 
-- 2026-10-01：上游版本以 `scripts/fetch-references.sh` 为准。LibreOffice 26.2.6（8221e31）、MuPDF 1.28.5（8ad45e9）、gpui 为 `gpui-pre` =0.3.8 与 `gpui-pre-platform` =0.3.8（crates.io，2026-10-07 起，随组件库 K01）、组件库 508cc55（2026-10-11 起）。
+- 2026-10-01：上游版本以 `scripts/fetch-references.sh` 为准。LibreOffice 26.2.6（8221e31）、MuPDF 1.28.5（8ad45e9）、gpui 为 `gpui-pre` =0.3.8 与 `gpui-pre-platform` =0.3.8（crates.io，2026-10-07 起，随组件库 K01）、组件库 d5ecc5a（2026-10-11 起）。
 - 2026-10-02：组件库 7380afb 起：对话框与面板的 Enter 提交改走字段的 key-down 动作（macOS IME 天然守卫，不再提前提交）；面板族文案经组件 `i18n::text`（内建 en/zh-CN，应用目录可覆盖）；核心控件带 role/aria；对话框带角色、名称与说明，Cancel/Close 与禁用说明本地化。同仓库 `~/Documents/GitHub/Ely-GPUI-Components` 修复并推送（2026-10-09 起推到 git.zacharyzhang.com，HTTPS，令牌在本机钥匙串）。2026-10-04 组件库 b6cb94c：`NumberInput::on_commit` 只在 Enter、失焦、步进、拖动时触发，键入不触发；改文档的数值框用它，否则每个键入数字都成一条内核命令与一步撤销。同批带入上游的 Checkbox、Switch、Select 等 role/aria 与 RenderSurface。c0f17ee：`ToggleButton::disabled`（不可按、无 Tab 停靠、说明不可用，提示可写原因）。967d1e4：`ContextMenu::manual`（按属主编号的请求在某点打开，右键不开），供行在按下之后才到的菜单，如内核给的拼写建议。
 - 2026-10-06：审查者为探针复制的源码树须用自己的 `CARGO_TARGET_DIR`（`scripts/review.sh` 写明）；写完结论前删掉这些副本与其构建目录（曾积到 /tmp 近 900 GB，磁盘写满、链接失败）：曾编进本仓库 `target/`，ely-lok 里烘焙的源码路径指向已删的副本，单测找不到 worker。
 - 2026-10-03：每条任务由 `scripts/review.sh` 在 herdr 分栏里交给 codex（gpt-6.1-sol，effort high）审查，最多三轮。此前各轮用 gpt-6-astra xhigh。2026-10-10（用户定）：`--yolo`、`service_tier="fast"`、effort xhigh，每条最多五轮；herdr 直接启动 codex 程序，不经 shell 别名。2026-10-11（用户定）：改回 effort high，每条最多三轮。
@@ -311,4 +312,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-11：Linux 包的实测（L1.6）。本机（Omarchy，Hyprland 0.56）装上六个 Arch 包与六个 AppImage，`linux-installed.sh` 两种都过；deb、rpm、Arch 包在 Ubuntu 26.04、Fedora 44、Arch 容器里装上、全部 ELF 找得到库；deb 与 rpm 的六个应用在各自容器的 Xvfb 下画出窗口（`linux-distros.sh`）。截图按窗口（`grim -T` 加 Hyprland 的 `stableId`）：按区域截时用户切换工作区或别的窗口盖住即截错。ElyMark 的文件监视略去读取后不会自激：重读前先比指纹（长度与修改时间），不打开文件。
 - 2026-10-11（用户定：替换 v0.1.3 的 Linux 包）：v0.1.3 发布里原有的六个 AppImage（无头，打不开窗口）已删去，换成本机容器里建出的六个应用各四种包（共 24 个），出自 L1.7 的提交（晚于该标签）；上传后逐个核对大小，ElyTree 的 AppImage 下载回来散列相同。`package.sh` 把每个 RUNPATH 按所在 ELF 解析（`$ORIGIN` 或 `${ORIGIN}` 开头，规范化后须在 AppDir 内），否则拒绝（如未修正的 cairo）：CI 用的是别处建好的引擎，旧构建会在这里报错而不是带进包里。替换的 Linux 包对应的源码随之上传到同一发布（`source.sh`，文件名带构建提交号），发布说明写明 Linux 包出自哪个提交。
 - 2026-10-11：`ci.sh` 用 `ELY_SHARE` 时，CI 克隆里的 `engines`、`reference` 须是指向共享克隆的链接（Windows 为目录联接，不查）；是本克隆自建的目录或指向别处即报错，不混用。`.gitignore` 的 `/engines`、`/reference` 不带斜杠，链接也被忽略（`source.sh` 要求工作区干净）。
-- 2026-10-11（用户定：ElyMark 不用 CEF，不用 Electron）：ElyMark 改为原生。界面用组件库的 Markdown 组件（`documents::MarkdownEditor` 一族，缺的在组件库补并推到 Gitea），解析用 markdown-rs（`markdown` 1.0.0），公式用 RaTeX，Mermaid 用 mermaid-rs-renderer，PDF 用 MuPDF Story；CEF 随之删去，ElyMail 的正文也不用 CEF 与 Electron。进度在 `tasks/TASKS.md` 的 C14。组件库 fcad0ff 与 508cc55：`MarkdownRenderer`、`MarkdownEditor`、Markdown 着色、块范围与链接查找改读 markdown-rs 的语法树（GitHub 风格加公式），引用式链接与图片按定义解析，图片把所在段落分开，单行 `$$…$$` 为块公式，软换行（LF、CRLF、CR）读作空格，嵌套在引用与列表里的定义同样解析，强调与链接里的图片仍是图片（链接里的图片可按）；`BlockEditor` 的导入导出不属 ElyMark，仍用 pulldown-cmark。markdown-rs 读嵌套图片时只留外层的说明。
+- 2026-10-11（用户定：ElyMark 不用 CEF，不用 Electron）：ElyMark 改为原生。界面用组件库的 Markdown 组件（`documents::MarkdownEditor` 一族，缺的在组件库补并推到 Gitea），解析用 markdown-rs（`markdown` 1.0.0），公式用 RaTeX，Mermaid 用 mermaid-rs-renderer，PDF 用 MuPDF Story；CEF 随之删去，ElyMail 的正文也不用 CEF 与 Electron。进度在 `tasks/TASKS.md` 的 C14。组件库 fcad0ff 与 508cc55：`MarkdownRenderer`、`MarkdownEditor`、Markdown 着色、块范围与链接查找改读 markdown-rs 的语法树（GitHub 风格加公式），引用式链接与图片按定义解析，图片把所在段落分开，单行 `$$…$$` 为块公式，软换行（LF、CRLF、CR）读作空格，嵌套在引用与列表里的定义同样解析，强调与链接里的图片仍是图片（链接里的图片可按）；`BlockEditor` 的导入导出不属 ElyMark，仍用 pulldown-cmark。markdown-rs 读嵌套图片时只留外层的说明。组件库 d5ecc5a：块公式经 `typography::Latex` 由 RaTeX 排出（字形为轮廓，按窗口缩放画），```` ```mermaid ```` 块经 `documents::Diagram` 由 mermaid-rs-renderer 画出（Mermaid 自己的深浅主题，底色与字色取 Ely 色板），都作为 gpui 资源在后台排版，RaTeX 或 Mermaid 对已解析的输入 panic 时显示为错误；`MarkdownRenderer::base` 给出文档所在文件夹，相对与 file 地址的图片从中读取并按自身大小、不超过栏宽显示，`data:` 地址解码，网络图片不载入（写明）。组件库 ab9a14c：每个公式、图与图片元素经 `primitives::held` 持有其资源，按资源计数持有者（8b9820b；画出的图存在共享的记录里，9036c92 起由最后离开的持有者释放，哪怕它自己还没收到图），最后一个持有者换了内容或离开窗口才从 gpui 资源缓存移除、在本帧之后从图集释放，共用同一内容的元素（含 gpui 缓存的视图）不受影响；公式按字形实际范围取画框，字形不被裁；公式失败显示原因、RaTeX 给的位置与原文，日志不含公式；`file:` 地址去掉查询与片段，`localhost` 为本机，Windows 上别的主机为共享路径，他处拒绝；Mermaid 的节点与饼图文字取 Ely 的前景色。
