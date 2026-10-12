@@ -17,6 +17,7 @@ pub fn bind(cx: &mut App) {
         KeyBinding::new("secondary-=", crate::look::Larger, at),
         KeyBinding::new("secondary--", crate::look::Smaller, at),
         KeyBinding::new("secondary-0", crate::look::ActualSize, at),
+        KeyBinding::new("secondary-f", ely_office::FindReplace, at),
     ]);
 }
 
@@ -35,7 +36,23 @@ pub fn menus(look: &crate::look::Look, cx: &App) -> Vec<Menu> {
         disabled: false,
     };
     let item = |key: &str, action: Box<dyn gpui::Action>| checked(key, action, false);
+    use crate::tools::{
+        ColumnLeft, ColumnRight, DeleteColumn, DeleteRow, InsertTable, RowAbove, RowBelow,
+    };
     vec![
+        Menu::new(text(cx, "menu.edit", &[]))
+            .items([item("office.find.open", Box::new(ely_office::FindReplace))]),
+        Menu::new(text(cx, "mark.menu.table", &[])).items([
+            item("mark.table.insert", Box::new(InsertTable)),
+            MenuItem::separator(),
+            item("mark.table.row_above", Box::new(RowAbove)),
+            item("mark.table.row_below", Box::new(RowBelow)),
+            item("mark.table.column_left", Box::new(ColumnLeft)),
+            item("mark.table.column_right", Box::new(ColumnRight)),
+            MenuItem::separator(),
+            item("mark.table.delete_row", Box::new(DeleteRow)),
+            item("mark.table.delete_column", Box::new(DeleteColumn)),
+        ]),
         Menu::new(text(cx, "menu.view", &[])).items([
             MenuItem::action(label(Mode::Visual, cx), VisualMode),
             MenuItem::action(label(Mode::Source, cx), SourceMode),

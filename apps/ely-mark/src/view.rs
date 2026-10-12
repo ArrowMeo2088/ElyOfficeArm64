@@ -131,6 +131,10 @@ impl MarkView {
         }
     }
 
+    pub(crate) fn document(&self) -> &Entity<MarkdownDocument> {
+        &self.document
+    }
+
     /// Every change is in the text at once.
     pub fn settled(&self) -> bool {
         true

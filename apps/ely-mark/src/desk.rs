@@ -53,6 +53,8 @@ pub struct Desk {
     asked: Option<u64>,
     /// The shown file's fingerprint when Git was last asked.
     asked_print: Option<ely_files::Fingerprint>,
+    /// The find box, while open.
+    pub(crate) finding: Option<crate::finding::Find>,
 }
 
 impl Host for Desk {
@@ -115,6 +117,9 @@ impl Host for Desk {
             self.look(id, cx);
         }
         self.restore_shown(id, cx);
+        if self.finding.is_some() {
+            self.count(cx);
+        }
         // A save changes what Git sees.
         let print = self.active_tab().and_then(|tab| tab.session.fingerprint());
         if print != self.asked_print {
@@ -196,6 +201,7 @@ pub(crate) fn open_in(
             tracked: None,
             asked: None,
             asked_print: None,
+            finding: None,
         }
     });
     let menus = crate::keys::menus(&look, cx);
@@ -413,6 +419,7 @@ impl Render for Desk {
                 .on_action(cx.listener(Self::on_save_as))
                 .on_action(cx.listener(Self::on_rename))
                 .on_action(cx.listener(Self::on_close_tab))
+                .on_action(cx.listener(Self::on_find))
                 .on_action(cx.listener(|desk, _: &CheckDisk, _, cx| desk.look_all(cx)))
                 .on_action(cx.listener(|desk, _: &VisualMode, window, cx| {
                     desk.switch(Mode::Visual, window, cx)
@@ -426,8 +433,9 @@ impl Render for Desk {
                 .child(shell)
                 .children(self.core_dialog(cx))
                 .children(self.naming_element(cx))
-                .children(self.compare_dialog(cx));
-        Self::look_actions(root, cx)
+                .children(self.compare_dialog(cx))
+                .children(self.find_box(cx));
+        Self::table_actions(Self::look_actions(root, cx), cx)
     }
 }
 

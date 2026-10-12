@@ -5,6 +5,7 @@ mod autosave;
 mod compare;
 mod desk;
 mod engine;
+mod finding;
 mod folder;
 mod keys;
 mod look;
@@ -14,6 +15,7 @@ mod rename;
 mod restore;
 mod side;
 mod text;
+mod tools;
 mod vcs;
 mod view;
 
