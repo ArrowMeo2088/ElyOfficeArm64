@@ -56,4 +56,6 @@ fetch marktext https://github.com/marktext/marktext.git b29cb5621e12cedb801c1cd8
 fetch colamd https://github.com/marswaveai/ColaMD.git 5e0f3c3584bb771180afe1a4670efbaf28dee65b
 fetch magpie https://github.com/yetone/magpie.git e4c8316e3fa9d73683079df3f9142561265bc1bb
 fetch agent-client-protocol https://github.com/agentclientprotocol/agent-client-protocol.git 9e032156545412be9bba5e092f12d0080c499b6d
+fetch markion https://github.com/willmove/markion.git 2bd3a89fe39ec1f07bc02e33ae21601fe8b977c6
+fetch markdown-rs https://github.com/wooorm/markdown-rs.git 1506572f9b406431402928f3a8b3df0b4ae2d8f5
 fetch omarchy https://github.com/basecamp/omarchy.git f45461a38f2b0a12ba39837eb41b08c012051780 bin themes default/themed
