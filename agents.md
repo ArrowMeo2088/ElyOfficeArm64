@@ -173,7 +173,7 @@ tests/scripts/show-fullscreen.sh  真窗口 ElyShow：F5 放映的窗口盖住�
 tests/scripts/types.sh         packaging/types.tsv 的文件类型在 Linux 桌面项、Windows 安装程序与 macOS 文档类型里一致，从不设为默认
 tests/scripts/layout.sh        真窗口：六个应用在 640、800、1100 宽下无元素越出窗口左右，留截图（需辅助功能与屏幕录制权限）
 tests/scripts/ooxml.py <用例> <文件>  不经 LibreOffice 读 DOCX、XLSX、PPTX 并按自算的预期核对（往返用例调用）
-cd site && pnpm deploy        官网构建并经 wrangler 发到 Cloudflare Workers（静态资源，另有 `site/worker` 只答 `/release.json`：Gitea API 的最新版本，缓存 5 分钟；下载链接指向 `releases/latest`），地址 https://ely-office.zhangyanghaha0407.workers.dev
+cd site && pnpm deploy        官网构建并经 wrangler 发到 Cloudflare Workers（静态资源，另有 `site/worker` 只答 `/release.json`：Gitea API 的最新版本与全部发布的下载总数（不计更新清单 `.json`），缓存 5 分钟；下载链接指向 `releases/latest`），地址 https://ely-office.zhangyanghaha0407.workers.dev
 cd site && pnpm test && pnpm e2e   官网单测（几何、道路连通）与 Playwright 端到端（悬停、聚焦、按压、命中归属）
 cd site/video/scenes && npm run verify   发布视频：群像与离场两个渲染器在切场处屏幕角点一致，离场全程各屏播自己的录屏帧（真页面渲染）
 cargo check --workspace

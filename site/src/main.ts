@@ -7,7 +7,7 @@ import { night } from "./night.ts";
 import { rhythm } from "./rhythm.ts";
 import { playground } from "./play.ts";
 import { film } from "./film.ts";
-import { said, speak, type Lang } from "./text.ts";
+import { said, speak, word, type Lang } from "./text.ts";
 import { RELEASES, latest } from "./release.ts";
 
 const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
@@ -36,10 +36,11 @@ const footer = document.createElement("footer");
 footer.id = "download";
 const version = document.createElement("h2");
 version.textContent = "Ely Office";
-void latest().then((v) => (version.textContent = `Ely Office ${v}`));
+const count = said("p", "count");
+count.hidden = true;
 const get = said("a", "get");
 get.href = RELEASES;
-footer.append(version, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), get);
+footer.append(version, count, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), get);
 
 const toggle = said("button", "other");
 toggle.className = "lang";
@@ -57,3 +58,9 @@ main.append(section, playground(), shelf, film());
 app.append(night(), toggle, main, footer);
 say(lang);
 reveal([shelf]);
+void latest().then(({ version: v, downloads }) => {
+  version.textContent = `Ely Office ${v}`;
+  count.dataset.n = String(downloads);
+  count.textContent = word(lang, "count", downloads);
+  count.hidden = false;
+});

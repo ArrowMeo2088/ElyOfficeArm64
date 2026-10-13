@@ -1,5 +1,5 @@
-import { expect, test, VERSION, type Page } from "./fixtures.ts";
-import { TEXT, type Key, type Lang } from "../src/text.ts";
+import { DOWNLOADS, expect, test, VERSION, type Page } from "./fixtures.ts";
+import { TEXT, word, type Key, type Lang } from "../src/text.ts";
 
 const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
@@ -23,11 +23,12 @@ const keyed = (page: Page) =>
 /** Asserts every keyed element reads in `lang`. */
 async function reads(page: Page, lang: Lang) {
   await expect(page.locator("html")).toHaveAttribute("lang", lang === "zh" ? "zh-CN" : "en");
+  await expect(page.locator("[data-t=count]")).toBeVisible();
   const found = await keyed(page);
   expect(found.length).toBeGreaterThan(0);
   for (const [key, text] of found) {
     expect(text, key).not.toBe("");
-    expect(text, key).toBe(TEXT[lang][key as Key]);
+    expect(text, key).toBe(word(lang, key as Key, key === "count" ? DOWNLOADS : undefined));
   }
 }
 
@@ -93,9 +94,13 @@ test.describe("English locale", () => {
     expect(files).toEqual([]);
   });
 
-  test("the download area names the newest version", async ({ page }) => {
+  test("the download area names the newest version and all downloads", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("#download h2")).toHaveText(`Ely Office ${VERSION}`);
+    const count = page.locator("#download [data-t=count]");
+    await expect(count).toHaveText("12,345 downloads so far.");
+    await page.locator(".lang").click();
+    await expect(count).toHaveText("已下载 12,345 次。");
   });
 
   test("a failed version read shows as an error", async ({ page }) => {
@@ -104,6 +109,7 @@ test.describe("English locale", () => {
     await expect.poll(() => errors.length).toBe(1);
     expect(errors[0]).toContain("Gitea answered 500");
     await expect(page.locator("#download h2")).toHaveText("Ely Office");
+    await expect(page.locator("#download [data-t=count]")).toBeHidden();
     errors = [];
   });
 
