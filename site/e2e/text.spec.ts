@@ -23,7 +23,8 @@ const keyed = (page: Page) =>
 /** Asserts every keyed element reads in `lang`. */
 async function reads(page: Page, lang: Lang) {
   await expect(page.locator("html")).toHaveAttribute("lang", lang === "zh" ? "zh-CN" : "en");
-  await expect(page.locator("[data-t=count]")).toBeVisible();
+  await expect(page.locator("[data-t=count]")).toHaveCount(2);
+  for (const c of await page.locator("[data-t=count]").all()) await expect(c).toBeVisible();
   const found = await keyed(page);
   expect(found.length).toBeGreaterThan(0);
   for (const [key, text] of found) {
@@ -94,13 +95,13 @@ test.describe("English locale", () => {
     expect(files).toEqual([]);
   });
 
-  test("the download area names the newest version and all downloads", async ({ page }) => {
+  test("the hero and download area name the newest version and all downloads", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("#download h2")).toHaveText(`Ely Office ${VERSION}`);
-    const count = page.locator("#download [data-t=count]");
-    await expect(count).toHaveText("12,345 downloads so far.");
+    const counts = page.locator("[data-t=count]");
+    await expect(counts).toHaveText(["12,345 downloads so far.", "12,345 downloads so far."]);
     await page.locator(".lang").click();
-    await expect(count).toHaveText("已下载 12,345 次。");
+    await expect(counts).toHaveText(["已下载 12,345 次。", "已下载 12,345 次。"]);
   });
 
   test("a failed version read shows as an error", async ({ page }) => {
@@ -109,7 +110,7 @@ test.describe("English locale", () => {
     await expect.poll(() => errors.length).toBe(1);
     expect(errors[0]).toContain("Gitea answered 500");
     await expect(page.locator("#download h2")).toHaveText("Ely Office");
-    await expect(page.locator("#download [data-t=count]")).toBeHidden();
+    for (const c of await page.locator("[data-t=count]").all()) await expect(c).toBeHidden();
     errors = [];
   });
 
@@ -143,6 +144,26 @@ test.describe("English locale", () => {
       await get.blur();
     }
   });
+});
+
+test("the hero links share one baseline in either language", async ({ browser }) => {
+  for (const locale of ["en-US", "zh-CN"]) {
+    const page = await browser.newPage({ locale, reducedMotion: "reduce" });
+    await page.goto("/");
+    const lines = await page.locator(".hero .links a").evaluateAll((as) =>
+      as.map((a) => {
+        const mark = document.createElement("span");
+        mark.style.display = "inline-block";
+        a.prepend(mark);
+        const y = mark.getBoundingClientRect().bottom;
+        mark.remove();
+        return y;
+      }),
+    );
+    expect(lines).toHaveLength(2);
+    expect(Math.abs(lines[0] - lines[1]), locale).toBeLessThan(0.5);
+    await page.close();
+  }
 });
 
 test("the download area tells how to open an unnotarized app", async ({ browser }) => {

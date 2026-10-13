@@ -18,15 +18,16 @@ if (!app) throw new Error("index.html has no #app");
 const hero = document.createElement("header");
 const title = document.createElement("h1");
 title.textContent = "Ely Office";
-const source = document.createElement("a");
+const source = said("a", "source");
 source.href = REPO;
-source.textContent = "Source";
 const download = said("a", "get");
 download.href = RELEASES;
 const links = document.createElement("div");
 links.className = "links";
 links.append(download, source);
-hero.append(title, said("p", "tagline"), said("p", "platforms"), links);
+const heroCount = said("p", "count");
+heroCount.hidden = true;
+hero.append(title, said("p", "tagline"), said("p", "platforms"), heroCount, links);
 const { section, host, svg } = tour(hero);
 rhythm(host, svg);
 
@@ -60,7 +61,9 @@ say(lang);
 reveal([shelf]);
 void latest().then(({ version: v, downloads }) => {
   version.textContent = `Ely Office ${v}`;
-  count.dataset.n = String(downloads);
-  count.textContent = word(lang, "count", downloads);
-  count.hidden = false;
+  for (const el of [heroCount, count]) {
+    el.dataset.n = String(downloads);
+    el.textContent = word(lang, "count", downloads);
+    el.hidden = false;
+  }
 });
