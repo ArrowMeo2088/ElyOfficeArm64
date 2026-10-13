@@ -1,9 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, VERSION, type Page } from "./fixtures.ts";
 import { TEXT, type Key, type Lang } from "../src/text.ts";
 
 const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
-const RELEASES = `${REPO}/releases/tag/v0.1.4`;
+const RELEASES = `${REPO}/releases/latest`;
 
 test.use({ reducedMotion: "reduce" });
 
@@ -91,6 +91,20 @@ test.describe("English locale", () => {
       as.map((a) => (a as HTMLAnchorElement).href).filter((h) => /\.(dmg|tar\.gz|zip|exe|AppImage)$/.test(h)),
     );
     expect(files).toEqual([]);
+  });
+
+  test("the download area names the newest version", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#download h2")).toHaveText(`Ely Office ${VERSION}`);
+  });
+
+  test("a failed version read shows as an error", async ({ page }) => {
+    await page.route("**/release.json", (r) => r.fulfill({ status: 502, body: "Gitea answered 500" }));
+    await page.goto("/");
+    await expect.poll(() => errors.length).toBe(1);
+    expect(errors[0]).toContain("Gitea answered 500");
+    await expect(page.locator("#download h2")).toHaveText("Ely Office");
+    errors = [];
   });
 
   test("every external link answers @net", async ({ page, request }) => {

@@ -8,7 +8,7 @@ import { rhythm } from "./rhythm.ts";
 import { playground } from "./play.ts";
 import { film } from "./film.ts";
 import { said, speak, type Lang } from "./text.ts";
-import { RELEASES, VERSION } from "./release.ts";
+import { RELEASES, latest } from "./release.ts";
 
 const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 
@@ -35,7 +35,8 @@ const shelf = props();
 const footer = document.createElement("footer");
 footer.id = "download";
 const version = document.createElement("h2");
-version.textContent = `Ely Office ${VERSION}`;
+version.textContent = "Ely Office";
+void latest().then((v) => (version.textContent = `Ely Office ${v}`));
 const get = said("a", "get");
 get.href = RELEASES;
 footer.append(version, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), get);
