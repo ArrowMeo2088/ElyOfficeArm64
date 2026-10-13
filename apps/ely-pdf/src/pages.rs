@@ -198,7 +198,7 @@ impl PdfView {
             })
             .collect();
         let this = cx.entity();
-        let (down, moved, up) = (this.clone(), this.clone(), this.clone());
+        let (down, moved, up, wheeled) = (this.clone(), this.clone(), this.clone(), this.clone());
         let pages = div()
             .id("pdf-pages")
             .size_full()
@@ -249,7 +249,10 @@ impl PdfView {
         .top_0()
         .left_0()
         .size_full();
-        div().relative().size_full().child(pages).child(measure).into_any_element()
+        let zoom = ely_ui::wheel::zoom_layer(move |event, _, cx| {
+            wheeled.update(cx, |view, cx| view.wheel_zoom(event, cx))
+        });
+        div().relative().size_full().child(pages).child(measure).child(zoom).into_any_element()
     }
 
     /// Asks for the first missing tile, one at a time.

@@ -70,6 +70,8 @@ pub struct PdfView {
     pub painting: bool,
     /// The view's size and place, as last painted.
     pub room: gpui::Bounds<gpui::Pixels>,
+    /// Trackpad pixels toward the next zoom step.
+    pub wheel: f32,
     pub focus: FocusHandle,
     /// Counts edits; replies from before one are dropped.
     pub version: u64,
@@ -199,6 +201,7 @@ impl PdfView {
             go_to: None,
             painting: false,
             room: gpui::Bounds::default(),
+            wheel: 0.0,
             focus: cx.focus_handle(),
             version: 0,
             edited: 0,
@@ -352,6 +355,14 @@ impl PdfView {
         change(self, scale);
         self.retire_tiles();
         self.show(self.current, 0.0, cx);
+    }
+
+    /// Ctrl (Cmd on macOS) and the wheel step the zoom.
+    pub fn wheel_zoom(&mut self, event: &gpui::ScrollWheelEvent, cx: &mut Context<Self>) {
+        let steps = ely_ui::wheel::steps(event, &mut self.wheel);
+        for _ in 0..steps.unsigned_abs() {
+            self.change(|view, now| view.zoom = Zoom::Scale(crate::keys::stepped(now, steps > 0)), cx);
+        }
     }
 
     /// Moves `by` pages; continuous views scroll there.

@@ -195,7 +195,10 @@ impl Desk {
 #[cfg(test)]
 mod tests {
     use ely_gpui_component::documents::DocumentLook;
-    use gpui::{Entity, TestAppContext, VisualTestContext, rems};
+    use gpui::{
+        Entity, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
+        point, rems,
+    };
 
     use crate::desk::{
         Desk,
@@ -274,5 +277,41 @@ mod tests {
             (look.width, look.font, look.size),
             (super::Width::Wide, super::Font::Serif, 120)
         );
+    }
+
+    #[gpui::test]
+    fn ctrl_and_the_wheel_size_the_text(cx: &mut TestAppContext) {
+        let (data, files) = (
+            tempfile::tempdir().expect("data"),
+            tempfile::tempdir().expect("files"),
+        );
+        let path = files.path().join("a.md");
+        std::fs::write(&path, "a
+").expect("a file");
+        let (desk, cx) = start(cx, data.path());
+        open(&desk, &path, cx);
+        let focus = desk.read_with(cx, |desk, _| desk.core.focus.clone());
+        cx.update(|window, cx| window.focus(&focus, cx));
+        let at = cx.update(|window, _| window.viewport_size()).center();
+        let wheel = |modifiers, y| ScrollWheelEvent {
+            position: at,
+            delta: ScrollDelta::Lines(point(0.0, y)),
+            modifiers,
+            ..Default::default()
+        };
+        let other = match cfg!(target_os = "macos") {
+            true => Modifiers { control: true, ..Default::default() },
+            false => Modifiers { platform: true, ..Default::default() },
+        };
+        cx.simulate_event(wheel(other, 3.0));
+        cx.run_until_parked();
+        assert_eq!(document_look(&desk, cx).scale, 1.0, "only Ctrl, or Cmd on macOS");
+        cx.simulate_event(wheel(Modifiers::secondary_key(), 3.0));
+        cx.run_until_parked();
+        assert_eq!(document_look(&desk, cx).scale, 1.1, "a notch is one step");
+        cx.simulate_event(wheel(Modifiers::secondary_key(), -1.0));
+        cx.simulate_event(wheel(Modifiers::secondary_key(), -1.0));
+        cx.run_until_parked();
+        assert_eq!(document_look(&desk, cx).scale, 0.9);
     }
 }

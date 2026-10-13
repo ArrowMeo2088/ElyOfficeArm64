@@ -79,6 +79,8 @@ pub struct MarkView {
     pub(crate) folder: Option<PathBuf>,
     /// The mode first took input (PERF-07).
     pub(crate) shown: bool,
+    /// Trackpad pixels toward the next size step.
+    wheel: f32,
     pub focus: FocusHandle,
 }
 
@@ -123,6 +125,7 @@ impl MarkView {
             mode,
             folder: None,
             shown: false,
+            wheel: 0.0,
             focus,
         }
     }
@@ -301,11 +304,24 @@ impl MarkView {
 }
 
 impl Render for MarkView {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let view = cx.entity();
+        // Ctrl and the wheel size text, as Ctrl+= does.
+        let zoom = ely_ui::wheel::zoom_layer(move |event, window, cx| {
+            let steps = view.update(cx, |view, _| ely_ui::wheel::steps(event, &mut view.wheel));
+            for _ in 0..steps.unsigned_abs() {
+                match steps > 0 {
+                    true => window.dispatch_action(Box::new(crate::look::Larger), cx),
+                    false => window.dispatch_action(Box::new(crate::look::Smaller), cx),
+                }
+            }
+        });
         div()
+            .relative()
             .size_full()
             .track_focus(&self.focus)
             .child(self.document.clone())
+            .child(zoom)
     }
 }
 

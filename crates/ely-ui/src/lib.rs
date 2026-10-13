@@ -8,6 +8,7 @@ pub mod tasks;
 mod theme;
 pub mod updates;
 pub mod watching;
+pub mod wheel;
 
 pub use opening::{launch_files, on_open};
 #[cfg(any(test, feature = "test-support"))]
