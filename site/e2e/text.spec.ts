@@ -3,7 +3,7 @@ import { TEXT, type Key, type Lang } from "../src/text.ts";
 
 const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
-const RELEASES = `${REPO}/releases/tag/v0.1.3`;
+const RELEASES = `${REPO}/releases/tag/v0.1.4`;
 
 test.use({ reducedMotion: "reduce" });
 
