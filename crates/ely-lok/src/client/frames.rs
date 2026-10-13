@@ -14,6 +14,7 @@ fn unpack_pushed(body: &[u8]) -> io::Result<(u64, Events)> {
     let rects = rects_of(&mut unpack)?;
     let cursor = rects_of(&mut unpack)?.first().copied();
     let cursor_visible = unpack.u64()? != 0;
+    let pointer = unpack.str()?;
     let selection = rects_of(&mut unpack)?;
     let graphic = rects_of(&mut unpack)?.first().copied();
     let cropping = unpack.u64()? != 0;
@@ -55,6 +56,7 @@ fn unpack_pushed(body: &[u8]) -> io::Result<(u64, Events)> {
         rects,
         cursor,
         cursor_visible,
+        pointer,
         selection,
         graphic,
         cropping,

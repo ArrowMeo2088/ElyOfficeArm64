@@ -37,7 +37,7 @@ fn pack_events(batch: Events) -> Vec<u8> {
         .u64(batch.all as u64);
     let pack = rects(pack, &batch.rects);
     let pack = rects(pack, batch.cursor.as_slice());
-    let pack = pack.u64(batch.cursor_visible as u64);
+    let pack = pack.u64(batch.cursor_visible as u64).str(&batch.pointer);
     let pack = rects(pack, &batch.selection);
     let pack = rects(pack, batch.graphic.as_slice()).u64(batch.cropping as u64);
     let pack = pack

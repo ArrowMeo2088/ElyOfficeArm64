@@ -59,7 +59,7 @@ impl Render for LokView {
             .aria_value(self.a11y.text.clone())
             .key_context(CONTEXT)
             .track_focus(&self.focus)
-            .cursor(CursorStyle::IBeam)
+            .cursor(self.pointer)
             .size_full()
             .overflow_hidden()
             .bg(canvas_color)
@@ -357,6 +357,32 @@ impl LokView {
             cell: self.cell.cursor.map(rect),
             frame,
             marks: self.marks(),
+        }
+    }
+}
+
+/// The cursor for a kernel CSS pointer name.
+pub(super) fn pointer(css: &str) -> CursorStyle {
+    match css {
+        "default" | "wait" | "help" => CursorStyle::Arrow,
+        "text" => CursorStyle::IBeam,
+        "vertical-text" => CursorStyle::IBeamCursorForVerticalLayout,
+        "crosshair" | "fill" => CursorStyle::Crosshair,
+        "move" => CursorStyle::ClosedHand,
+        "grab" => CursorStyle::OpenHand,
+        "pointer" => CursorStyle::PointingHand,
+        "n-resize" | "s-resize" => CursorStyle::ResizeUpDown,
+        "e-resize" | "w-resize" => CursorStyle::ResizeLeftRight,
+        "ne-resize" | "sw-resize" => CursorStyle::ResizeUpRightDownLeft,
+        "nw-resize" | "se-resize" => CursorStyle::ResizeUpLeftDownRight,
+        "col-resize" => CursorStyle::ResizeColumn,
+        "row-resize" => CursorStyle::ResizeRow,
+        "copy" => CursorStyle::DragCopy,
+        "alias" => CursorStyle::DragLink,
+        "not-allowed" => CursorStyle::OperationNotAllowed,
+        _ => {
+            log::warn!("lok: unknown pointer {css}");
+            CursorStyle::Arrow
         }
     }
 }

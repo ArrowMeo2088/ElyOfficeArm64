@@ -117,6 +117,7 @@ pub struct LokView {
     watching: Option<Task<()>>,
     cursor: Option<Rect>,
     cursor_visible: bool,
+    pointer: gpui::CursorStyle,
     selection: Vec<Rect>,
     cell: crate::Cell,
     /// Whether the kernel was last told to paint dark.
@@ -222,6 +223,7 @@ impl LokView {
             copied: None,
             cursor: None,
             cursor_visible: true,
+            pointer: gpui::CursorStyle::Arrow,
             selection: Vec::new(),
             cell: crate::Cell::default(),
             dark: None,
@@ -387,6 +389,9 @@ impl LokView {
         self.follow_graphic(batch.graphic, cx);
         self.cursor = batch.cursor;
         self.cursor_visible = batch.cursor_visible;
+        if !batch.pointer.is_empty() {
+            self.pointer = render::pointer(&batch.pointer);
+        }
         self.selection = batch.selection;
         if batch.cell.functions != self.cell.functions {
             self.picked = 0;

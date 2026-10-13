@@ -226,5 +226,5 @@
 
 - [x] R3.1 路径不带 `\?\`：凡取真实路径一律 `dunce::canonicalize`（Windows 上能写成普通路径即普通路径，他处同 `std::fs::canonicalize`）；最近列表读入时去掉旧的 `\?\` 并去重；ElyMark 最近列表、ElyTree 等界面不再显示 `\?\` — R1 先简化文件夹再接文件名（结尾空格的名字改写已打开的文件）、暂存文件名越过 260；R2 另存后会话路径与测试不一；R3 PASS
 - [x] R3.2 缩放：Doc、Table、Show、PDF、Mark 以 Ctrl 加滚轮（macOS 为 Cmd）缩放，原认 Windows 键与 Super（Hyprland 占用，Linux 上无效）；滚轮一格为一档（原 Windows 一格三行，一下放大 1.8 倍），触控板的像素滚动照旧连续（LOK）或累积成档（PDF、Mark）；PDF 与 Mark 原无滚轮缩放
-- [ ] R3.3 LOK 视图的指针随内核：`LOK_CALLBACK_MOUSE_POINTER`（单元格上为箭头，编辑单元格或文字时为文字指针，边线为拖动指针，链接为手），原一律为文字指针
+- [x] R3.3 LOK 视图的指针随内核：`LOK_CALLBACK_MOUSE_POINTER`（单元格上为箭头，编辑单元格或文字时为文字指针，边线为拖动指针，链接为手），原一律为文字指针
 - [ ] R3.4 版本 0.1.4：`Cargo.toml` 与随版本的文档，提交并推送 main，打标签 v0.1.4，本机建三端并发布（用户定，R3.2 审查略去）

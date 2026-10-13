@@ -384,6 +384,9 @@ impl LokView {
         }
         if self.dragging && event.pressed_button == Some(MouseButton::Left) {
             self.mouse(2, event.position, 1, 1, &event.modifiers);
+        } else if event.pressed_button.is_none() {
+            // A hover: the kernel answers with its pointer.
+            self.mouse(2, event.position, 0, 1, &event.modifiers);
         }
     }
 

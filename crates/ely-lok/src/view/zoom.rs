@@ -65,7 +65,7 @@ impl LokView {
         cx.notify();
     }
 
-    /// Ctrl (Cmd on macOS) with the wheel zooms; else it scrolls.
+    /// Ctrl (macOS: Cmd) and the wheel zoom; else scroll.
     pub(super) fn on_wheel(&mut self, event: &ScrollWheelEvent, window: &mut Window, cx: &mut Context<Self>) {
         if !self.wheel_zoom(event, cx) {
             self.on_scroll(event, window, cx);

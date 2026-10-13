@@ -24,7 +24,7 @@ pub fn steps(event: &ScrollWheelEvent, carry: &mut f32) -> i32 {
     }
 }
 
-/// Over its parent, takes a zooming wheel before the parent scrolls.
+/// Takes a zooming wheel before the parent scrolls.
 pub fn zoom_layer(
     on: impl Fn(&ScrollWheelEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {

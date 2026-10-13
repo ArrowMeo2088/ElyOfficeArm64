@@ -46,6 +46,7 @@ const FONTS: i32 = 57;
 const SIZE_CHANGED: i32 = 13;
 const SET_PART: i32 = 14;
 const CELL_CURSOR: i32 = 17;
+const MOUSE_POINTER: i32 = 18;
 const CELL_FORMULA: i32 = 19;
 const HEADER: i32 = 33;
 const GEOMETRY: i32 = 50;
@@ -73,6 +74,8 @@ pub struct Events {
     pub rects: Vec<Rect>,
     pub cursor: Option<Rect>,
     pub cursor_visible: bool,
+    /// The CSS pointer name; empty until the kernel says.
+    pub pointer: String,
     pub selection: Vec<Rect>,
     /// The selected object's frame, if any.
     pub graphic: Option<Rect>,
@@ -141,7 +144,8 @@ fn signal() -> &'static Condvar {
     SIGNAL.get_or_init(Condvar::new)
 }
 
-const KINDS: [i32; 33] = [
+const KINDS: [i32; 34] = [
+    MOUSE_POINTER,
     REFERENCE_MARKS,
     FUNCTION_LIST,
     TOOLTIP,
@@ -233,6 +237,7 @@ fn record(slot: &mut Slot, kind: i32, text: &str) -> Option<u32> {
                 .collect();
         }
         CURSOR_VISIBLE => batch.cursor_visible = text == "true",
+        MOUSE_POINTER => batch.pointer = text.to_string(),
         GRAPHIC => {
             batch.graphic = rect_in(batch, "graphic selection", text);
             batch.cropping = batch.graphic.is_some() && text.contains("\"isCropMode\": true");
