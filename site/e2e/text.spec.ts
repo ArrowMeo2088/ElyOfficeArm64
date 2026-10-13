@@ -68,6 +68,15 @@ test.describe("English locale", () => {
     await expect(lang).toHaveCSS("opacity", "1");
   });
 
+  test("the hero links keep their icons in either language", async ({ page }) => {
+    await page.goto("/");
+    const icons = page.locator(".hero .links a > svg[aria-hidden=true]");
+    await expect(icons).toHaveCount(2);
+    await page.locator(".lang").click();
+    await expect(icons).toHaveCount(2);
+    await expect(page.locator(".hero .links a")).toHaveText(["前往下载", "源码"]);
+  });
+
   test("the language button switches every text and back", async ({ page }) => {
     await page.goto("/");
     const lang = page.locator(".lang");
@@ -88,7 +97,7 @@ test.describe("English locale", () => {
     await expect(page.locator("#download [data-t=get]")).toHaveAttribute("href", RELEASES);
     await expect(page.locator(".hero .links a").last()).toHaveText("Source");
     await expect(page.locator(".hero .links a").last()).toHaveAttribute("href", REPO);
-    await expect(page.locator(".hero [data-t=get]")).toHaveAttribute("href", RELEASES);
+    await expect(page.locator(".hero .links a").first()).toHaveAttribute("href", RELEASES);
     const files = await page.locator("a[href]").evaluateAll((as) =>
       as.map((a) => (a as HTMLAnchorElement).href).filter((h) => /\.(dmg|tar\.gz|zip|exe|AppImage)$/.test(h)),
     );

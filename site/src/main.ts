@@ -9,6 +9,7 @@ import { playground } from "./play.ts";
 import { film } from "./film.ts";
 import { said, speak, word, type Lang } from "./text.ts";
 import { RELEASES, latest } from "./release.ts";
+import { iconLink } from "./icons.ts";
 
 const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
 
@@ -18,10 +19,8 @@ if (!app) throw new Error("index.html has no #app");
 const hero = document.createElement("header");
 const title = document.createElement("h1");
 title.textContent = "Ely Office";
-const source = said("a", "source");
-source.href = REPO;
-const download = said("a", "get");
-download.href = RELEASES;
+const source = iconLink("gitea", "source", REPO);
+const download = iconLink("download", "get", RELEASES);
 const links = document.createElement("div");
 links.className = "links";
 links.append(download, source);
