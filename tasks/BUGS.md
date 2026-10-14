@@ -146,4 +146,6 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] P3-03 Windows：放映图层大于一帧时分片缺行（`motion::a_layer_larger_than_one_frame_arrives_in_pieces`）
 - [ ] P3-04 Windows：放映的页脚字段文字不在占位处（`playlist::field_text_lands_where_its_placeholder_is`）
 - [ ] P3-05 Windows：辅助功能的段落选区不桥接（`commands::a11y_follows_the_focused_paragraph`）
+- [ ] P3-06 Windows：删不掉内核仍开着文件的标签工作目录（错误 32），写入失败无从模拟（`tests::more::a_kernel_write_failure_stays_visible`）
+- [ ] P3-07 Windows：测试以 `kill -9` 杀 worker，Git Bash 的 kill 不认 Windows 进程号，worker 不死（`view::tests::commands::a_dead_worker_reaches_apps_while_idle`）
 

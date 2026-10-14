@@ -313,6 +313,7 @@ impl LokView {
             return;
         };
         window.focus(&self.focus, cx);
+        self.right_at = (event.button == MouseButton::Right).then_some(event.position);
         if event.button == MouseButton::Left && self.grab(event.position) {
             cx.notify();
             return;
@@ -391,7 +392,17 @@ impl LokView {
     }
 
     pub(super) fn on_copy(&mut self, _: &Copy, _: &mut Window, _: &mut Context<Self>) {
-        self.send(Input::Copy { cut: false });
+        self.copy(false);
+    }
+
+    /// Copies the selection out, or cuts it.
+    pub fn copy(&mut self, cut: bool) {
+        self.send(Input::Copy { cut });
+    }
+
+    /// Pastes the system clipboard.
+    pub fn paste(&mut self) {
+        self.send(Input::Paste);
     }
 
     pub(super) fn on_next_field(&mut self, _: &NextField, _: &mut Window, _: &mut Context<Self>) {
@@ -410,11 +421,11 @@ impl LokView {
     }
 
     pub(super) fn on_cut(&mut self, _: &Cut, _: &mut Window, _: &mut Context<Self>) {
-        self.send(Input::Copy { cut: true });
+        self.copy(true);
     }
 
     pub(super) fn on_paste(&mut self, _: &Paste, _: &mut Window, _: &mut Context<Self>) {
-        self.send(Input::Paste);
+        self.paste();
     }
 
     /// Pastes values or formulas alone (TABLE-08).

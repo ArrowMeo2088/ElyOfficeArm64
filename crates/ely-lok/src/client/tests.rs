@@ -15,6 +15,7 @@ pub(crate) mod input;
 mod latency;
 mod layout;
 mod media;
+mod menus;
 mod motion;
 mod output;
 mod paint;

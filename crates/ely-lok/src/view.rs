@@ -137,6 +137,7 @@ pub struct LokView {
     /// The last search outcome: its count and matches.
     search: (u64, Vec<Rect>),
     menu: Option<String>,
+    right_at: Option<Point<Pixels>>,
     fonts: Vec<String>,
     a11y: crate::A11y,
     tabs: Vec<i32>,
@@ -239,6 +240,7 @@ impl LokView {
             review: 0,
             search: (0, Vec::new()),
             menu: None,
+            right_at: None,
             fonts: Vec::new(),
             a11y: crate::A11y::default(),
             tabs: Vec::new(),

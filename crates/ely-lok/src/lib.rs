@@ -7,6 +7,7 @@ mod ffi;
 mod handshake;
 pub mod history;
 mod ipc;
+pub mod menu;
 pub mod review;
 pub mod sheet;
 pub mod show;
