@@ -148,4 +148,5 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] P3-05 Windows：辅助功能的段落选区不桥接（`commands::a11y_follows_the_focused_paragraph`）
 - [ ] P3-06 Windows：删不掉内核仍开着文件的标签工作目录（错误 32），写入失败无从模拟（`tests::more::a_kernel_write_failure_stays_visible`）
 - [ ] P3-07 Windows：测试以 `kill -9` 杀 worker，Git Bash 的 kill 不认 Windows 进程号，worker 不死（`view::tests::commands::a_dead_worker_reaches_apps_while_idle`）
+- [ ] P3-08 Windows（AMD）：多个 worker 同时启动时内核的 OpenCL 探测卡在驱动的 `clCreateCommandQueue` 里数分钟（`openclwrapper::switchOpenCLDevice`）；测试以 `SAL_DISABLE_OPENCL=1` 绕开；是否在 `ely.xcd` 关掉 `UseOpenCL` 待用户定
 
