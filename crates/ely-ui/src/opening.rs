@@ -1,41 +1,55 @@
-//! Files the system hands the app: arguments, Finder.
+//! Files handed to the app: arguments, Finder, second copies.
 
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 
+use ely_platform::instance::Door;
 use futures::{StreamExt, channel::mpsc};
 use gpui::{App, Application, Global};
 
-struct Asked(Option<mpsc::UnboundedReceiver<PathBuf>>);
+/// A request to the running app.
+pub(crate) enum Ask {
+    Open(PathBuf),
+    /// A second copy started: come to the front.
+    Raise,
+}
+
+struct Asked(Option<mpsc::UnboundedReceiver<Ask>>);
 
 impl Global for Asked {}
 
-/// Queues launch arguments and every later open request.
-pub(crate) fn listen(application: &Application) -> mpsc::UnboundedReceiver<PathBuf> {
+/// Launch arguments, relative to where the app was started.
+pub(crate) fn launch_args() -> io::Result<Vec<PathBuf>> {
+    std::env::args_os().skip(1).map(std::path::absolute).collect()
+}
+
+/// Queues `files`, then files the system or copies ask for.
+pub(crate) fn listen(application: &Application, files: Vec<PathBuf>, door: Door) -> io::Result<mpsc::UnboundedReceiver<Ask>> {
     let (sender, asked) = mpsc::unbounded();
-    // Relative to where the app was started.
-    for path in std::env::args_os().skip(1) {
-        match std::path::absolute(&path) {
-            Ok(path) => {
-                sender.unbounded_send(path).ok();
-            }
-            Err(error) => log::error!("run: a launch argument has no place: {error}"),
-        }
+    for path in files {
+        sender.unbounded_send(Ask::Open(path)).ok();
     }
+    let handed = sender.clone();
+    door.serve(move |files| {
+        for path in files {
+            handed.unbounded_send(Ask::Open(path)).ok();
+        }
+        handed.unbounded_send(Ask::Raise).ok();
+    })?;
     application.on_open_urls(move |urls| {
         for url in urls {
             match file_path(&url) {
                 Some(path) => {
                     log::info!("run: the system asks to open a file");
-                    sender.unbounded_send(path).ok();
+                    sender.unbounded_send(Ask::Open(path)).ok();
                 }
                 None => log::warn!("run: not a file URL, ignored"),
             }
         }
     });
-    asked
+    Ok(asked)
 }
 
-pub(crate) fn keep(asked: mpsc::UnboundedReceiver<PathBuf>, cx: &mut App) {
+pub(crate) fn keep(asked: mpsc::UnboundedReceiver<Ask>, cx: &mut App) {
     cx.set_global(Asked(Some(asked)));
 }
 
@@ -49,7 +63,9 @@ pub fn install_no_launch_files(cx: &mut App) {
 pub fn launch_files(cx: &mut App) -> Vec<PathBuf> {
     let asked = cx.global_mut::<Asked>().0.as_mut();
     let asked = asked.expect("launch_files comes before on_open");
-    std::iter::from_fn(|| asked.try_recv().ok()).collect()
+    let pending = std::iter::from_fn(|| asked.try_recv().ok());
+    // The window opens in front anyway.
+    pending.filter_map(|ask| if let Ask::Open(path) = ask { Some(path) } else { None }).collect()
 }
 
 /// Hands each file asked from now on to `open`.
@@ -60,11 +76,26 @@ pub fn on_open(cx: &mut App, mut open: impl FnMut(PathBuf, &mut App) + 'static) 
         .take()
         .expect("on_open runs once per app");
     cx.spawn(async move |cx| {
-        while let Some(path) = asked.next().await {
-            cx.update(|cx| open(path, cx));
+        while let Some(ask) = asked.next().await {
+            cx.update(|cx| match ask {
+                Ask::Open(path) => open(path, cx),
+                Ask::Raise => raise(cx),
+            });
         }
     })
     .detach();
+}
+
+/// Brings the main window, the first opened, to the front.
+fn raise(cx: &mut App) {
+    cx.activate(true);
+    let Some(window) = cx.windows().into_iter().next() else {
+        log::warn!("run: no window to bring to the front");
+        return;
+    };
+    if let Err(error) = window.update(cx, |_, window, _| window.activate_window()) {
+        log::warn!("run: the window could not come to the front: {error}");
+    }
 }
 
 /// A `file://` URL's path, percent escapes decoded.

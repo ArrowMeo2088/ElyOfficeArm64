@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use ely_gpui_component::Assets;
 use ely_gpui_component::theme::ActiveTheme;
-use ely_platform::{AppId, env, graphics, logging, startup};
+use ely_platform::{AppId, env, graphics, instance::Start, logging, startup};
 use gpui::{
     App, Bounds, Entity, Render, TitlebarOptions, Window, WindowBounds, WindowDecorations,
     WindowOptions, px, size,
@@ -19,10 +19,13 @@ pub fn run<V: Render>(
     if let Some(code) = crate::updates::installer(app) {
         std::process::exit(code);
     }
+    let files = crate::opening::launch_args().unwrap_or_else(|error| startup::fail(app, &format!("a launch argument has no place: {error}")));
     // Before the log: a second copy must not trim it.
-    if let Err(error) = ely_platform::instance::hold(app) {
-        startup::fail(app, &format!("{error}"));
-    }
+    let door = match ely_platform::instance::hold(app, &files) {
+        Ok(Start::First(door)) => door,
+        Ok(Start::Handed) => std::process::exit(0),
+        Err(error) => startup::fail(app, &format!("{error}")),
+    };
     if let Err(error) = logging::init(app) {
         startup::fail(app, &format!("logging did not start: {error:#}"));
     }
@@ -33,7 +36,7 @@ pub fn run<V: Render>(
     startup::no_window_restore();
     let smoke = Smoke::from_env();
     let application = gpui_platform::application().with_assets(Assets);
-    let asked = crate::opening::listen(&application);
+    let asked = crate::opening::listen(&application, files, door).unwrap_or_else(|error| startup::fail(app, &format!("the door for other copies did not open: {error}")));
     application.run(move |cx: &mut App| {
         crate::opening::keep(asked, cx);
         open(app, smoke, root, cx)
