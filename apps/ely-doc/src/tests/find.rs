@@ -126,7 +126,7 @@ fn a_misspelled_word_offers_suggestions() {
     settle(&cx, |app| docs.read(app).offer.is_some());
     let rule = cx.update(|app| {
         let offer = docs.read(app).offer.as_ref().expect("an offer");
-        let spelling = offer.offered.spelling.as_ref().expect("a spelling menu");
+        let spelling = offer.what.spelling.as_ref().expect("a spelling menu");
         let (_, rule) = spelling
             .suggestions
             .iter()

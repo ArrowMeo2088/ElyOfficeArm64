@@ -2,15 +2,22 @@
 
 use std::{collections::HashMap, io};
 
-use crate::review::{entries, invalid, parse};
+use crate::{
+    Doc, Worker,
+    review::{entries, invalid, parse},
+};
 
 /// Where a right click landed, per the kernel's menu.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Target {
     Text,
     Table,
-    /// A graphic, an object or a frame.
+    /// A Writer graphic, object or frame.
     Frame,
+    /// A spreadsheet cell.
+    Cell,
+    /// A drawing object outside Writer.
+    Object,
 }
 
 /// A misspelled word's menu: suggestions as the kernel's rules.
@@ -36,6 +43,39 @@ impl Offered {
     }
 }
 
+/// Which asked commands run now, per the kernel's dispatcher.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Runs(HashMap<String, bool>);
+
+impl Runs {
+    /// The kernel lets `uno` run now.
+    pub fn allows(&self, uno: &str) -> bool {
+        self.0.get(uno) == Some(&true)
+    }
+}
+
+/// The read of which commands run now (patch 0045).
+pub const STATES: &str = ".uno:CommandStates";
+
+/// Asks the kernel which of `commands` run now.
+pub fn runs(worker: &mut Worker, doc: &Doc, commands: &[&str]) -> io::Result<Runs> {
+    let json = worker.values(doc, &format!("{STATES}?commands={}", commands.join(",")))?;
+    read_runs(&json, commands)
+}
+
+/// Reads the answer; every asked command must be in it.
+fn read_runs(json: &str, commands: &[&str]) -> io::Result<Runs> {
+    let value = parse(json)?;
+    let states = value["commandStates"]
+        .as_object()
+        .ok_or_else(|| invalid(format!("no command states: {json}")))?;
+    let read = |command: &&str| match states.get(*command).and_then(serde_json::Value::as_bool) {
+        Some(on) => Ok((command.to_string(), on)),
+        None => Err(invalid(format!("no state for {command}: {json}"))),
+    };
+    Ok(Runs(commands.iter().map(read).collect::<io::Result<_>>()?))
+}
+
 /// Reads a `LOK_CALLBACK_CONTEXT_MENU` payload.
 pub fn read(json: &str) -> io::Result<Offered> {
     let list = parse(json)?;
@@ -50,6 +90,10 @@ pub fn read(json: &str) -> io::Result<Offered> {
         Target::Table
     } else if enabled.contains_key(".uno:WrapMenu") {
         Target::Frame
+    } else if enabled.contains_key(".uno:InsertCell") {
+        Target::Cell
+    } else if enabled.contains_key(".uno:ArrangeMenu") {
+        Target::Object
     } else {
         Target::Text
     };

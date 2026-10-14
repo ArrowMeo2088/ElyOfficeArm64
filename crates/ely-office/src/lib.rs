@@ -9,6 +9,7 @@ pub mod engine;
 pub mod files;
 mod find;
 pub mod lok;
+pub mod menu;
 mod open;
 mod recover;
 pub mod panel;

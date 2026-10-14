@@ -41,7 +41,7 @@ fn right_click(cx: &mut VisualTestContext, docs: &Entity<Docs>, at: Point<Pixels
         docs.read(app)
             .offer
             .as_ref()
-            .is_some_and(|offer| offer.offered.target == target)
+            .is_some_and(|offer| offer.what.target == target)
     };
     for _ in 0..500 {
         cx.run_until_parked();
@@ -79,7 +79,7 @@ fn a_right_click_opens_word_rows_where_it_lands() {
         "the menu opens at the click, not the caret: {off:?}"
     );
     let on = |shown: &mut VisualTestContext, pick: Pick| {
-        shown.update(|_, app| pick.on(&docs.read(app).offer.as_ref().expect("an offer").offered))
+        shown.update(|_, app| pick.on(&docs.read(app).offer.as_ref().expect("an offer").what))
     };
     assert!(on(&mut shown, Pick::Comment));
     assert!(!on(&mut shown, Pick::Link), "the kernel links a selection");

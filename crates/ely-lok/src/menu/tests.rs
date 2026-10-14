@@ -32,6 +32,10 @@ fn the_menu_names_its_target_and_flags() {
         item(".uno:WrapMenu", true)
     );
     assert_eq!(read(&frame).expect("a commandless submenu").target, Target::Frame);
+    let cell = format!(r#"{{"menu":[{}]}}"#, item(".uno:InsertCell", false));
+    assert_eq!(read(&cell).expect("parses").target, Target::Cell);
+    let object = format!(r#"{{"menu":[{}]}}"#, item(".uno:ArrangeMenu", true));
+    assert_eq!(read(&object).expect("parses").target, Target::Object);
     let text = format!(r#"{{"menu":[{}]}}"#, item(".uno:Paste", true));
     assert_eq!(read(&text).expect("parses").target, Target::Text);
 }
@@ -41,4 +45,15 @@ fn a_malformed_menu_fails() {
     assert!(read(r#"{"menu":[{"type":"command","command":".uno:Cut"}]}"#).is_err());
     assert!(read(r#"{"menu":[{"type":"command","enabled":"true"}]}"#).is_err());
     assert!(read(r#"{"items":[]}"#).is_err());
+}
+
+#[test]
+fn command_states_answer_each_asked_command() {
+    let json = r#"{"commandStates":{".uno:DeleteRows":false,".uno:InsertRowsBefore":true}}"#;
+    let runs = read_runs(json, &[".uno:InsertRowsBefore", ".uno:DeleteRows"]).expect("parses");
+    assert!(runs.allows(".uno:InsertRowsBefore"));
+    assert!(!runs.allows(".uno:DeleteRows"));
+    assert!(read_runs(json, &[".uno:HideRow"]).is_err(), "an unanswered command");
+    let text = r#"{"commandStates":{".uno:Cut":"true"}}"#;
+    assert!(read_runs(text, &[".uno:Cut"]).is_err(), "a state is a boolean");
 }

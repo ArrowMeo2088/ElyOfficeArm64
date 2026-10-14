@@ -2,25 +2,18 @@
 
 use ely_gpui_component::{
     menus::{ContextMenu, Menu, MenuItem},
-    primitives::{IconName, Severity},
+    primitives::Severity,
 };
 use ely_lok::{
     LokView,
     menu::{Offered, Target},
 };
-use gpui::{App, Context, Entity, Pixels, Point, Window};
+use ely_office::menu::{self, Entry, Offer};
+use gpui::{App, Context, Entity, Window};
 
 use crate::docs::Docs;
 use crate::refs::{InsertCaption, InsertComment, InsertLink};
 use ely_office::prelude::*;
-
-/// A menu the kernel offered, asked for at a point.
-pub struct Offer {
-    tab: u64,
-    pub(crate) offered: Offered,
-    /// Bumps for each menu, so each opens once.
-    request: (u64, Point<Pixels>),
-}
 
 /// One thing the menu does.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -53,14 +46,8 @@ pub enum Pick {
     Caption,
 }
 
-/// A row, a submenu or a line.
-enum Entry {
-    Row(Pick),
-    Sub(&'static str, &'static [Pick]),
-    Line,
-}
-
-const TABLE: &[Entry] = &[
+const TABLE: &[Entry<Pick>] = &[
+    Entry::Line,
     Entry::Sub(
         "doc.menu.insert",
         &[Pick::ColumnLeft, Pick::ColumnRight, Pick::RowAbove, Pick::RowBelow],
@@ -78,27 +65,27 @@ const TABLE: &[Entry] = &[
     Entry::Row(Pick::Comment),
 ];
 
-const FRAME: &[Entry] = &[
+const FRAME: &[Entry<Pick>] = &[
+    Entry::Line,
     Entry::Sub(
         "doc.menu.wrap",
         &[Pick::Inline, Pick::Square, Pick::TopBottom, Pick::InFront],
     ),
-    Entry::Sub("doc.menu.front", &[Pick::Front, Pick::Forward]),
-    Entry::Sub("doc.menu.back", &[Pick::Back, Pick::Backward]),
+    Entry::Sub("office.menu.front", &[Pick::Front, Pick::Forward]),
+    Entry::Sub("office.menu.back", &[Pick::Back, Pick::Backward]),
     Entry::Line,
     Entry::Row(Pick::Caption),
     Entry::Row(Pick::Comment),
 ];
 
-const TEXT: &[Entry] = &[Entry::Row(Pick::Link), Entry::Row(Pick::Comment)];
+const TEXT: &[Entry<Pick>] = &[Entry::Line, Entry::Row(Pick::Link), Entry::Row(Pick::Comment)];
 
-impl Pick {
-    /// Its label key and the kernel command that gates it.
+impl menu::Pick for Pick {
     fn row(self) -> (&'static str, &'static str) {
         match self {
-            Pick::Cut => ("doc.menu.cut", ".uno:Cut"),
-            Pick::Copy => ("doc.menu.copy", ".uno:Copy"),
-            Pick::Paste => ("doc.menu.paste", ".uno:Paste"),
+            Pick::Cut => ("office.menu.cut", ".uno:Cut"),
+            Pick::Copy => ("office.menu.copy", ".uno:Copy"),
+            Pick::Paste => ("office.menu.paste", ".uno:Paste"),
             Pick::Link => ("doc.menu.link", ".uno:InsertHyperlink"),
             Pick::Comment => ("doc.menu.comment", ".uno:InsertAnnotation"),
             Pick::ColumnLeft => ("doc.menu.column_left", ".uno:InsertColumnsBefore"),
@@ -117,47 +104,41 @@ impl Pick {
             Pick::Square => ("doc.menu.square", ".uno:WrapOn"),
             Pick::TopBottom => ("doc.menu.top_bottom", ".uno:WrapOff"),
             Pick::InFront => ("doc.menu.in_front", ".uno:WrapThrough"),
-            Pick::Front => ("doc.menu.front", ".uno:BringToFront"),
-            Pick::Forward => ("doc.menu.forward", ".uno:ObjectForwardOne"),
-            Pick::Back => ("doc.menu.back", ".uno:SendToBack"),
-            Pick::Backward => ("doc.menu.backward", ".uno:ObjectBackOne"),
+            Pick::Front => ("office.menu.front", ".uno:BringToFront"),
+            Pick::Forward => ("office.menu.forward", ".uno:ObjectForwardOne"),
+            Pick::Back => ("office.menu.back", ".uno:SendToBack"),
+            Pick::Backward => ("office.menu.backward", ".uno:ObjectBackOne"),
             Pick::Caption => ("doc.menu.caption", ".uno:InsertCaptionDialog"),
         }
     }
+}
 
+impl Pick {
     /// The kernel offers it and it runs now.
     pub(crate) fn on(self, offered: &Offered) -> bool {
-        offered.allows(self.row().1)
+        offered.allows(menu::Pick::row(self).1)
     }
 }
 
 impl Docs {
     /// Turns the kernel's context menu into Ely's.
     pub(crate) fn offer_menu(&mut self, id: u64, view: &Entity<LokView>, cx: &mut Context<Self>) {
-        let Some((json, at)) = view.update(cx, |view, _| view.take_menu()) else {
-            return;
-        };
-        let offered = match ely_lok::menu::read(&json) {
-            Ok(offered) => offered,
-            Err(error) => {
+        let (offered, at) = match menu::take(view, cx) {
+            None => return,
+            Some(Ok(taken)) => taken,
+            Some(Err(error)) => {
                 let text = Docs::text(cx, "office.error.engine", &[("error", &error.to_string())]);
                 return self.toast(text, Severity::Danger, cx);
             }
         };
-        // Without a click it opens at the caret.
-        let caret = || view.read(cx).cursor_bounds().map(|caret| caret.bottom_left());
-        let Some(at) = at.or_else(caret) else {
-            log::warn!("doc: a menu with no click and no caret");
-            return;
-        };
-        let number = self.offer.as_ref().map_or(1, |offer| offer.request.0 + 1);
+        if matches!(offered.target, Target::Cell | Target::Object) {
+            let error = format!("a {:?} menu in a text document", offered.target);
+            let text = Docs::text(cx, "office.error.engine", &[("error", &error)]);
+            return self.toast(text, Severity::Danger, cx);
+        }
         let suggestions = offered.spelling.as_ref().map_or(0, |spelling| spelling.suggestions.len());
-        log::info!("doc: a {:?} menu, {suggestions} suggestions", offered.target);
-        self.offer = Some(Offer {
-            tab: id,
-            offered,
-            request: (number, at),
-        });
+        log::info!("doc: {suggestions} suggestions");
+        self.offer = Some(Offer::new(self.offer.as_ref(), id, offered, at));
         cx.notify();
     }
 
@@ -167,8 +148,7 @@ impl Docs {
             .offer
             .as_ref()
             .filter(|offer| Some(offer.tab) == self.core.active)?;
-        let menu = menu_of(&cx.entity(), &offer.offered, cx);
-        Some(ContextMenu::new("doc-menu", menu).manual(Some(offer.request)))
+        Some(offer.host("doc-menu", menu_of(&cx.entity(), &offer.what, cx)))
     }
 
     /// Runs one menu row.
@@ -219,7 +199,7 @@ impl Docs {
 pub(crate) fn menu_of(this: &Entity<Docs>, offered: &Offered, cx: &App) -> Menu {
     let item = |pick: Pick| {
         let this = this.clone();
-        MenuItem::new(Docs::text(cx, pick.row().0, &[]))
+        MenuItem::new(Docs::text(cx, menu::Pick::row(pick).0, &[]))
             .disabled(!pick.on(offered))
             .on_click(move |window, cx| this.update(cx, |docs, cx| docs.choose(pick, window, cx)))
     };
@@ -244,31 +224,14 @@ pub(crate) fn menu_of(this: &Entity<Docs>, offered: &Offered, cx: &App) -> Menu 
         );
         menu = menu.item(ignore).separator();
     }
-    let clipboard = [
-        (Pick::Cut, IconName::Scissors),
-        (Pick::Copy, IconName::Copy),
-        (Pick::Paste, IconName::Clipboard),
-    ];
-    menu = menu
-        .buttons(clipboard.map(|(pick, icon)| item(pick).icon(icon)))
-        .separator();
-    let entries = match offered.target {
+    let menu = menu::clipboard(menu, [Pick::Cut, Pick::Copy, Pick::Paste], item);
+    let rows = match offered.target {
         Target::Table => TABLE,
         Target::Frame => FRAME,
         Target::Text => TEXT,
+        Target::Cell | Target::Object => unreachable!("offer_menu refuses them"),
     };
-    for entry in entries {
-        menu = match entry {
-            Entry::Row(pick) => menu.item(item(*pick)),
-            Entry::Sub(key, picks) => {
-                let sub = picks.iter().fold(Menu::new(), |sub, pick| sub.item(item(*pick)));
-                let on = picks.iter().any(|pick| pick.on(offered));
-                menu.item(MenuItem::submenu(Docs::text(cx, key, &[]), sub).disabled(!on))
-            }
-            Entry::Line => menu.separator(),
-        };
-    }
-    menu
+    menu::entries(menu, rows, cx, |pick| pick.on(offered), item)
 }
 
 #[cfg(test)]

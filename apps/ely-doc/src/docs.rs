@@ -37,7 +37,7 @@ pub struct Docs {
     pub review: Entity<Review>,
     /// What the right column shows.
     pub side: Side,
-    pub offer: Option<crate::menu::Offer>,
+    pub offer: Option<ely_office::menu::Offer<ely_lok::menu::Offered>>,
     pub merge: Entity<crate::merge::Merge>,
     pub navigator: Entity<crate::navigate::Navigator>,
     /// The left column shows the navigator.
