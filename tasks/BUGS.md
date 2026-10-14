@@ -153,4 +153,6 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] P3-10 Windows：`crates/ely-office/tests/restart.rs` 设 `HOME` 想用临时目录，但 Windows 上 `data_dir` 取已知文件夹（不看 `HOME`），测试在真实的 ElyDoc 配置里运行；中途被杀即留下挡路的 `lok-verify.fodt` 文件夹，真实 ElyDoc 的内核核对随之失败（2026-10-14 审查中出现，已手动删去）
 - [ ] P3-11 ElyShow：正编辑表格单元格时在幻灯片空白处右键，内核（Impress）只结束编辑、不发 `LOK_CALLBACK_CONTEXT_MENU`，再右键一次才有幻灯片菜单；Windows 实测，他端未核；修需内核补丁
 - [ ] P3-12 Windows：`output::tests::targets_skip_hidden_slides_and_pad_numbers` 以 `/` 拼的路径比对，Windows 的 `join` 用 `\`，单测恒失败（代码无误）
+- [ ] P3-13 Windows：ElyPDF 三个单测恒失败（2026-10-14 组件 6b033f3 下实测，与组件无关）：`reads::a_failed_read_is_not_asked_again` 用 `kill -9` 杀 worker（同 P3-07）；`sign::a_signed_file_lists_its_checks_and_saves_as_a_copy` 报 “self-signed”（证书信任在 Windows 未构建，未细查）；`organize::a_save_writes_the_edits_and_undo_after_it_is_unsaved_again` 报状态未落定（原因未查）
+- [ ] P3-14 Windows：ElyTree 九个单测恒失败：五个比对 Git 写出的文字，本机 Git 的 `core.autocrlf` 写成 CRLF（测试仓库未设 `core.autocrlf false`）；其余写 Windows 不许的文件名（os error 123）。代码行为未见错，未修
 
