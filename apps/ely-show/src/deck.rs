@@ -57,6 +57,8 @@ pub struct Deck {
     pub remarks_pane: Entity<crate::remarks::Pane>,
     /// What the menus last checked: grid, guides, comments.
     pub snap_menus: Option<(bool, bool, bool)>,
+    /// The canvas's right-click menu.
+    pub menu: Option<ely_office::menu::Offer<crate::menu::What>>,
     /// Pictures of closed tabs and ended previews, freed later.
     pub retired: ely_gpui_component::primitives::Retired,
 }
@@ -103,6 +105,7 @@ impl Host for Deck {
             tab.extra.dark = dark;
             self.repaint_all(id, cx);
         }
+        self.offer_menu(id, view, cx);
         self.reread(id, view, cx);
     }
 }
@@ -172,6 +175,7 @@ impl Deck {
             reading_fonts: false,
             guide_drag: None,
             snap_menus: Some((false, false, false)),
+            menu: None,
             notes: Default::default(),
             remarks_open: false,
             preview: None,
@@ -379,7 +383,7 @@ impl Deck {
         self.paint_next(id, cx);
     }
 
-    fn body(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn body(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let Some(tab) = self.active_tab() else {
             let title = match self.core.loading.first() {
                 Some((_, name)) => Self::text(cx, "office.loading", &[("name", name)]),
@@ -447,7 +451,8 @@ impl Render for Deck {
             .on_action(cx.listener(Self::on_close_tab))
             .child(shell)
             .children(self.core_dialog(cx))
-            .children(self.dialog_element(cx));
+            .children(self.dialog_element(cx))
+            .children(self.context_menu(cx));
         let root = crate::slideshow::bind(crate::insert::bind(crate::slides::bind(root, cx), cx), cx);
         Self::bind_zoom(root, cx)
     }

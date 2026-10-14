@@ -99,15 +99,23 @@ fn inner(lines: &Lines) -> impl Iterator<Item = (u16, i32)> + '_ {
 fn clamp(table: &Table, side: Side, offset: i32) -> i32 {
     let axis = if side.upright() { &table.columns } else { &table.rows };
     let (first, last) = (axis.inner.first(), axis.inner.last());
-    let (at, low, high) = match side {
-        Side::ColumnLeft => (axis.left, i32::MIN, first.map_or(axis.right, |line| line.position) - GAP),
-        Side::ColumnRight | Side::RowBottom => (axis.right, last.map_or(axis.left, |line| line.position) + GAP, i32::MAX),
-        Side::Column(index) | Side::Row(index) => {
+    // Impress sends its outer bounds; Writer leaves a gap.
+    let (at, low, high) = match (side, axis.ends) {
+        (Side::ColumnLeft, Some([(low, high), _])) => (axis.left, low, high),
+        (Side::ColumnRight | Side::RowBottom, Some([_, (low, high)])) => (axis.right, low, high),
+        (Side::ColumnLeft, None) => (axis.left, i32::MIN, first.map_or(axis.right, |line| line.position) - GAP),
+        (Side::ColumnRight | Side::RowBottom, None) => {
+            (axis.right, last.map_or(axis.left, |line| line.position) + GAP, i32::MAX)
+        }
+        (Side::Column(index) | Side::Row(index), ends) => {
             let line = axis.inner[usize::from(index)];
-            (line.position, line.min, (line.max - GAP).max(line.min))
+            let high = if ends.is_some() { line.max } else { (line.max - GAP).max(line.min) };
+            (line.position, line.min, high)
         }
     };
-    (at.saturating_add(offset)).clamp(low, high) - at
+    let moved = (at.saturating_add(offset)).clamp(low, high) - at;
+    // A line past its bound never moves against the drag.
+    if moved.signum() == offset.signum() { moved } else { 0 }
 }
 
 impl LokView {
@@ -229,8 +237,8 @@ mod tests {
     fn table() -> Table {
         let line = |position, min, max| Line { position, min, max, hidden: false };
         Table {
-            columns: Lines { left: 0, right: 9000, offset: 1000, inner: vec![line(3000, 300, 6000), line(6000, 3300, 8700)] },
-            rows: Lines { left: 0, right: 800, offset: 2000, inner: vec![line(400, 100, 800)] },
+            columns: Lines { left: 0, right: 9000, offset: 1000, inner: vec![line(3000, 300, 6000), line(6000, 3300, 8700)], ends: None },
+            rows: Lines { left: 0, right: 800, offset: 2000, inner: vec![line(400, 100, 800)], ends: None },
         }
     }
 
@@ -260,5 +268,26 @@ mod tests {
         assert_eq!(clamp(&table, Side::ColumnRight, -8000), -2960, "past the last line");
         assert_eq!(clamp(&table, Side::RowBottom, -800), -360, "a row keeps the gap");
         assert_eq!(clamp(&table, Side::Row(0), 500), 360, "max less the gap");
+    }
+
+    #[test]
+    fn sent_ends_bound_the_outer_lines() {
+        let mut table = table();
+        table.columns.ends = Some([(-50_000, 2800), (6200, 50_000)]);
+        table.rows.ends = Some([(-50_000, 380), (717, 50_000)]);
+        assert_eq!(clamp(&table, Side::ColumnLeft, 5000), 2800, "to the first column's minimum");
+        assert_eq!(clamp(&table, Side::ColumnLeft, -900), -900, "outward too");
+        assert_eq!(clamp(&table, Side::ColumnRight, -8000), -2800, "to the last column's minimum");
+        assert_eq!(clamp(&table, Side::RowBottom, -800), -83, "to the last row's minimum");
+        assert_eq!(clamp(&table, Side::Column(0), 9000), 3000, "Impress's max needs no gap");
+    }
+
+    #[test]
+    fn a_line_at_or_past_its_bound_stays_put() {
+        let mut table = table();
+        table.columns.inner[0].max = 3000;
+        assert_eq!(clamp(&table, Side::Column(0), 0), 0, "a still press sends nothing");
+        assert_eq!(clamp(&table, Side::Column(0), 200), 0, "no room toward the bound");
+        assert_eq!(clamp(&table, Side::Column(0), -200), -200, "away from it is free");
     }
 }

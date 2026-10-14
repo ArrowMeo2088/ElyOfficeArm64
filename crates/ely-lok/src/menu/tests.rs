@@ -38,6 +38,11 @@ fn the_menu_names_its_target_and_flags() {
     assert_eq!(read(&object).expect("parses").target, Target::Object);
     let text = format!(r#"{{"menu":[{}]}}"#, item(".uno:Paste", true));
     assert_eq!(read(&text).expect("parses").target, Target::Text);
+    // Impress: a picture also arranges; a bare slide has layouts.
+    let picture = format!(r#"{{"menu":[{},{}]}}"#, item(".uno:ChangePicture", true), item(".uno:ArrangeMenu", true));
+    assert_eq!(read(&picture).expect("parses").target, Target::Picture);
+    let slide = format!(r#"{{"menu":[{},{}]}}"#, item(".uno:Paste", true), item(".uno:SlideLayoutMenu", true));
+    assert_eq!(read(&slide).expect("parses").target, Target::Slide);
 }
 
 #[test]

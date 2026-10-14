@@ -211,9 +211,9 @@ impl Book {
         };
         let kind = match offered.target {
             Target::Cell => Kind::Cell,
-            Target::Object => Kind::Object,
+            Target::Object | Target::Picture => Kind::Object,
             Target::Text => Kind::Text,
-            Target::Table | Target::Frame => {
+            Target::Table | Target::Frame | Target::Slide => {
                 let error = format!("a {:?} menu in a spreadsheet", offered.target);
                 return self.toast(Book::text(cx, "office.error.engine", &[("error", &error)]), Severity::Danger, cx);
             }

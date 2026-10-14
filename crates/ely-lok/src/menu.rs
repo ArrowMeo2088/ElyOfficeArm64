@@ -18,6 +18,10 @@ pub enum Target {
     Cell,
     /// A drawing object outside Writer.
     Object,
+    /// A picture outside Writer.
+    Picture,
+    /// An Impress slide, nothing selected.
+    Slide,
 }
 
 /// A misspelled word's menu: suggestions as the kernel's rules.
@@ -92,8 +96,12 @@ pub fn read(json: &str) -> io::Result<Offered> {
         Target::Frame
     } else if enabled.contains_key(".uno:InsertCell") {
         Target::Cell
+    } else if enabled.contains_key(".uno:ChangePicture") {
+        Target::Picture
     } else if enabled.contains_key(".uno:ArrangeMenu") {
         Target::Object
+    } else if enabled.contains_key(".uno:SlideLayoutMenu") {
+        Target::Slide
     } else {
         Target::Text
     };

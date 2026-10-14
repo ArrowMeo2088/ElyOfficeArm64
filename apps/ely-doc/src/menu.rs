@@ -131,7 +131,7 @@ impl Docs {
                 return self.toast(text, Severity::Danger, cx);
             }
         };
-        if matches!(offered.target, Target::Cell | Target::Object) {
+        if matches!(offered.target, Target::Cell | Target::Object | Target::Picture | Target::Slide) {
             let error = format!("a {:?} menu in a text document", offered.target);
             let text = Docs::text(cx, "office.error.engine", &[("error", &error)]);
             return self.toast(text, Severity::Danger, cx);
@@ -229,7 +229,7 @@ pub(crate) fn menu_of(this: &Entity<Docs>, offered: &Offered, cx: &App) -> Menu 
         Target::Table => TABLE,
         Target::Frame => FRAME,
         Target::Text => TEXT,
-        Target::Cell | Target::Object => unreachable!("offer_menu refuses them"),
+        Target::Cell | Target::Object | Target::Picture | Target::Slide => unreachable!("offer_menu refuses them"),
     };
     menu::entries(menu, rows, cx, |pick| pick.on(offered), item)
 }

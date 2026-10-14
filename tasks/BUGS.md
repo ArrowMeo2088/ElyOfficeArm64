@@ -151,4 +151,6 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] P3-08 Windows（AMD）：多个 worker 同时启动时内核的 OpenCL 探测卡在驱动的 `clCreateCommandQueue` 里数分钟（`openclwrapper::switchOpenCLDevice`）；测试以 `SAL_DISABLE_OPENCL=1` 绕开；是否在 `ely.xcd` 关掉 `UseOpenCL` 待用户定
 - [ ] P3-09 Windows：内核给的选区文字与文本导出以 CRLF 换行，三个 ElyTable 单测按 LF 比对（`tests::data::sort_filter_duplicates_and_columns_run_from_their_dialogs`、`a_column_button_sorts_its_own_block_not_the_cursors`、`tests::output::exports_write_the_shown_sheet_as_text`）；导出该用哪种换行待定
 - [ ] P3-10 Windows：`crates/ely-office/tests/restart.rs` 设 `HOME` 想用临时目录，但 Windows 上 `data_dir` 取已知文件夹（不看 `HOME`），测试在真实的 ElyDoc 配置里运行；中途被杀即留下挡路的 `lok-verify.fodt` 文件夹，真实 ElyDoc 的内核核对随之失败（2026-10-14 审查中出现，已手动删去）
+- [ ] P3-11 ElyShow：正编辑表格单元格时在幻灯片空白处右键，内核（Impress）只结束编辑、不发 `LOK_CALLBACK_CONTEXT_MENU`，再右键一次才有幻灯片菜单；Windows 实测，他端未核；修需内核补丁
+- [ ] P3-12 Windows：`output::tests::targets_skip_hidden_slides_and_pad_numbers` 以 `/` 拼的路径比对，Windows 的 `join` 用 `\`，单测恒失败（代码无误）
 
