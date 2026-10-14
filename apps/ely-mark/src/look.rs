@@ -196,8 +196,8 @@ impl Desk {
 mod tests {
     use ely_gpui_component::documents::DocumentLook;
     use gpui::{
-        Entity, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
-        point, rems,
+        Entity, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext, point,
+        rems,
     };
 
     use crate::desk::{
@@ -286,8 +286,11 @@ mod tests {
             tempfile::tempdir().expect("files"),
         );
         let path = files.path().join("a.md");
-        std::fs::write(&path, "a
-").expect("a file");
+        std::fs::write(
+            &path, "a
+",
+        )
+        .expect("a file");
         let (desk, cx) = start(cx, data.path());
         open(&desk, &path, cx);
         let focus = desk.read_with(cx, |desk, _| desk.core.focus.clone());
@@ -300,12 +303,22 @@ mod tests {
             ..Default::default()
         };
         let other = match cfg!(target_os = "macos") {
-            true => Modifiers { control: true, ..Default::default() },
-            false => Modifiers { platform: true, ..Default::default() },
+            true => Modifiers {
+                control: true,
+                ..Default::default()
+            },
+            false => Modifiers {
+                platform: true,
+                ..Default::default()
+            },
         };
         cx.simulate_event(wheel(other, 3.0));
         cx.run_until_parked();
-        assert_eq!(document_look(&desk, cx).scale, 1.0, "only Ctrl, or Cmd on macOS");
+        assert_eq!(
+            document_look(&desk, cx).scale,
+            1.0,
+            "only Ctrl, or Cmd on macOS"
+        );
         cx.simulate_event(wheel(Modifiers::secondary_key(), 3.0));
         cx.run_until_parked();
         assert_eq!(document_look(&desk, cx).scale, 1.1, "a notch is one step");

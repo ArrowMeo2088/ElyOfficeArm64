@@ -15,8 +15,7 @@ use ely_office::prelude::*;
 use ely_ui::{commands, i18n::text};
 use gpui::{
     AnyElement, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
-    ParentElement as _, Render,
-    SharedString, Styled as _, WeakEntity, Window, div,
+    ParentElement as _, Render, SharedString, Styled as _, WeakEntity, Window, div,
 };
 
 use crate::desk::Desk;
@@ -251,17 +250,21 @@ impl Side {
             },
         );
         let outline = outline.on_select(move |key, window, cx| {
-                let Some(heading) = key.parse::<usize>().ok().and_then(|at| headings.get(at)) else {
-                    return log::error!("mark: the outline chose no heading");
-                };
-                // The heading in view, the caret on it.
-                let line = heading.line;
-                view.update(cx, |view, cx| view.reveal((line, 0), window, cx));
-            });
+            let Some(heading) = key.parse::<usize>().ok().and_then(|at| headings.get(at)) else {
+                return log::error!("mark: the outline chose no heading");
+            };
+            // The heading in view, the caret on it.
+            let line = heading.line;
+            view.update(cx, |view, cx| view.reveal((line, 0), window, cx));
+        });
         ScrollArea::new("mark-outline-scroll")
             .vertical()
             .size_full()
-            .child(div().debug_selector(|| "mark-outline".into()).child(outline))
+            .child(
+                div()
+                    .debug_selector(|| "mark-outline".into())
+                    .child(outline),
+            )
             .into_any_element()
     }
 
@@ -269,9 +272,17 @@ impl Side {
         let this = cx.entity();
         let scope = SegmentedControl::new("mark-scope", if self.wide { "folder" } else { "file" })
             .size(ControlSize::Sm)
-            .segment("file", text(cx, "mark.search.file", &[]), Some(IconName::File));
+            .segment(
+                "file",
+                text(cx, "mark.search.file", &[]),
+                Some(IconName::File),
+            );
         let scope = match desk.read(cx).folder {
-            Some(_) => scope.segment("folder", text(cx, "mark.search.folder", &[]), Some(IconName::Folder)),
+            Some(_) => scope.segment(
+                "folder",
+                text(cx, "mark.search.folder", &[]),
+                Some(IconName::Folder),
+            ),
             None => scope,
         };
         let scope = scope.on_change(move |key, _, cx| {
@@ -350,9 +361,21 @@ impl Render for Side {
         };
         let panes = SegmentedControl::new("mark-pane", key)
             .size(ControlSize::Sm)
-            .segment("files", text(cx, "mark.pane.files", &[]), Some(IconName::Folder))
-            .segment("outline", text(cx, "mark.pane.outline", &[]), Some(IconName::List))
-            .segment("search", text(cx, "mark.pane.search", &[]), Some(IconName::Search))
+            .segment(
+                "files",
+                text(cx, "mark.pane.files", &[]),
+                Some(IconName::Folder),
+            )
+            .segment(
+                "outline",
+                text(cx, "mark.pane.outline", &[]),
+                Some(IconName::List),
+            )
+            .segment(
+                "search",
+                text(cx, "mark.pane.search", &[]),
+                Some(IconName::Search),
+            )
             .on_change(move |key, _, cx| {
                 this.update(cx, |side, cx| {
                     side.pane = match key.as_ref() {

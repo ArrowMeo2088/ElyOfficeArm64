@@ -141,8 +141,11 @@ impl Keeping {
     /// The untitled tabs to make: their place here and name.
     pub fn untitled(&self) -> Vec<(usize, String)> {
         let waiting = self.waiting.iter().enumerate();
-        let untitled = waiting.filter(|(_, waiting)| waiting.kept.path.is_none() && waiting.tab.is_none());
-        untitled.map(|(at, waiting)| (at, waiting.kept.name.clone())).collect()
+        let untitled =
+            waiting.filter(|(_, waiting)| waiting.kept.path.is_none() && waiting.tab.is_none());
+        untitled
+            .map(|(at, waiting)| (at, waiting.kept.name.clone()))
+            .collect()
     }
 
     /// Entry `at` belongs to untitled tab `tab`.
@@ -152,11 +155,14 @@ impl Keeping {
 
     /// What tab `id` takes: its file or its copy.
     fn take(&mut self, real: Option<&PathBuf>, id: u64) -> Option<Waiting> {
-        let at = self.waiting.iter().position(|waiting| match (&waiting.real, real) {
-            (Some(kept), Some(open)) => kept == open,
-            (None, None) => waiting.tab == Some(id),
-            _ => false,
-        })?;
+        let at = self
+            .waiting
+            .iter()
+            .position(|waiting| match (&waiting.real, real) {
+                (Some(kept), Some(open)) => kept == open,
+                (None, None) => waiting.tab == Some(id),
+                _ => false,
+            })?;
         Some(self.waiting.remove(at))
     }
 
@@ -243,7 +249,9 @@ impl Desk {
         // Modes take focus: in the window, after this update.
         cx.spawn(async move |desk, cx| {
             let shown = ely_office::in_window(&desk, cx, |_, window, cx| {
-                view.update(cx, |view, cx| view.reopen(mode, kept.place, back, window, cx))
+                view.update(cx, |view, cx| {
+                    view.reopen(mode, kept.place, back, window, cx)
+                })
             });
             if let Err(error) = shown {
                 log::warn!("mark: tab {id} did not restore: {error:#}");
@@ -285,7 +293,8 @@ impl Desk {
                     .spawn(async move {
                         let now = SystemTime::now();
                         let limits = ely_platform::storage::limits(ely_platform::AppId::Mark)?;
-                        let mut recovery = Recovery::new(folder).with_limits(limits.keep, limits.megabytes * 1024 * 1024);
+                        let mut recovery = Recovery::new(folder)
+                            .with_limits(limits.keep, limits.megabytes * 1024 * 1024);
                         recovery.write_once(current.as_bytes(), None, now)
                     })
                     .await;
@@ -350,7 +359,11 @@ impl Desk {
             None => text(cx, "office.stopped.never", &[]).to_string(),
         };
         let name = tab.name.to_string();
-        let said = text(cx, "mark.recovery.failed", &[("name", &name), ("error", &error), ("at", &at)]);
+        let said = text(
+            cx,
+            "mark.recovery.failed",
+            &[("name", &name), ("error", &error), ("at", &at)],
+        );
         self.toast_unlogged(said, ely_gpui_component::primitives::Severity::Danger, cx);
     }
 
