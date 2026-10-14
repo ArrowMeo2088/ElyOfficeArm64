@@ -6,6 +6,8 @@ use super::data::{cells, open, run};
 use super::*;
 use crate::menu::{Kind, Pick, What, held};
 
+type Shows = fn(&What) -> bool;
+
 /// The grid with the menu's host over it.
 struct Host(Entity<Book>);
 
@@ -48,7 +50,7 @@ fn spot(cx: &mut VisualTestContext, book: &Entity<Book>, column: u32, row: u32, 
 }
 
 /// Right-clicks and waits until `shown` holds for the menu.
-fn right_click(cx: &mut VisualTestContext, book: &Entity<Book>, at: Point<Pixels>, shown: fn(&What) -> bool) {
+fn right_click(cx: &mut VisualTestContext, book: &Entity<Book>, at: Point<Pixels>, shown: Shows) {
     cx.update(|_, app| book.update(app, |book, _| book.menu = None));
     cx.simulate_mouse_move(at, None, Modifiers::none());
     cx.simulate_mouse_down(at, MouseButton::Right, Modifiers::none());
@@ -152,7 +154,7 @@ fn right_clicks_open_excel_rows_on_cells_and_headers() {
     right_click(&mut shown, &book, a, columns);
     assert!(on(&mut shown, &book, Pick::ColumnsBefore) && on(&mut shown, &book, Pick::DeleteColumns));
     protect(&mut cx, &book, &[]);
-    let headers: [(Point<Pixels>, fn(&What) -> bool, [Pick; 4]); 2] = [
+    let headers: [(Point<Pixels>, Shows, [Pick; 4]); 2] = [
         (spot(&mut shown, &book, 0, 2, Some(false)), rows, [Pick::RowsAbove, Pick::DeleteRows, Pick::HideRows, Pick::ShowRows]),
         (spot(&mut shown, &book, 1, 0, Some(true)), columns, [Pick::ColumnsBefore, Pick::DeleteColumns, Pick::HideColumns, Pick::ShowColumns]),
     ];
@@ -229,7 +231,7 @@ fn a_header_ends_shape_text_editing() {
     fresh(&cx, &book);
     let window = cx.add_window(|_, _| Host(book.clone()));
     let mut shown = VisualTestContext::from_window(window.into(), &cx);
-    let headers: [(bool, u32, fn(&What) -> bool, Pick); 2] =
+    let headers: [(bool, u32, Shows, Pick); 2] =
         [(false, 2, rows, Pick::RowsAbove), (true, 1, columns, Pick::ColumnsBefore)];
     for (column, index, shown_as, insert) in headers {
         corner_rectangle(&mut cx, &book);
