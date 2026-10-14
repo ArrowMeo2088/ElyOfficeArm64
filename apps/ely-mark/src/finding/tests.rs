@@ -176,3 +176,25 @@ fn preview_keeps_its_text_from_tables_and_replacement(cx: &mut TestAppContext) {
     replace_one(&desk, "x", cx);
     assert_eq!(current_text(&desk, cx), "a\n");
 }
+
+#[gpui::test]
+fn clipboard_keys_in_find_reach_the_field(cx: &mut TestAppContext) {
+    let (desk, cx, _files) = opened("alpha beta\n", cx);
+    query(&desk, "beta", cx);
+    let field = desk.read_with(cx, |desk, _| {
+        desk.finding.as_ref().expect("open").query.clone()
+    });
+    field.update(cx, |field, cx| field.select(0..4, cx));
+    cx.simulate_keystrokes("secondary-shift-c");
+    cx.run_until_parked();
+    let copied = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(copied.as_deref(), Some("beta"));
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("alpha".into()));
+    cx.simulate_keystrokes("secondary-shift-v");
+    cx.run_until_parked();
+    assert_eq!(
+        field.read_with(cx, |field, _| field.text().to_string()),
+        "alpha"
+    );
+    assert_eq!(current_text(&desk, cx), "alpha beta\n");
+}

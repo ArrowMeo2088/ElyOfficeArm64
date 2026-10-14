@@ -50,10 +50,10 @@ actions!(
 );
 
 /// Shift with punctuation: Windows names the key, others the character.
-pub(crate) fn shifted(key: char, typed: char) -> String {
+pub(crate) fn shifted(mods: &str, key: char, typed: char) -> String {
     match cfg!(target_os = "windows") {
-        true => format!("secondary-shift-{key}"),
-        false => format!("secondary-{typed}"),
+        true => format!("{mods}-shift-{key}"),
+        false => format!("{mods}-{typed}"),
     }
 }
 
@@ -72,14 +72,14 @@ pub fn bind(cx: &mut App) {
         KeyBinding::new("secondary-shift-m", MathBlock, at),
         KeyBinding::new("secondary-shift-k", CodeFences, at),
         KeyBinding::new("secondary-shift-q", Quote, at),
-        KeyBinding::new(&shifted('[', '{'), OrderedList, at),
-        KeyBinding::new(&shifted(']', '}'), BulletList, at),
+        KeyBinding::new(&shifted("secondary", '[', '{'), OrderedList, at),
+        KeyBinding::new(&shifted("secondary", ']', '}'), BulletList, at),
         KeyBinding::new("secondary-shift-x", TaskList, at),
         KeyBinding::new("secondary-b", Strong, at),
         KeyBinding::new("secondary-i", Emphasis, at),
         KeyBinding::new("secondary-u", Underline, at),
-        KeyBinding::new(&shifted('`', '~'), InlineCode, at),
-        KeyBinding::new("alt-shift-5", Strike, at),
+        KeyBinding::new(&shifted("secondary", '`', '~'), InlineCode, at),
+        KeyBinding::new(&shifted("alt", '5', '%'), Strike, at),
         KeyBinding::new("secondary-k", Hyperlink, at),
         KeyBinding::new("secondary-shift-i", InsertImage, at),
         KeyBinding::new("secondary-\\", ClearFormat, at),
@@ -230,5 +230,7 @@ impl Desk {
     }
 }
 
+#[cfg(test)]
+mod menus;
 #[cfg(test)]
 mod tests;

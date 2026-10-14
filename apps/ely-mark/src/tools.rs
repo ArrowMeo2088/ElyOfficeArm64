@@ -20,7 +20,8 @@ actions!(
         MoveColumnRight,
         DeleteRow,
         DeleteColumn,
-        TidyTable
+        TidyTable,
+        DeleteTable
     ]
 );
 
@@ -60,6 +61,8 @@ pub fn table_menu(cx: &App) -> Menu {
         item("mark.table.delete_column", Box::new(DeleteColumn)),
         MenuItem::separator(),
         item("mark.table.tidy", Box::new(TidyTable)),
+        MenuItem::separator(),
+        item("mark.table.delete", Box::new(DeleteTable)),
     ])
 }
 
@@ -79,6 +82,7 @@ impl Desk {
             DeleteRow => |d, cx| d.edit_table(T::DeleteRow, cx),
             DeleteColumn => |d, cx| d.edit_table(T::DeleteColumn, cx),
             TidyTable => |d, cx| d.edit_table(T::Tidy, cx),
+            DeleteTable => |d, cx| d.edit_table(T::Delete, cx),
         )
     }
 }

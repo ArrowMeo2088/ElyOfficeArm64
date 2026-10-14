@@ -5,6 +5,7 @@ use gpui::{
 };
 
 use crate::{
+    blocks::shifted,
     desk::{
         Desk,
         tests::{open, start},
@@ -12,7 +13,7 @@ use crate::{
     view::Mode,
 };
 
-fn opened(
+pub(super) fn opened(
     text: &str,
     cx: &mut TestAppContext,
 ) -> (
@@ -33,14 +34,17 @@ fn opened(
     (desk, cx, [data, files])
 }
 
-fn document(desk: &Entity<Desk>, cx: &mut VisualTestContext) -> Entity<MarkdownDocument> {
+pub(super) fn document(
+    desk: &Entity<Desk>,
+    cx: &mut VisualTestContext,
+) -> Entity<MarkdownDocument> {
     desk.read_with(cx, |desk, cx| {
         let view = desk.active_view().expect("a tab");
         view.read(cx).document().clone()
     })
 }
 
-fn current(desk: &Entity<Desk>, cx: &mut VisualTestContext) -> String {
+pub(super) fn current(desk: &Entity<Desk>, cx: &mut VisualTestContext) -> String {
     let document = document(desk, cx);
     document.read_with(cx, |document, cx| document.text(cx))
 }
@@ -52,7 +56,7 @@ fn mode(desk: &Entity<Desk>, cx: &mut VisualTestContext) -> Mode {
 }
 
 /// `keys`, then the background reads.
-fn press(keys: &str, cx: &mut VisualTestContext) {
+pub(super) fn press(keys: &str, cx: &mut VisualTestContext) {
     cx.simulate_keystrokes(keys);
     cx.run_until_parked();
 }
@@ -70,19 +74,19 @@ fn toasted(desk: &Entity<Desk>, words: &str, cx: &mut VisualTestContext) -> usiz
 #[gpui::test]
 fn paragraph_keys_retype_the_caret_block(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("Intro\n", cx);
-    press("ctrl-1", cx);
+    press("secondary-1", cx);
     assert_eq!(current(&desk, cx), "# Intro\n");
-    press("ctrl--", cx);
+    press("secondary--", cx);
     assert_eq!(current(&desk, cx), "## Intro\n");
-    press("ctrl-=", cx);
+    press("secondary-=", cx);
     assert_eq!(current(&desk, cx), "# Intro\n");
-    press("ctrl-0", cx);
+    press("secondary-0", cx);
     assert_eq!(current(&desk, cx), "Intro\n");
-    press("ctrl-shift-[", cx);
+    press(&shifted("secondary", '[', '{'), cx);
     assert_eq!(current(&desk, cx), "1. Intro\n");
-    press("ctrl-shift-]", cx);
+    press(&shifted("secondary", ']', '}'), cx);
     assert_eq!(current(&desk, cx), "- Intro\n");
-    press("ctrl-shift-q", cx);
+    press("secondary-shift-q", cx);
     assert_eq!(
         current(&desk, cx),
         "- > Intro\n",
@@ -93,23 +97,23 @@ fn paragraph_keys_retype_the_caret_block(cx: &mut TestAppContext) {
 #[gpui::test]
 fn format_keys_wrap_the_caret_word(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("word\n", cx);
-    press("ctrl-b", cx);
+    press("secondary-b", cx);
     assert_eq!(current(&desk, cx), "**word**\n");
-    press("ctrl-\\", cx);
+    press("secondary-\\", cx);
     assert_eq!(current(&desk, cx), "word\n");
-    press("alt-shift-5", cx);
+    press(&shifted("alt", '5', '%'), cx);
     assert_eq!(current(&desk, cx), "~~word~~\n");
 }
 
 #[gpui::test]
 fn ctrl_slash_toggles_source_inside_the_code_editor(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("a\n", cx);
-    press("ctrl-/", cx);
+    press("secondary-/", cx);
     assert_eq!(mode(&desk, cx), Mode::Source);
     let editor = document(&desk, cx).read_with(cx, |document, _| document.editor().clone());
     let focus = editor.read_with(cx, |editor, cx| editor.focus_handle(cx));
     cx.update(|window, cx| window.focus(&focus, cx));
-    press("ctrl-/", cx);
+    press("secondary-/", cx);
     assert_eq!(mode(&desk, cx), Mode::Visual);
     assert_eq!(current(&desk, cx), "a\n", "no comment marks");
 }
@@ -117,7 +121,7 @@ fn ctrl_slash_toggles_source_inside_the_code_editor(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_refused_command_says_why(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("```\ncode\n```\n", cx);
-    press("ctrl-1", cx);
+    press("secondary-1", cx);
     assert_eq!(current(&desk, cx), "```\ncode\n```\n");
     assert_eq!(toasted(&desk, "inside code", cx), 1);
 }
@@ -125,7 +129,7 @@ fn a_refused_command_says_why(cx: &mut TestAppContext) {
 #[gpui::test]
 fn alt_arrows_move_a_table_row(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("| A | B |\n| - | - |\n| 1 | 2 |\n", cx);
-    press("ctrl-/", cx);
+    press("secondary-/", cx);
     document(&desk, cx).update(cx, |document, cx| document.set_caret(2, 2, cx));
     press("alt-up", cx);
     assert_eq!(
@@ -139,26 +143,26 @@ fn alt_arrows_move_a_table_row(cx: &mut TestAppContext) {
 #[gpui::test]
 fn view_keys_follow_typora(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("a\n", cx);
-    press("f8 f9 ctrl-shift-=", cx);
+    press(&format!("f8 f9 {}", shifted("secondary", '=', '+')), cx);
     let look = desk.read_with(cx, |desk, _| desk.look.clone());
     assert!(look.focus && look.typewriter && look.size > 100, "{look:?}");
-    press("ctrl-shift-0", cx);
+    press(&shifted("secondary", '0', ')'), cx);
     assert_eq!(desk.read_with(cx, |desk, _| desk.look.size), 100);
 }
 
 #[gpui::test]
 fn copy_as_markdown_and_paste_as_plain_text(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("a **b**\n", cx);
-    press("ctrl-shift-c", cx);
+    press("secondary-shift-c", cx);
     let copied = cx.read_from_clipboard().and_then(|item| item.text());
     assert_eq!(copied.as_deref(), Some("a **b**\n"));
     cx.write_to_clipboard(ClipboardItem::new_string("*x*".into()));
-    press("ctrl-/", cx);
-    press("ctrl-shift-v", cx);
+    press("secondary-/", cx);
+    press("secondary-shift-v", cx);
     assert_eq!(current(&desk, cx), "*x*a **b**\n");
 }
 
-/// Each row's name, `-` for a line, `▸` before a submenu.
+/// Row names; `-` a line, `▸` a submenu.
 fn rows(menu: &Menu) -> Vec<String> {
     let mut out = Vec::new();
     for item in &menu.items {
@@ -198,6 +202,8 @@ fn the_paragraph_and_format_menus_follow_typora(cx: &mut TestAppContext) {
         "Delete Column",
         "-",
         "Prettify Source Code",
+        "-",
+        "Delete Table",
     ];
     let mut paragraph: Vec<String> = [
         "Heading 1",
@@ -248,6 +254,7 @@ fn the_paragraph_and_format_menus_follow_typora(cx: &mut TestAppContext) {
 }
 
 /// The keys a menu row shows for `action`.
+#[cfg(target_os = "windows")]
 fn keys(action: &dyn Action, cx: &mut VisualTestContext) -> String {
     cx.update(|window, _| {
         let binding = window

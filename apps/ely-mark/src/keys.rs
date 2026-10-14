@@ -18,9 +18,9 @@ pub fn bind(cx: &mut App) {
         KeyBinding::new("secondary-/", ToggleSource, Some("ElyEditor")),
         KeyBinding::new("f8", crate::look::FocusMode, at),
         KeyBinding::new("f9", crate::look::Typewriter, at),
-        KeyBinding::new(&shifted('=', '+'), crate::look::Larger, at),
-        KeyBinding::new(&shifted('-', '_'), crate::look::Smaller, at),
-        KeyBinding::new(&shifted('0', ')'), crate::look::ActualSize, at),
+        KeyBinding::new(&shifted("secondary", '=', '+'), crate::look::Larger, at),
+        KeyBinding::new(&shifted("secondary", '-', '_'), crate::look::Smaller, at),
+        KeyBinding::new(&shifted("secondary", '0', ')'), crate::look::ActualSize, at),
         KeyBinding::new("secondary-f", ely_office::FindReplace, at),
     ]);
     crate::blocks::bind(cx);
