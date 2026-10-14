@@ -3,9 +3,10 @@
 use std::{
     ffi::OsString,
     fs,
-    io::{self, Write},
+    io::{self, Read, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
+    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -15,8 +16,13 @@ const TOKEN: u8 = 1;
 const PATH: u8 = 2;
 const DONE: u8 = 3;
 const REFUSED: u8 = 4;
-/// How long a stalled caller may hold the door.
+const OPEN: u8 = 5;
+/// How long one caller may take, start to end.
 const PATIENCE: Duration = Duration::from_secs(5);
+/// The largest frame before the token is shown.
+const SHOWN: usize = 64;
+/// The largest path frame: a whole Windows path.
+const LONGEST: usize = 128 * 1024;
 
 /// The running copy's listener; its token keeps others out.
 pub struct Door {
@@ -39,46 +45,93 @@ impl Door {
         Ok(Door { listener, token })
     }
 
-    /// Hands each caller's files to `deliver`, on its own thread.
-    pub fn serve(self, deliver: impl Fn(Vec<PathBuf>) + Send + 'static) -> io::Result<()> {
+    /// Hands each caller's files to `deliver`; false means not taken.
+    pub fn serve(
+        self,
+        deliver: impl Fn(Vec<PathBuf>) -> bool + Send + Sync + 'static,
+    ) -> io::Result<()> {
+        let deliver = Arc::new(deliver);
         thread::Builder::new()
             .name("instance door".into())
             .spawn(move || {
                 for stream in self.listener.incoming() {
-                    if let Err(error) = stream.and_then(|stream| self.answer(stream, &deliver)) {
-                        log::warn!("instance: a hand-over failed: {error}");
+                    let (token, deliver) = (self.token, deliver.clone());
+                    // A stalled caller must not hold up the next.
+                    let answered = stream.and_then(|stream| {
+                        thread::Builder::new()
+                            .name("instance caller".into())
+                            .spawn(move || {
+                                if let Err(error) = answer(&stream, &token, &*deliver) {
+                                    log::warn!("instance: a hand-over failed: {error}");
+                                }
+                            })
+                            .map(drop)
+                    });
+                    if let Err(error) = answered {
+                        log::warn!("instance: a caller was not answered: {error}");
                     }
                 }
             })?;
         Ok(())
     }
+}
 
-    fn answer(&self, mut stream: TcpStream, deliver: &impl Fn(Vec<PathBuf>)) -> io::Result<()> {
-        stream.set_read_timeout(Some(PATIENCE))?;
-        let (tag, token) = next(&mut stream)?;
-        if tag != TOKEN || !same(&token, &self.token) {
-            ely_ipc::write_frame(&mut stream, REFUSED, 0, &[])?;
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "a caller without the token",
-            ));
-        }
-        let mut files = Vec::new();
-        loop {
-            match next(&mut stream)? {
-                (PATH, bytes) => files.push(path(bytes)?),
-                (DONE, _) => break,
-                (tag, _) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("frame {tag} is not a hand-over's"),
-                    ));
-                }
+fn answer(
+    stream: &TcpStream,
+    token: &[u8],
+    deliver: &dyn Fn(Vec<PathBuf>) -> bool,
+) -> io::Result<()> {
+    let mut timed = Timed {
+        stream,
+        until: Instant::now() + PATIENCE,
+    };
+    let (tag, shown) = next(&mut timed, SHOWN)?;
+    if tag != TOKEN || !same(&shown, token) {
+        ely_ipc::write_frame(&mut &*stream, REFUSED, 0, &[])?;
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "a caller without the token",
+        ));
+    }
+    ely_ipc::write_frame(&mut &*stream, OPEN, 0, &[])?;
+    let mut files = Vec::new();
+    loop {
+        match next(&mut timed, LONGEST)? {
+            (PATH, bytes) => files.push(path(bytes)?),
+            (DONE, _) => break,
+            (tag, _) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("frame {tag} is not a hand-over's"),
+                ));
             }
         }
-        log::info!("instance: another copy handed over {} files", files.len());
-        deliver(files);
-        ely_ipc::write_frame(&mut stream, DONE, 0, &[])
+    }
+    log::info!("instance: another copy handed over {} files", files.len());
+    // No receipt: the caller reports the files untaken.
+    if !deliver(files) {
+        return Err(io::Error::other("the app is quitting and took no files"));
+    }
+    ely_ipc::write_frame(&mut &*stream, DONE, 0, &[])
+}
+
+/// A stream whose reads all end by one deadline.
+struct Timed<'a> {
+    stream: &'a TcpStream,
+    until: Instant,
+}
+
+impl Read for Timed<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let left = self.until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "a caller held the door too long",
+            ));
+        }
+        self.stream.set_read_timeout(Some(left))?;
+        (&mut &*self.stream).read(buf)
     }
 }
 
@@ -86,18 +139,17 @@ impl Door {
 pub(super) fn hand(dir: &Path, files: &[PathBuf], wait: Duration) -> io::Result<()> {
     let deadline = Instant::now() + wait;
     loop {
-        match knock(dir) {
-            Ok((stream, token)) => match give(stream, &token, files)? {
-                true => return Ok(()),
-                // An old door file; the new one is coming.
-                false if Instant::now() < deadline => {}
-                false => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        "it refused the door's token",
-                    ));
-                }
-            },
+        // Nothing handed yet, so every failure here may retry.
+        match knock(dir).and_then(|(stream, token)| Ok((admit(&stream, &token)?, stream))) {
+            Ok((true, stream)) => return give(&stream, files),
+            // An old door file; the new one is coming.
+            Ok((false, _)) if Instant::now() < deadline => {}
+            Ok((false, _)) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "it refused the door's token",
+                ));
+            }
             Err(_) if Instant::now() < deadline => {}
             Err(error) => return Err(error),
         }
@@ -121,30 +173,44 @@ fn knock(dir: &Path) -> io::Result<(TcpStream, Vec<u8>)> {
     let token = words.next().and_then(unhex).ok_or_else(bad)?;
     let stream =
         TcpStream::connect_timeout(&SocketAddr::from((Ipv4Addr::LOCALHOST, port)), PATIENCE)?;
+    stream.set_read_timeout(Some(PATIENCE))?;
     lend_foreground(pid);
     Ok((stream, token))
 }
 
-/// Sends the files; false when the door refuses the token.
-fn give(mut stream: TcpStream, token: &[u8], files: &[PathBuf]) -> io::Result<bool> {
-    stream.set_read_timeout(Some(PATIENCE))?;
-    ely_ipc::write_frame(&mut stream, TOKEN, 0, token)?;
-    for file in files {
-        ely_ipc::write_frame(&mut stream, PATH, 0, &bytes(file))?;
-    }
-    ely_ipc::write_frame(&mut stream, DONE, 0, &[])?;
-    match next(&mut stream)? {
-        (DONE, _) => Ok(true),
+/// Shows the token; false when the door refuses it.
+fn admit(stream: &TcpStream, token: &[u8]) -> io::Result<bool> {
+    ely_ipc::write_frame(&mut &*stream, TOKEN, 0, token)?;
+    match next(&mut &*stream, SHOWN)? {
+        (OPEN, _) => Ok(true),
         (REFUSED, _) => Ok(false),
-        (tag, _) => Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("it answered frame {tag}"),
-        )),
+        (tag, _) => Err(unexpected(tag)),
     }
 }
 
-fn next(stream: &mut TcpStream) -> io::Result<(u8, Vec<u8>)> {
-    match ely_ipc::read_frame(stream)? {
+/// Sends the files once admitted; never retried.
+fn give(stream: &TcpStream, files: &[PathBuf]) -> io::Result<()> {
+    for file in files {
+        ely_ipc::write_frame(&mut &*stream, PATH, 0, &bytes(file))?;
+    }
+    ely_ipc::write_frame(&mut &*stream, DONE, 0, &[])?;
+    // The app may answer after the door's own wait.
+    stream.set_read_timeout(Some(PATIENCE * 2))?;
+    match next(&mut &*stream, SHOWN)? {
+        (DONE, _) => Ok(()),
+        (tag, _) => Err(unexpected(tag)),
+    }
+}
+
+fn unexpected(tag: u8) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("it answered frame {tag}"),
+    )
+}
+
+fn next(stream: &mut impl Read, cap: usize) -> io::Result<(u8, Vec<u8>)> {
+    match ely_ipc::read_capped(stream, cap)? {
         Some((tag, _, payload)) => Ok((tag, payload)),
         None => Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
@@ -226,10 +292,20 @@ mod tests {
 
     fn opened(dir: &Path) -> std::sync::mpsc::Receiver<Vec<PathBuf>> {
         let (sender, heard) = std::sync::mpsc::channel();
+        let sender = std::sync::Mutex::new(sender);
         let door = Door::open(dir).expect("a door");
-        door.serve(move |files| sender.send(files).expect("heard"))
+        door.serve(move |files| sender.lock().expect("a sender").send(files).is_ok())
             .expect("served");
         heard
+    }
+
+    /// Writes a door file whose token is wrong.
+    fn forge(dir: &Path) -> String {
+        let door = dir.join(FILE);
+        let text = fs::read_to_string(&door).expect("the door");
+        let (head, _) = text.rsplit_once(' ').expect("a token");
+        fs::write(&door, format!("{head} {}\n", hex(&[7; 32]))).expect("a forged door");
+        text
     }
 
     #[test]
@@ -248,22 +324,91 @@ mod tests {
 
     #[test]
     fn a_wrong_token_hands_nothing_over() {
+        for _ in 0..12 {
+            let dir = tempfile::tempdir().expect("a temp dir");
+            let heard = opened(dir.path());
+            forge(dir.path());
+            let refused = hand(
+                dir.path(),
+                &[PathBuf::from("x.md")],
+                Duration::from_millis(300),
+            );
+            assert_eq!(
+                refused.map_err(|error| error.kind()),
+                Err(io::ErrorKind::PermissionDenied)
+            );
+            assert!(heard.try_recv().is_err(), "nothing reached the copy");
+        }
+    }
+
+    #[test]
+    fn an_old_door_file_is_waited_out() {
+        for _ in 0..5 {
+            let dir = tempfile::tempdir().expect("a temp dir");
+            let heard = opened(dir.path());
+            let real = forge(dir.path());
+            let door = dir.path().join(FILE);
+            let fixer = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(100));
+                fs::write(door, real).expect("the real door");
+            });
+            let files = vec![PathBuf::from("x.md")];
+            hand(dir.path(), &files, Duration::from_secs(3))
+                .expect("handed once the door is right");
+            fixer.join().expect("fixed");
+            assert_eq!(heard.recv_timeout(Duration::from_secs(2)), Ok(files));
+        }
+    }
+
+    #[test]
+    fn a_dripping_caller_neither_blocks_nor_stays() {
         let dir = tempfile::tempdir().expect("a temp dir");
         let heard = opened(dir.path());
-        let door = dir.path().join(FILE);
-        let text = fs::read_to_string(&door).expect("the door");
-        let (head, _) = text.rsplit_once(' ').expect("a token");
-        fs::write(&door, format!("{head} {}\n", hex(&[7; 32]))).expect("a forged door");
-        let refused = hand(
-            dir.path(),
-            &[PathBuf::from("x.md")],
-            Duration::from_millis(300),
+        let text = fs::read_to_string(dir.path().join(FILE)).expect("the door");
+        let port: u16 = text
+            .split_whitespace()
+            .next()
+            .and_then(|word| word.parse().ok())
+            .expect("a port");
+        let mut drip = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).expect("connected");
+        let started = Instant::now();
+        let dripper = thread::spawn(move || {
+            // A token frame's header, a byte at a time.
+            for byte in [32u8, 0, 0, 0, TOKEN, 0, 0, 0, 0, 0, 0, 0, 0]
+                .into_iter()
+                .chain([0; 32])
+            {
+                if drip.write_all(&[byte]).is_err() {
+                    return;
+                }
+                thread::sleep(Duration::from_millis(300));
+            }
+        });
+        let files = vec![PathBuf::from("x.md")];
+        hand(dir.path(), &files, Duration::from_secs(2)).expect("handed past the drip");
+        assert_eq!(heard.recv_timeout(Duration::from_secs(2)), Ok(files));
+        dripper.join().expect("dripped");
+        let held = started.elapsed();
+        assert!(
+            held < PATIENCE + Duration::from_secs(2),
+            "the drip was cut at the deadline, not after {held:?}"
         );
-        assert_eq!(
-            refused.map_err(|error| error.kind()),
-            Err(io::ErrorKind::PermissionDenied)
+    }
+
+    #[test]
+    fn files_the_app_did_not_take_are_reported() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        Door::open(dir.path())
+            .expect("a door")
+            .serve(|_| false)
+            .expect("served");
+        let started = Instant::now();
+        let untaken = hand(dir.path(), &[PathBuf::from("x.md")], Duration::from_secs(3));
+        assert!(untaken.is_err(), "untaken files are no success");
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "sent paths are not sent again"
         );
-        assert!(heard.try_recv().is_err(), "nothing reached the copy");
     }
 
     #[test]

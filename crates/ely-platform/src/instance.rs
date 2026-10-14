@@ -161,7 +161,8 @@ mod tests {
             panic!("the first copy did not hold");
         };
         let (sender, heard) = std::sync::mpsc::channel();
-        door.serve(move |files| sender.send(files).expect("heard")).expect("served");
+        let sender = std::sync::Mutex::new(sender);
+        door.serve(move |files| sender.lock().expect("a sender").send(files).is_ok()).expect("served");
         println!("HELD");
         let files = heard.recv_timeout(std::time::Duration::from_secs(20)).expect("a hand-over");
         println!("GOT {}", files[0].display());

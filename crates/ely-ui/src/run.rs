@@ -36,10 +36,10 @@ pub fn run<V: Render>(
     startup::no_window_restore();
     let smoke = Smoke::from_env();
     let application = gpui_platform::application().with_assets(Assets);
-    let asked = crate::opening::listen(&application, files, door).unwrap_or_else(|error| startup::fail(app, &format!("the door for other copies did not open: {error}")));
+    let handed = crate::opening::listen(&application, files, door).unwrap_or_else(|error| startup::fail(app, &format!("the door for other copies did not open: {error}")));
     application.run(move |cx: &mut App| {
-        crate::opening::keep(asked, cx);
-        open(app, smoke, root, cx)
+        let hands = crate::opening::keep(handed, cx);
+        open(app, smoke, root, hands, cx)
     });
 }
 
@@ -72,6 +72,7 @@ fn open<V: Render>(
     app: AppId,
     smoke: Smoke,
     root: impl FnOnce(AppId, &mut Window, &mut App) -> Entity<V> + 'static,
+    hands: crate::opening::Hands,
     cx: &mut App,
 ) {
     if let Err(error) = ely_gpui_component::init(cx) {
@@ -109,11 +110,14 @@ fn open<V: Render>(
         crate::settings::follow_frame(app, window, cx);
         root(app, window, cx)
     });
-    if let Err(error) = opened {
-        startup::fail(app, &format!("the window did not open: {error:#}"));
-    }
-    cx.on_window_closed(|cx, _| {
-        if cx.windows().is_empty() {
+    let main: gpui::AnyWindowHandle = match opened {
+        Ok(window) => window.into(),
+        Err(error) => startup::fail(app, &format!("the window did not open: {error:#}")),
+    };
+    crate::opening::home(hands, main, cx);
+    // Settings alone would hold the lock yet open nothing.
+    cx.on_window_closed(move |cx, closed| {
+        if closed == main.window_id() {
             cx.quit();
         }
     })
