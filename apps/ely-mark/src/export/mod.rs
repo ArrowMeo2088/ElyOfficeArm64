@@ -46,7 +46,7 @@ impl Desk {
             .on_action(cx.listener(|desk, _: &CopyRich, _, cx| desk.copy_rich(cx)))
     }
 
-    fn no_document(&self, cx: &mut Context<Self>) {
+    pub(crate) fn no_document(&self, cx: &mut Context<Self>) {
         let said = text(cx, "command.blocked.no_document", &[]);
         self.toast(said, Severity::Warning, cx);
     }

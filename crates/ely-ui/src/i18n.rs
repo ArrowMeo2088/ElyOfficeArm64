@@ -5,6 +5,7 @@ mod calc;
 mod data;
 mod doc;
 mod mark;
+mod mark_menus;
 mod motion;
 mod office;
 mod output;
@@ -179,6 +180,7 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(tree_ops::EN)
         .chain(tree_places::EN)
         .chain(mark::EN)
+        .chain(mark_menus::EN)
         .chain(settings::EN)
         .copied()
         .collect();
@@ -202,6 +204,7 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(tree_ops::ZH_CN)
         .chain(tree_places::ZH_CN)
         .chain(mark::ZH_CN)
+        .chain(mark_menus::ZH_CN)
         .chain(settings::ZH_CN)
         .copied()
         .collect();

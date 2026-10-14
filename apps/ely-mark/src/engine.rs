@@ -8,11 +8,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use ely_office::{Engine, Host, Load};
+use ely_office::{Engine, Host, Load, Tabs as _};
 use gpui::{App, AppContext as _, Context, Entity, FocusHandle, Window};
 
 use crate::text::Source;
-use crate::view::{Failed, MarkView, Reported};
+use crate::view::{Failed, MarkView, Refused, Reported};
 
 /// A file as read, and its text now.
 pub struct Text {
@@ -135,6 +135,11 @@ impl Engine for Mark {
     ) {
         cx.subscribe(view, move |host, _, error: &Failed, cx| {
             failed(host, &error.0, cx)
+        })
+        .detach();
+        cx.subscribe(view, |host, _, refused: &Refused, cx| {
+            let said = crate::blocks::refusal(refused.0, cx);
+            host.toast(said, ely_gpui_component::primitives::Severity::Info, cx)
         })
         .detach();
         cx.subscribe(view, move |host, view, _: &Reported, cx| {

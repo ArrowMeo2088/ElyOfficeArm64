@@ -172,7 +172,7 @@ impl Writer<'_, '_, '_> {
         let mut written = false;
         for piece in pieces {
             match piece {
-                MarkdownBlock::Image { alt, url, link } => {
+                MarkdownBlock::Image { alt, url, link, .. } => {
                     self.picture(url, alt, link.as_deref())?;
                     if split {
                         retire(stretches.pop_front(), written);

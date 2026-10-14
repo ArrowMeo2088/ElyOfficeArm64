@@ -110,10 +110,11 @@ fn the_table_menu_inserts_and_edits_a_table(cx: &mut TestAppContext) {
     let focus = desk.read_with(cx, |desk, _| desk.core.focus.clone());
     cx.update(|window, cx| window.focus(&focus, cx));
     cx.dispatch_action(crate::tools::InsertTable);
-    assert!(current_text(&desk, cx).contains("| --- | --- | --- |"));
+    assert!(current_text(&desk, cx).contains("| ---- | ---- | ---- |"));
     cx.dispatch_action(crate::tools::DeleteColumn);
+    cx.run_until_parked();
     assert!(
-        current_text(&desk, cx).contains("| --- | --- |\n"),
+        current_text(&desk, cx).contains("| ---- | ---- |\n"),
         "{}",
         current_text(&desk, cx)
     );

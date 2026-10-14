@@ -2,7 +2,9 @@
 
 use std::path::PathBuf;
 
-use ely_gpui_component::documents::{DocumentEvent, LARGEST_READ, MarkdownDocument, MarkdownMode};
+use ely_gpui_component::documents::{
+    DocumentEvent, EditRefusal, LARGEST_READ, MarkdownDocument, MarkdownMode,
+};
 use gpui::{
     AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable as _,
     InteractiveElement as _, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
@@ -15,6 +17,9 @@ pub struct Reported;
 
 /// What went wrong, for the shell to say.
 pub struct Failed(pub String);
+
+/// An edit asked did not happen, and why.
+pub struct Refused(pub EditRefusal);
 
 /// How a document shows (MARK-02).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -86,6 +91,7 @@ pub struct MarkView {
 
 impl EventEmitter<Reported> for MarkView {}
 impl EventEmitter<Failed> for MarkView {}
+impl EventEmitter<Refused> for MarkView {}
 
 impl MarkView {
     pub fn new(doc: Doc, saved: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -269,6 +275,9 @@ impl MarkView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if let DocumentEvent::EditRefused(why) = event {
+            return cx.emit(Refused(*why));
+        }
         if *event == DocumentEvent::Changed {
             let text = document.read(cx).text(cx);
             self.doc.lock().expect("the text lock").current = text;

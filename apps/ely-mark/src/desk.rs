@@ -23,7 +23,6 @@ use gpui::{
 };
 
 use crate::engine::Mark;
-use crate::keys::{CheckDisk, PreviewMode, SourceMode, VisualMode};
 use crate::view::{MarkView, Mode};
 
 pub struct Desk {
@@ -334,7 +333,7 @@ impl Desk {
         self.new_from_text("untitled.md", "", cx);
     }
 
-    fn switch(&mut self, mode: Mode, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn switch(&mut self, mode: Mode, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(view) = self.active_view() {
             view.update(cx, |view, cx| view.switch(mode, window, cx));
         }
@@ -417,35 +416,26 @@ impl Render for Desk {
                 .status(self.status(cx)),
         }
         .child(body);
-        let root =
-            div()
-                .size_full()
-                .key_context(commands::CONTEXT)
-                .track_focus(&self.core.focus)
-                .on_action(cx.listener(Self::open_picked))
-                .on_action(cx.listener(Self::on_new))
-                .on_action(cx.listener(Self::on_save))
-                .on_action(cx.listener(Self::on_save_as))
-                .on_action(cx.listener(Self::on_rename))
-                .on_action(cx.listener(Self::on_close_tab))
-                .on_action(cx.listener(Self::on_find))
-                .on_action(cx.listener(|desk, _: &CheckDisk, _, cx| desk.look_all(cx)))
-                .on_action(cx.listener(|desk, _: &VisualMode, window, cx| {
-                    desk.switch(Mode::Visual, window, cx)
-                }))
-                .on_action(cx.listener(|desk, _: &SourceMode, window, cx| {
-                    desk.switch(Mode::Source, window, cx)
-                }))
-                .on_action(cx.listener(|desk, _: &PreviewMode, window, cx| {
-                    desk.switch(Mode::Preview, window, cx)
-                }))
-                .child(shell)
-                .children(self.core_dialog(cx))
-                .children(self.naming_element(cx))
-                .children(self.compare_dialog(cx))
-                .children(self.find_box(cx))
-                .children(self.export_dialog(cx));
-        Self::output_actions(Self::table_actions(Self::look_actions(root, cx), cx), cx)
+        let root = div()
+            .size_full()
+            .key_context(commands::CONTEXT)
+            .track_focus(&self.core.focus)
+            .on_action(cx.listener(Self::open_picked))
+            .on_action(cx.listener(Self::on_new))
+            .on_action(cx.listener(Self::on_save))
+            .on_action(cx.listener(Self::on_save_as))
+            .on_action(cx.listener(Self::on_rename))
+            .on_action(cx.listener(Self::on_close_tab))
+            .on_action(cx.listener(Self::on_find))
+            .child(shell)
+            .children(self.core_dialog(cx))
+            .children(self.naming_element(cx))
+            .children(self.compare_dialog(cx))
+            .children(self.find_box(cx))
+            .children(self.export_dialog(cx));
+        let root = Self::mode_actions(Self::look_actions(root, cx), cx);
+        let root = Self::block_actions(Self::table_actions(root, cx), cx);
+        Self::output_actions(Self::clip_actions(root, cx), cx)
     }
 }
 

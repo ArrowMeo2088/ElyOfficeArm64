@@ -14,6 +14,15 @@
 - 窗口变窄时，两侧栏先变窄，再先收起右栏、后收起左栏，文档区至少保留 360 点；窗口变宽即回来。侧栏的宽度可拖动内侧边缘调整，按应用记住。
 - 侧栏放不下全部文字时，分页按钮只显示图标，悬停可见名称。
 
+## ElyMark 的菜单与快捷键
+
+- 段落与格式菜单照 Typora。标题：Ctrl+1 至 Ctrl+6，Ctrl+0 段落，Ctrl+= 与 Ctrl+- 升降一级。块：Ctrl+Shift+K 代码块，Ctrl+Shift+M 公式块，Ctrl+Shift+Q 引用，Ctrl+Shift+[ 有序列表，Ctrl+Shift+] 无序列表，Ctrl+Shift+X 任务列表。
+- 格式：Ctrl+B 加粗，Ctrl+I 斜体，Ctrl+U 下划线，Ctrl+Shift+` 代码，Alt+Shift+5 删除线，Ctrl+K 超链接，Ctrl+Shift+I 插入图片，Ctrl+\ 清除样式。
+- 表格在“段落 ▸ 表格”：Ctrl+T 插入，Ctrl+Enter 下方插入行，Ctrl+Shift+Backspace 删除行，Alt+方向键移动行列，“格式化表格源码”对齐各列。
+- 视图：Ctrl+/ 在源代码与可视之间切换，F8 专注，F9 打字机，Ctrl+Shift+= 放大，Ctrl+Shift+- 缩小，Ctrl+Shift+0 实际大小；可视、源码、预览在“视图”菜单里选。
+- 编辑：Ctrl+Shift+C 复制为 Markdown（无选区时复制全文），Ctrl+Shift+V 粘贴为纯文本。
+- 命令用不了时（如在代码里设标题、插入点不在表格里），提示写明原因，文字不动。macOS 上 Ctrl 为 Cmd。
+
 ## 恢复
 
 - 有未保存改动时，每 10 秒在本机数据目录写一个恢复点（加密的文档其恢复点也加密），只留在本机，不上传。

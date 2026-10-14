@@ -3,6 +3,8 @@
 
 mod attach;
 mod autosave;
+mod blocks;
+mod clip;
 mod compare;
 mod desk;
 mod engine;
