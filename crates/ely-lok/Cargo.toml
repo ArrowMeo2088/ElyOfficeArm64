@@ -32,6 +32,7 @@ windows-sys.workspace = true
 tempfile.workspace = true
 ely-ui.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
+ely-gpui-component = { workspace = true, features = ["test-support"] }
 
 [[example]]
 name = "lokview"

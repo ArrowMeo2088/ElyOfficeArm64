@@ -11,6 +11,7 @@ pub mod menu;
 pub mod review;
 pub mod sheet;
 pub mod show;
+mod table;
 mod worker;
 
 pub use client::{

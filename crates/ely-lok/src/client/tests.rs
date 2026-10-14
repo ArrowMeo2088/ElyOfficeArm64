@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use super::*;
 
 mod analysis;
+mod borders;
 mod charts;
 mod check;
 mod commands;

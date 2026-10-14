@@ -54,6 +54,7 @@ const CELL_ADDRESS: i32 = 34;
 const REFERENCE_MARKS: i32 = 45;
 const FUNCTION_LIST: i32 = 47;
 const TOOLTIP: i32 = 71;
+const TABLE: i32 = 44;
 
 /// A mixed state; kernel values never hold NUL.
 pub const MIXED: &str = "\u{0}mixed";
@@ -103,6 +104,7 @@ pub struct Events {
     /// The paragraph's own tab stops, in 1/100 mm.
     pub tabs: Vec<i32>,
     pub cell: Cell,
+    pub table: Option<crate::table::Table>,
 }
 
 #[derive(Default)]
@@ -144,7 +146,8 @@ fn signal() -> &'static Condvar {
     SIGNAL.get_or_init(Condvar::new)
 }
 
-const KINDS: [i32; 34] = [
+const KINDS: [i32; 35] = [
+    TABLE,
     MOUSE_POINTER,
     REFERENCE_MARKS,
     FUNCTION_LIST,
@@ -266,6 +269,7 @@ fn record(slot: &mut Slot, kind: i32, text: &str) -> Option<u32> {
                 .push(format!("an unreadable search result: {text}")),
         },
         MENU => batch.menu = Some(text.to_string()),
+        TABLE => crate::table::read(text).map_or_else(|fault| batch.faults.push(fault), |table| batch.table = table),
         CELL_CURSOR => batch.cell.cursor = rect_in(batch, "cell cursor", text),
         CELL_FORMULA => batch.cell.formula = text.to_string(),
         CELL_ADDRESS => batch.cell.address = text.to_string(),

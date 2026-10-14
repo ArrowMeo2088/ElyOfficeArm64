@@ -314,7 +314,7 @@ impl LokView {
         };
         window.focus(&self.focus, cx);
         self.right_at = (event.button == MouseButton::Right).then_some(event.position);
-        if event.button == MouseButton::Left && self.grab(event.position) {
+        if event.button == MouseButton::Left && (self.grab(event.position) || self.hold_border(event.position)) {
             cx.notify();
             return;
         }
@@ -334,6 +334,10 @@ impl LokView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.drop_border(event.position, cx) {
+            cx.notify();
+            return;
+        }
         if let Some(grip) = self.grip.take() {
             let to = self.doc_point(event.position);
             log::info!("lok: handle released");
@@ -366,7 +370,7 @@ impl LokView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.dragging || self.grip.is_some() {
+        if self.dragging || self.grip.is_some() || self.holds_border() {
             self.on_mouse_up(event, window, cx);
         }
     }
@@ -380,6 +384,10 @@ impl LokView {
         if self.grip.is_some() {
             let to = self.doc_point(event.position);
             self.grip = self.grip.map(|grip| handles::Grip { to, ..grip });
+            cx.notify();
+            return;
+        }
+        if self.move_border(event.position) {
             cx.notify();
             return;
         }

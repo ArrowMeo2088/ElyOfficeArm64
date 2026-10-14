@@ -48,6 +48,7 @@ fn unpack_pushed(body: &[u8]) -> io::Result<(u64, Events)> {
         selection: marked,
     };
     let cell = crate::events::Cell::unpack(&mut unpack)?;
+    let table = crate::table::Table::unpack(&mut unpack)?;
     let events = Events {
         seq,
         revision,
@@ -72,6 +73,7 @@ fn unpack_pushed(body: &[u8]) -> io::Result<(u64, Events)> {
         a11y,
         tabs,
         cell,
+        table,
     };
     Ok((id, events))
 }

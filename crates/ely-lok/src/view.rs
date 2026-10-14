@@ -14,6 +14,7 @@ use image::{Frame, ImageBuffer, Rgba};
 
 use crate::{Doc, Events, Rect, Worker};
 
+mod borders;
 mod clip;
 mod clock;
 mod formula;
@@ -130,6 +131,7 @@ pub struct LokView {
     marked: Option<ime::Marked>,
     dragging: bool,
     grip: Option<handles::Grip>,
+    borders: borders::Borders,
     handle_size: Pixels,
     states: HashMap<String, String>,
     graphic: Option<Rect>,
@@ -164,7 +166,6 @@ pub fn layout(worker: &mut Worker, doc: &Doc) -> io::Result<Layout> {
     Ok((doc.size(worker)?, doc.pages(worker)?))
 }
 
-
 impl EventEmitter<LokError> for LokView {}
 
 impl EventEmitter<Reported> for LokView {}
@@ -192,10 +193,7 @@ impl LokView {
         let mut view = Self {
             worker,
             doc,
-            geom: Geom {
-                zoom: 1.0,
-                dpi: 1.0,
-            },
+            geom: Geom { zoom: 1.0, dpi: 1.0 },
             scroll: (0, 0),
             doc_size: (width as i32, height as i32),
             generation: 0,
@@ -234,6 +232,7 @@ impl LokView {
             marked: None,
             dragging: false,
             grip: None,
+            borders: Default::default(),
             handle_size: px(6.0),
             states: HashMap::new(),
             graphic: None,
@@ -400,6 +399,7 @@ impl LokView {
         }
         self.cell = batch.cell;
         self.graphic = batch.graphic;
+        self.read_borders(batch.table, batch.revision);
         self.review = batch.review;
         self.search = (batch.searched, batch.found);
         self.fonts = batch.fonts;

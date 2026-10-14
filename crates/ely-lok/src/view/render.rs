@@ -2,8 +2,8 @@
 
 use ely_gpui_component::theme::ActiveTheme;
 use gpui::{
-    BorderStyle, Bounds, ContentMask, Context, Corners, CursorStyle, Edges, ElementInputHandler,
-    InteractiveElement, IntoElement, MouseButton, ParentElement, Render, Role,
+    BorderStyle, Bounds, ContentMask, Context, Corners, CursorStyle, DispatchPhase, Edges,
+    ElementInputHandler, InteractiveElement, IntoElement, MouseButton, MouseMoveEvent, ParentElement, Render, Role,
     StatefulInteractiveElement, Styled, Window, canvas, div, fill, outline, px, quad, size,
     transparent_black,
 };
@@ -59,7 +59,7 @@ impl Render for LokView {
             .aria_value(self.a11y.text.clone())
             .key_context(CONTEXT)
             .track_focus(&self.focus)
-            .cursor(self.pointer)
+            .cursor(self.border_pointer().unwrap_or(self.pointer))
             .size_full()
             .overflow_hidden()
             .bg(canvas_color)
@@ -164,6 +164,9 @@ impl Render for LokView {
                                     ));
                                 }
                             }
+                            if let Some(guide) = painted.guide {
+                                window.paint_quad(fill(guide, frame_color));
+                            }
                             if let Some(caret) = painted.caret.filter(|_| focus.is_focused(window))
                             {
                                 let caret = Bounds {
@@ -173,6 +176,19 @@ impl Render for LokView {
                                 window.paint_quad(fill(caret, caret_color));
                             }
                         });
+                        if painted.guide.is_some() {
+                            // A held border follows the pointer out of the view.
+                            let this = this.clone();
+                            window.on_mouse_event(move |event: &MouseMoveEvent, phase, _, app| {
+                                if phase == DispatchPhase::Bubble {
+                                    this.update(app, |view, cx| {
+                                        if view.move_border(event.position) {
+                                            cx.notify();
+                                        }
+                                    });
+                                }
+                            });
+                        }
                         window.handle_input(&focus, ElementInputHandler::new(bounds, this), app);
                     },
                 )
@@ -196,6 +212,8 @@ pub(super) struct Painted {
     pub(super) frame: Option<(Bounds<Pixels>, Vec<Bounds<Pixels>>)>,
     /// The references of a formula being typed.
     pub(super) marks: Vec<(Bounds<Pixels>, gpui::Hsla)>,
+    /// A held table border's guide line.
+    pub(super) guide: Option<Bounds<Pixels>>,
 }
 
 impl LokView {
@@ -357,6 +375,7 @@ impl LokView {
             cell: self.cell.cursor.map(rect),
             frame,
             marks: self.marks(),
+            guide: self.guide(),
         }
     }
 }

@@ -1,5 +1,6 @@
 use super::*;
 
+mod borders;
 mod clip;
 mod commands;
 mod fit;
