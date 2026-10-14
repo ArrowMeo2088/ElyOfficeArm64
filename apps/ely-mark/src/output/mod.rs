@@ -1,5 +1,6 @@
 //! Markdown as an HTML page or plain text (MARK-11).
 
+mod address;
 mod files;
 mod html;
 mod pictures;
@@ -45,7 +46,7 @@ fn page_of(text: &str, placed: &mut pictures::Placed) -> io::Result<Page> {
     let tree = markdown::to_mdast(text, &markdown_options())
         .map_err(|error| io::Error::other(error.to_string()))?;
     let mut page = Page::default();
-    html::write(&tree, placed, &mut page)?;
+    html::write(&tree, text, placed, &mut page)?;
     log::info!(
         "mark: a page of {} bytes, {} pictures copied, {} missing, {} diagrams and {} formulas as code",
         page.html.len(),

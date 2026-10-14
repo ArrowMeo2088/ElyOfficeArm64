@@ -25,7 +25,7 @@ fn export_asks_for_a_format_then_writes_it(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let html = std::fs::read_to_string(&out).expect("written");
     assert!(
-        html.contains("<h1>Note</h1>") && html.contains("<svg"),
+        html.contains("<h1 id=\"h-0\">Note</h1>") && html.contains("<svg"),
         "{html}"
     );
 }

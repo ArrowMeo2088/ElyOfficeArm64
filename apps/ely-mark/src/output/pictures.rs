@@ -8,7 +8,7 @@ use std::{
 
 use base64::Engine as _;
 
-use super::html::scheme;
+use super::address::scheme;
 
 /// Where pictures go.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,84 +1,100 @@
-//! A syntax tree written as HTML, node by node.
+//! Markdown as HTML, as the drawing reads it.
 
-use std::{collections::HashMap, io};
+use std::{
+    cmp::Reverse,
+    collections::{HashSet, VecDeque},
+    io,
+    ops::Range,
+};
 
-use ely_gpui_component::{documents::diagram_svg, typography::formula_svg};
+use ely_gpui_component::{
+    documents::{
+        AlertKind, Inline, MarkdownBlock, MarkdownReader, Style, alert, diagram_svg, is_toc,
+    },
+    typography::formula_svg,
+};
 use markdown::mdast::{AlignKind, Node};
 
-use super::{Page, attribute, escape, pictures::Placed};
+use super::{Page, address::safe, attribute, escape, pictures::Placed};
 
-/// Writes `tree` into `page`; pictures go through `placed`.
-pub(super) fn write(tree: &Node, placed: &mut Placed, page: &mut Page) -> io::Result<()> {
+/// Writes `tree`, read from `source`, into `page`.
+pub(super) fn write(
+    tree: &Node,
+    source: &str,
+    placed: &mut Placed,
+    page: &mut Page,
+) -> io::Result<()> {
     let mut writer = Writer {
         placed,
         page,
-        links: HashMap::new(),
-        notes: HashMap::new(),
-        called: Vec::new(),
+        source,
+        reader: MarkdownReader::new(source, tree),
+        anchored: HashSet::new(),
     };
-    writer.gather(tree);
-    writer.children(tree, false)?;
-    writer.footnotes()
+    writer.root(tree)
 }
 
 struct Writer<'a, 'b, 'c> {
     placed: &'b mut Placed<'a>,
     page: &'c mut Page,
-    /// Link definitions by identifier: address and title.
-    links: HashMap<String, (String, Option<String>)>,
-    notes: HashMap<String, Node>,
-    /// Footnotes in the order first called.
-    called: Vec<String>,
+    source: &'c str,
+    reader: MarkdownReader<'c>,
+    /// Notes whose definition has its anchor.
+    anchored: HashSet<usize>,
+}
+
+/// What a read area leaves out, in reading order.
+#[derive(Default)]
+struct Atoms {
+    /// Each formula's line.
+    formulas: VecDeque<usize>,
+    /// Each footnote reference's number.
+    notes: VecDeque<usize>,
+}
+
+/// A stretch of read text's mark.
+enum Mark<'a> {
+    Style(Style),
+    Link(&'a str),
 }
 
 impl Writer<'_, '_, '_> {
-    fn gather(&mut self, node: &Node) {
-        match node {
-            Node::Definition(definition) => {
-                let target = (definition.url.clone(), definition.title.clone());
-                self.links
-                    .entry(definition.identifier.clone())
-                    .or_insert(target);
-            }
-            Node::FootnoteDefinition(note) => {
-                self.notes
-                    .entry(note.identifier.clone())
-                    .or_insert_with(|| node.clone());
-            }
-            _ => {}
-        }
-        for child in node.children().into_iter().flatten() {
-            self.gather(child);
-        }
-    }
-
     fn push(&mut self, text: &str) {
         self.page.html.push_str(text);
     }
 
-    fn children(&mut self, node: &Node, tight: bool) -> io::Result<()> {
-        for child in node.children().into_iter().flatten() {
-            self.node(child, tight)?;
+    /// Root blocks: alerts and `[toc]` live only here.
+    fn root(&mut self, tree: &Node) -> io::Result<()> {
+        for child in tree.children().into_iter().flatten() {
+            match child {
+                Node::Blockquote(quote) => match alert(quote) {
+                    Some((kind, body)) => self.alert(kind, &body)?,
+                    None => self.block(child, false)?,
+                },
+                _ if is_toc(child, self.source) => self.toc(),
+                _ => self.block(child, false)?,
+            }
         }
         Ok(())
     }
 
-    fn wrapped(&mut self, tag: &str, node: &Node) -> io::Result<()> {
-        self.push(&format!("<{tag}>"));
-        self.children(node, false)?;
-        self.push(&format!("</{tag}>"));
+    fn blocks(&mut self, node: &Node, tight: bool) -> io::Result<()> {
+        for child in node.children().into_iter().flatten() {
+            self.block(child, tight)?;
+        }
         Ok(())
     }
 
-    fn node(&mut self, node: &Node, tight: bool) -> io::Result<()> {
+    fn block(&mut self, node: &Node, tight: bool) -> io::Result<()> {
         match node {
-            Node::Paragraph(_) if tight => self.children(node, false)?,
-            Node::Paragraph(_) => self.wrapped("p", node)?,
-            Node::Heading(heading) => self.wrapped(&format!("h{}", heading.depth), node)?,
-            Node::Blockquote(_) => self.wrapped("blockquote", node)?,
-            Node::Emphasis(_) => self.wrapped("em", node)?,
-            Node::Strong(_) => self.wrapped("strong", node)?,
-            Node::Delete(_) => self.wrapped("del", node)?,
+            Node::Paragraph(_) | Node::Heading(_) | Node::Table(_) | Node::Html(_) => {
+                self.area(node, tight)?
+            }
+            Node::Blockquote(_) => {
+                self.push("<blockquote>");
+                self.blocks(node, false)?;
+                self.push("</blockquote>");
+            }
             Node::List(list) => {
                 let tag = if list.ordered { "ol" } else { "ul" };
                 match list.start.filter(|start| list.ordered && *start != 1) {
@@ -92,78 +108,257 @@ impl Writer<'_, '_, '_> {
                         let mark = if checked { " checked" } else { "" };
                         self.push(&format!("<input type=\"checkbox\" disabled{mark}> "));
                     }
-                    self.children(item, !list.spread && !each.spread)?;
+                    self.blocks(item, !list.spread && !each.spread)?;
                     self.push("</li>");
                 }
                 self.push(&format!("</{tag}>"));
             }
-            Node::Table(table) => self.table(node, &table.align)?,
             Node::Code(code) if code.lang.as_deref() == Some("mermaid") => {
-                let line = line_of(node);
                 match diagram_svg(&code.value) {
                     Ok(svg) => self.push(&format!("<div class=\"diagram\">{}</div>", bare(&svg))),
                     Err(_) => {
-                        self.page.diagrams.push(line);
+                        self.page.diagrams.push(line_of(node));
                         self.code(Some("mermaid"), &code.value);
                     }
                 }
             }
             Node::Code(code) => self.code(code.lang.as_deref(), &code.value),
-            Node::Math(math) => self.math(node, &math.value, true),
-            Node::InlineMath(math) => self.math(node, &math.value, false),
-            Node::InlineCode(code) => self.push(&format!("<code>{}</code>", escape(&code.value))),
-            Node::Text(text) => self.push(&escape(&text.value)),
-            // HTML in the document shows as text, never runs.
-            Node::Html(html) => self.push(&escape(&html.value)),
-            Node::Break(_) => self.push("<br>"),
+            Node::Math(math) => self.math(line_of(node), &math.value, true),
             Node::ThematicBreak(_) => self.push("<hr>"),
-            Node::Link(link) => self.link(node, &link.url, link.title.as_deref())?,
-            Node::LinkReference(link) => match self.links.get(&link.identifier).cloned() {
-                Some((url, title)) => self.link(node, &url, title.as_deref())?,
-                None => self.children(node, false)?,
-            },
-            Node::Image(image) => self.picture(&image.url, &image.alt, image.title.as_deref())?,
-            Node::ImageReference(image) => match self.links.get(&image.identifier).cloned() {
-                Some((url, title)) => self.picture(&url, &image.alt, title.as_deref())?,
-                None => self.push(&escape(&image.alt)),
-            },
-            Node::FootnoteReference(call) => {
-                let number = match self.called.iter().position(|id| *id == call.identifier) {
-                    Some(at) => at + 1,
-                    None => {
-                        self.called.push(call.identifier.clone());
-                        self.called.len()
-                    }
-                };
-                self.push(&format!("<sup><a href=\"#fn-{number}\">{number}</a></sup>"));
+            Node::FootnoteDefinition(note) => {
+                // A reference reaches its note's first definition.
+                let id = (self.reader.note(&note.identifier))
+                    .filter(|number| self.anchored.insert(*number))
+                    .map_or_else(String::new, |number| format!(" id=\"fn-{number}\""));
+                self.push(&format!(
+                    "<div{id} style=\"display:flex;gap:.5em;font-size:.9em;color:#59636e\"><span>[{}]</span><div>",
+                    escape(&self.reader.label(note))
+                ));
+                self.blocks(node, false)?;
+                self.push("</div></div>");
             }
-            // Written elsewhere, or never.
-            Node::Yaml(_) | Node::Toml(_) | Node::Definition(_) | Node::FootnoteDefinition(_) => {}
-            _ => self.children(node, false)?,
+            // Never written.
+            Node::Yaml(_) | Node::Toml(_) | Node::Definition(_) => {}
+            other => unreachable!("{other:?} is no block outside MDX"),
         }
         Ok(())
     }
 
-    fn table(&mut self, node: &Node, align: &[AlignKind]) -> io::Result<()> {
+    /// A paragraph, heading, table or HTML block, read as drawn.
+    fn area(&mut self, node: &Node, tight: bool) -> io::Result<()> {
+        let mut read = Vec::new();
+        self.reader.block(node, &mut read);
+        if let Node::Table(_) = node {
+            let [MarkdownBlock::Table { aligns, head, rows }] = read.as_slice() else {
+                unreachable!("a table reads as one table");
+            };
+            return self.table(node, aligns, head, rows);
+        }
+        // A heading's pictures follow it whole.
+        let split = !matches!(node, Node::Heading(_));
+        let stretches = self.stretches(node, split);
+        self.run(&read, node, tight, split, stretches)
+    }
+
+    /// Pieces in order; with `split`, each picture ends a stretch.
+    fn run(
+        &mut self,
+        pieces: &[MarkdownBlock],
+        node: &Node,
+        tight: bool,
+        split: bool,
+        mut stretches: VecDeque<Atoms>,
+    ) -> io::Result<()> {
+        let mut written = false;
+        for piece in pieces {
+            match piece {
+                MarkdownBlock::Image { alt, url, link } => {
+                    self.picture(url, alt, link.as_deref())?;
+                    if split {
+                        retire(stretches.pop_front(), written);
+                        written = false;
+                    }
+                }
+                _ => {
+                    let atoms = stretches.front_mut().expect("a stretch per text");
+                    self.piece(piece, node, tight, atoms);
+                    written = true;
+                }
+            }
+        }
+        retire(stretches.pop_front(), written);
+        assert!(stretches.is_empty(), "a stretch per picture");
+        Ok(())
+    }
+
+    /// Formulas and notes by stretch; pictures part them.
+    fn stretches(&self, node: &Node, split: bool) -> VecDeque<Atoms> {
+        let mut out = VecDeque::from([Atoms::default()]);
+        self.gather(node, split, &mut out);
+        out
+    }
+
+    fn gather(&self, node: &Node, split: bool, out: &mut VecDeque<Atoms>) {
+        match node {
+            Node::InlineMath(_) => {
+                (out.back_mut().expect("a stretch").formulas).push_back(line_of(node))
+            }
+            Node::FootnoteReference(call) => {
+                let number = self
+                    .reader
+                    .note(&call.identifier)
+                    .expect("a reference names a note");
+                out.back_mut().expect("a stretch").notes.push_back(number);
+            }
+            Node::Image(_) | Node::ImageReference(_) if split => out.push_back(Atoms::default()),
+            _ => {}
+        }
+        for child in node.children().into_iter().flatten() {
+            self.gather(child, split, out);
+        }
+    }
+
+    fn table(
+        &mut self,
+        node: &Node,
+        aligns: &[AlignKind],
+        head: &[Vec<MarkdownBlock>],
+        rows: &[Vec<Vec<MarkdownBlock>>],
+    ) -> io::Result<()> {
+        let written = node.children().expect("a table holds rows");
+        let read: Vec<&[Vec<MarkdownBlock>]> = std::iter::once(head)
+            .chain(rows.iter().map(Vec::as_slice))
+            .collect();
+        assert_eq!(read.len(), written.len(), "a read row per row");
         self.push("<table>");
-        for (at, row) in node.children().into_iter().flatten().enumerate() {
-            let cell = if at == 0 { "th" } else { "td" };
+        for (at, (row, cells)) in read.into_iter().zip(written).enumerate() {
+            let tag = if at == 0 { "th" } else { "td" };
+            let cells = cells.children().expect("a row holds cells");
+            assert_eq!(row.len(), cells.len(), "a read cell per cell");
             self.push("<tr>");
-            for (column, each) in row.children().into_iter().flatten().enumerate() {
-                let side = match align.get(column) {
+            for (column, (pieces, cell)) in row.iter().zip(cells).enumerate() {
+                let side = match aligns.get(column) {
                     Some(AlignKind::Left) => " style=\"text-align:left\"",
                     Some(AlignKind::Right) => " style=\"text-align:right\"",
                     Some(AlignKind::Center) => " style=\"text-align:center\"",
                     _ => "",
                 };
-                self.push(&format!("<{cell}{side}>"));
-                self.children(each, false)?;
-                self.push(&format!("</{cell}>"));
+                self.push(&format!("<{tag}{side}>"));
+                let stretches = self.stretches(cell, true);
+                self.run(pieces, cell, true, true, stretches)?;
+                self.push(&format!("</{tag}>"));
             }
             self.push("</tr>");
         }
         self.push("</table>");
         Ok(())
+    }
+
+    fn piece(&mut self, piece: &MarkdownBlock, node: &Node, tight: bool, atoms: &mut Atoms) {
+        match piece {
+            MarkdownBlock::Paragraph(text) if tight => self.inline(text, atoms),
+            MarkdownBlock::Paragraph(text) => {
+                self.push("<p>");
+                self.inline(text, atoms);
+                self.push("</p>");
+            }
+            MarkdownBlock::Heading(depth, text) => {
+                let at = node.position().expect("a parsed node has its place");
+                self.push(&format!("<h{depth} id=\"h-{}\">", at.start.offset));
+                self.inline(text, atoms);
+                self.push(&format!("</h{depth}>"));
+            }
+            MarkdownBlock::Math(tex) => {
+                let line = atoms.formulas.pop_front().expect("a formula's line");
+                self.math(line, tex, true);
+            }
+            other => unreachable!("an area's text reads as text or math, not {other:?}"),
+        }
+    }
+
+    /// Read text; its marks open and close as a stack.
+    fn inline(&mut self, read: &Inline, atoms: &mut Atoms) {
+        let mut marks: Vec<(&Range<usize>, Mark)> = (read.styles.iter())
+            .filter(|(_, style)| *style != Style::Link)
+            .map(|(range, style)| (range, Mark::Style(*style)))
+            .chain(
+                read.links
+                    .iter()
+                    .map(|(range, url)| (range, Mark::Link(url))),
+            )
+            .collect();
+        // Outer first; a formula or note is its own text.
+        marks.sort_by_key(|(range, mark)| {
+            let whole = matches!(mark, Mark::Style(Style::Math | Style::Footnote));
+            (range.start, Reverse(range.end), whole)
+        });
+        let (mut open, mut at): (Vec<(usize, &str)>, usize) = (Vec::new(), 0);
+        let mut links = 0;
+        for (range, mark) in marks {
+            links -= self.close_to(read, range.start, &mut open, &mut at);
+            assert!(
+                range.start >= at && open.last().is_none_or(|(end, _)| range.end <= *end),
+                "read marks nest"
+            );
+            self.text(&read.text[at..range.start]);
+            at = range.start;
+            match mark {
+                Mark::Style(Style::Math) => {
+                    let line = atoms.formulas.pop_front().expect("a formula's line");
+                    self.math(line, &read.text[range.clone()], false);
+                    at = range.end;
+                }
+                Mark::Style(Style::Footnote) => {
+                    let number = atoms.notes.pop_front().expect("a note's number");
+                    // Links never nest.
+                    match links > 0 {
+                        true => self.push(&format!("<sup>{number}</sup>")),
+                        false => {
+                            self.push(&format!("<sup><a href=\"#fn-{number}\">{number}</a></sup>"))
+                        }
+                    }
+                    at = range.end;
+                }
+                Mark::Style(style) => {
+                    let name = tag(style);
+                    self.push(&format!("<{name}>"));
+                    open.push((range.end, name));
+                }
+                Mark::Link(url) => {
+                    match safe(url) {
+                        true => self.push(&format!("<a href=\"{}\">", attribute(url))),
+                        false => self.push("<a>"),
+                    }
+                    open.push((range.end, "a"));
+                    links += 1;
+                }
+            }
+        }
+        self.close_to(read, read.text.len(), &mut open, &mut at);
+        self.text(&read.text[at..]);
+    }
+
+    /// Closes each mark ending by `to`; counts closed links.
+    fn close_to(
+        &mut self,
+        read: &Inline,
+        to: usize,
+        open: &mut Vec<(usize, &str)>,
+        at: &mut usize,
+    ) -> usize {
+        let mut links = 0;
+        while let Some(&(end, name)) = open.last().filter(|(end, _)| *end <= to) {
+            self.text(&read.text[*at..end]);
+            self.push(&format!("</{name}>"));
+            *at = end;
+            open.pop();
+            links += usize::from(name == "a");
+        }
+        links
+    }
+
+    fn text(&mut self, text: &str) {
+        self.push(&escape(text).replace('\n', "<br>"));
     }
 
     fn code(&mut self, lang: Option<&str>, value: &str) {
@@ -173,12 +368,12 @@ impl Writer<'_, '_, '_> {
         self.push(&format!("<pre><code{class}>{}</code></pre>", escape(value)));
     }
 
-    fn math(&mut self, node: &Node, value: &str, display: bool) {
+    fn math(&mut self, line: usize, value: &str, display: bool) {
         match (formula_svg(value, display), display) {
             (Ok(svg), true) => self.push(&format!("<div class=\"math\">{}</div>", bare(&svg))),
             (Ok(svg), false) => self.push(&format!("<span class=\"math\">{}</span>", bare(&svg))),
             (Err(error), _) => {
-                self.page.formulas.push((line_of(node), error.to_string()));
+                self.page.formulas.push((line, error.to_string()));
                 match display {
                     true => self.code(Some("math"), value),
                     false => self.push(&format!("<code>{}</code>", escape(value))),
@@ -187,21 +382,37 @@ impl Writer<'_, '_, '_> {
         }
     }
 
-    fn link(&mut self, node: &Node, url: &str, title: Option<&str>) -> io::Result<()> {
-        let title = title.map_or_else(String::new, |title| {
-            format!(" title=\"{}\"", attribute(title))
-        });
-        // Only web, mail and in-page addresses follow.
-        match safe(url) {
-            true => self.push(&format!("<a href=\"{}\"{title}>", attribute(url))),
-            false => self.push("<a>"),
+    /// A GitHub alert: its kind's title, then its blocks.
+    fn alert(&mut self, kind: AlertKind, body: &[Node]) -> io::Result<()> {
+        let (title, hue) = (kind.title(), hue(kind));
+        self.push(&format!(
+            "<div style=\"padding:.25em 1em;margin:1em 0;border-left:.25em solid {hue}\"><p style=\"font-weight:600;color:{hue}\">{title}</p>"
+        ));
+        for node in body {
+            self.block(node, false)?;
         }
-        self.children(node, false)?;
-        self.push("</a>");
+        self.push("</div>");
         Ok(())
     }
 
-    fn picture(&mut self, url: &str, alt: &str, title: Option<&str>) -> io::Result<()> {
+    /// `[toc]`: each heading, linked to its place.
+    fn toc(&mut self) {
+        let items: String = (self.reader.headings.iter())
+            .map(|heading| {
+                format!(
+                    "<li style=\"margin-left:{}em\"><a href=\"#h-{}\">{}</a></li>",
+                    heading.depth - 1,
+                    heading.at,
+                    escape(&heading.title)
+                )
+            })
+            .collect();
+        self.push(&format!(
+            "<ul style=\"list-style:none;padding-left:0\">{items}</ul>"
+        ));
+    }
+
+    fn picture(&mut self, url: &str, alt: &str, link: Option<&str>) -> io::Result<()> {
         let src = self.placed.place(url)?;
         if src.is_none() {
             self.page.missing.push(if url.is_empty() {
@@ -215,36 +426,52 @@ impl Writer<'_, '_, '_> {
             self.push(&format!("[{}]", escape(alt)));
             return Ok(());
         };
-        let title = title.map_or_else(String::new, |title| {
-            format!(" title=\"{}\"", attribute(title))
-        });
-        self.push(&format!(
-            "<img src=\"{}\" alt=\"{}\"{title}>",
+        let image = format!(
+            "<img src=\"{}\" alt=\"{}\">",
             attribute(&src),
             attribute(alt)
-        ));
+        );
+        match link {
+            Some(link) if safe(link) => {
+                self.push(&format!("<a href=\"{}\">{image}</a>", attribute(link)))
+            }
+            Some(_) => self.push(&format!("<a>{image}</a>")),
+            None => self.push(&image),
+        }
         Ok(())
     }
+}
 
-    fn footnotes(&mut self) -> io::Result<()> {
-        if self.called.is_empty() {
-            return Ok(());
-        }
-        self.push("<section class=\"footnotes\"><hr><ol>");
-        // A note may call another note.
-        let mut at = 0;
-        while at < self.called.len() {
-            let note = self.notes.get(&self.called[at]).cloned();
-            at += 1;
-            self.push(&format!("<li id=\"fn-{at}\">"));
-            match note {
-                Some(note) => self.children(&note, false)?,
-                None => log::error!("mark: footnote {at} has no definition"),
-            }
-            self.push("</li>");
-        }
-        self.push("</ol></section>");
-        Ok(())
+/// A stretch done: all read, or blank and dropped.
+fn retire(atoms: Option<Atoms>, written: bool) {
+    let atoms = atoms.expect("a stretch per picture");
+    assert!(
+        atoms.notes.is_empty() && (!written || atoms.formulas.is_empty()),
+        "every formula and note is read"
+    );
+}
+
+/// GitHub's color for an alert kind.
+fn hue(kind: AlertKind) -> &'static str {
+    match kind {
+        AlertKind::Note => "#0969da",
+        AlertKind::Tip => "#1a7f37",
+        AlertKind::Important => "#8250df",
+        AlertKind::Warning => "#9a6700",
+        AlertKind::Caution => "#d1242f",
+    }
+}
+
+/// The tag a read style writes.
+fn tag(style: Style) -> &'static str {
+    match style {
+        Style::Strong => "strong",
+        Style::Emphasis => "em",
+        Style::Strike => "del",
+        Style::Code => "code",
+        Style::Underline => "u",
+        Style::Mark => "mark",
+        Style::Link | Style::Math | Style::Footnote => unreachable!("{style:?} writes no tag"),
     }
 }
 
@@ -256,29 +483,4 @@ fn line_of(node: &Node) -> usize {
 /// An SVG without its XML declaration.
 fn bare(svg: &str) -> &str {
     svg.find("<svg").map_or(svg, |at| &svg[at..])
-}
-
-/// A plain, web or mail address, read as browsers do.
-fn safe(url: &str) -> bool {
-    // Browsers trim spaces and controls, then drop tabs and newlines.
-    let read: String = url
-        .trim_matches(|ch: char| ch <= ' ')
-        .chars()
-        .filter(|ch| !matches!(ch, '\t' | '\n' | '\r'))
-        .collect();
-    match scheme(&read) {
-        None => true,
-        Some(scheme) => ["http", "https", "mailto"].contains(&scheme.to_lowercase().as_str()),
-    }
-}
-
-/// An address's scheme, when it has one.
-pub(super) fn scheme(url: &str) -> Option<&str> {
-    let end = url.find(':')?;
-    let name = &url[..end];
-    let plain = name
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || "+-.".contains(ch));
-    // A drive letter is a path, not a scheme.
-    (plain && name.len() > 1).then_some(name)
 }

@@ -2,6 +2,8 @@ use std::path::Path;
 
 use super::{Pictures, body, document, plain};
 
+mod visual;
+
 fn page(text: &str, beside: Option<&Path>, pictures: &Pictures) -> super::Page {
     body(text, beside, pictures).expect("a page")
 }
@@ -51,17 +53,17 @@ fn markdown_writes_as_html() {
     let text = "# T\n\n- [x] done\n- b\n\n3. c\n\n| l | r |\n|:--|--:|\n| 1 | 2 |\n\n~~gone~~ [a](https://x.org \"t\") [r][ref] [bad](javascript:alert(1))\n\nNote[^1].\n\n[^1]: The note.\n\n[ref]: /docs\n";
     let html = page(text, None, &Pictures::Inline).html;
     for part in [
-        "<h1>T</h1>",
+        "<h1 id=\"h-0\">T</h1>",
         "<li><input type=\"checkbox\" disabled checked> done</li>",
         "<ol start=\"3\">",
         "<th style=\"text-align:left\">l</th>",
         "<td style=\"text-align:right\">2</td>",
         "<del>gone</del>",
-        "<a href=\"https://x.org\" title=\"t\">a</a>",
+        "<a href=\"https://x.org\">a</a>",
         "<a href=\"/docs\">r</a>",
         "<a>bad</a>",
         "<sup><a href=\"#fn-1\">1</a></sup>",
-        "<li id=\"fn-1\"><p>The note.</p></li>",
+        "<div id=\"fn-1\" style=\"display:flex;gap:.5em;font-size:.9em;color:#59636e\"><span>[1]</span><div><p>The note.</p></div></div>",
     ] {
         assert!(html.contains(part), "{part} in {html}");
     }
@@ -458,9 +460,15 @@ fn a_formula_letter_no_font_has_stays_as_tex() {
 fn a_large_document_exports_whole() {
     // Long paragraphs: markdown-rs slows with the block count.
     let words = "word ".repeat(200);
-    let mut text: String = (0..2_200).map(|n| format!("Paragraph {n}: {words}\n\n")).collect();
+    let mut text: String = (0..2_200)
+        .map(|n| format!("Paragraph {n}: {words}\n\n"))
+        .collect();
     text.push_str("The last line.\n");
     assert!(text.len() > ely_gpui_component::documents::LARGEST_READ);
     assert!(plain(&text).expect("text").ends_with("The last line.\n"));
-    assert!(page(&text, None, &Pictures::Inline).html.ends_with("<p>The last line.</p>"));
+    assert!(
+        page(&text, None, &Pictures::Inline)
+            .html
+            .ends_with("<p>The last line.</p>")
+    );
 }
