@@ -63,7 +63,7 @@ pub(super) fn press(keys: &str, cx: &mut VisualTestContext) {
 }
 
 /// The window's toasts that hold `words`.
-fn toasted(desk: &Entity<Desk>, words: &str, cx: &mut VisualTestContext) -> usize {
+pub(super) fn toasted(desk: &Entity<Desk>, words: &str, cx: &mut VisualTestContext) -> usize {
     let root = desk.read_with(cx, |desk, _| desk.core.root.upgrade().expect("the window"));
     let toasts = root.read_with(cx, |root, cx| root.toasts(cx));
     toasts

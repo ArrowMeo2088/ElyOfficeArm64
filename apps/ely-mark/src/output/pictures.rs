@@ -19,6 +19,8 @@ pub enum Pictures {
     Folder(PathBuf),
     /// Copied into this folder, in formats MuPDF reads.
     Pdf(PathBuf),
+    /// Addresses as the text writes them.
+    Written,
 }
 
 /// Picture formats MuPDF reads from files.
@@ -40,6 +42,22 @@ pub(super) struct Placed<'a> {
     pub made: bool,
 }
 
+/// A picture address's file; none for other schemes.
+pub fn picture_file(url: &str, beside: Option<&Path>) -> Option<PathBuf> {
+    if url.to_lowercase().starts_with("file://") {
+        return Some(file_path(&url["file://".len()..]));
+    }
+    if scheme(url).is_some() {
+        return None;
+    }
+    let path = PathBuf::from(decoded(url));
+    match (path.is_absolute(), beside) {
+        (true, _) => Some(path),
+        (false, Some(beside)) => Some(beside.join(path)),
+        (false, None) => None,
+    }
+}
+
 impl<'a> Placed<'a> {
     pub fn new(beside: Option<&'a Path>, pictures: &'a Pictures) -> Self {
         Self {
@@ -56,6 +74,9 @@ impl<'a> Placed<'a> {
 
     /// The `src` for `url`; none when it is not carried.
     pub fn place(&mut self, url: &str) -> io::Result<Option<String>> {
+        if matches!(self.pictures, Pictures::Written) {
+            return Ok(Some(url.to_owned()));
+        }
         let lower = url.to_lowercase();
         if lower.starts_with("http://") || lower.starts_with("https://") {
             return Ok((!self.pdf()).then(|| url.to_owned()));
@@ -67,20 +88,10 @@ impl<'a> Placed<'a> {
             };
             return Ok(readable.then(|| url.to_owned()));
         }
-        let path = match (lower.starts_with("file://"), scheme(url)) {
-            (true, _) => file_path(&url["file://".len()..]),
-            // Other schemes are no picture of the document's.
-            (false, Some(_)) => return Ok(None),
-            (false, None) => {
-                let path = PathBuf::from(decoded(url));
-                match (path.is_absolute(), self.beside) {
-                    (true, _) => path,
-                    (false, Some(beside)) => beside.join(path),
-                    (false, None) => return Ok(None),
-                }
-            }
-        };
-        self.carried(&path)
+        match picture_file(url, self.beside) {
+            Some(path) => self.carried(&path),
+            None => Ok(None),
+        }
     }
 
     fn carried(&mut self, path: &Path) -> io::Result<Option<String>> {
@@ -98,6 +109,7 @@ impl<'a> Placed<'a> {
             }
             Pictures::Pdf(_) if !READABLE.contains(&extension.as_str()) => return Ok(None),
             Pictures::Folder(folder) | Pictures::Pdf(folder) => folder.clone(),
+            Pictures::Written => unreachable!("written addresses are not carried"),
         };
         let named = match self.copied.iter().find(|(from, _)| from == path) {
             Some((_, name)) => name.clone(),

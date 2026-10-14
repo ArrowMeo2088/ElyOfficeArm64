@@ -54,7 +54,9 @@ pub fn menus(look: &crate::look::Look, cx: &App) -> Vec<Menu> {
     let item = |key: &str, action: Box<dyn Action>| item(key, action, cx);
     vec![
         Menu::new(text(cx, "menu.edit", &[])).items([
+            item("mark.copy.plain", Box::new(crate::export::CopyPlain)),
             item("mark.copy.markdown", Box::new(crate::clip::CopyMarkdown)),
+            item("mark.copy.html", Box::new(crate::export::CopyHtml)),
             item("mark.copy.rich", Box::new(crate::export::CopyRich)),
             item("mark.paste.plain", Box::new(crate::clip::PastePlain)),
             MenuItem::separator(),

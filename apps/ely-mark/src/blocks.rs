@@ -45,7 +45,9 @@ actions!(
         Strike,
         Hyperlink,
         InsertImage,
-        ClearFormat
+        ClearFormat,
+        DeleteBlock,
+        DeleteImage
     ]
 );
 
@@ -150,6 +152,7 @@ pub(crate) fn refusal(why: EditRefusal, cx: &App) -> SharedString {
         EditRefusal::FrontMatter => "mark.refused.front_matter",
         EditRefusal::Outside => "mark.refused.outside",
         EditRefusal::Table => "mark.refused.table",
+        EditRefusal::NoImage => "mark.refused.no_image",
         EditRefusal::Present => "mark.refused.present",
         EditRefusal::Across => "mark.refused.across",
         EditRefusal::TooLong => "mark.refused.too_long",
@@ -226,11 +229,15 @@ impl Desk {
             Hyperlink => |d, cx| d.format(F::Link, cx),
             InsertImage => |d, cx| d.format(F::Image, cx),
             ClearFormat => |d, cx| d.format(F::Clear, cx),
+            DeleteBlock => |d, cx| d.block(B::Delete, cx),
+            DeleteImage => |d, cx| d.delete_image(cx),
         )
     }
 }
 
 // macOS menus are the system's, not drawn.
+#[cfg(test)]
+mod context;
 #[cfg(all(test, not(target_os = "macos")))]
 mod menus;
 #[cfg(test)]

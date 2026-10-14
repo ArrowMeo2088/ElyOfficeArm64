@@ -7,7 +7,8 @@ use ely_gpui_component::documents::{
 };
 use gpui::{
     AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable as _,
-    InteractiveElement as _, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
+    InteractiveElement as _, IntoElement, MouseButton, ParentElement as _, Render, Styled as _,
+    Window, div,
 };
 
 use crate::engine::{Doc, mark};
@@ -86,6 +87,8 @@ pub struct MarkView {
     pub(crate) shown: bool,
     /// Trackpad pixels toward the next size step.
     wheel: f32,
+    /// The last right-click menu asked.
+    offer: Option<ely_office::menu::Offer<menu::Asked>>,
     pub focus: FocusHandle,
 }
 
@@ -132,6 +135,7 @@ impl MarkView {
             folder: None,
             shown: false,
             wheel: 0.0,
+            offer: None,
             focus,
         }
     }
@@ -278,6 +282,10 @@ impl MarkView {
         if let DocumentEvent::EditRefused(why) = event {
             return cx.emit(Refused(*why));
         }
+        if let DocumentEvent::Pointed(target) = event {
+            let at = window.mouse_position();
+            return self.ask_menu(menu::Asked::Text(target.clone()), at, cx);
+        }
         if *event == DocumentEvent::Changed {
             let text = document.read(cx).text(cx);
             self.doc.lock().expect("the text lock").current = text;
@@ -313,7 +321,7 @@ impl MarkView {
 }
 
 impl Render for MarkView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let view = cx.entity();
         // Ctrl and the wheel size text, as Ctrl+= does.
         let zoom = ely_ui::wheel::zoom_layer(move |event, window, cx| {
@@ -329,10 +337,16 @@ impl Render for MarkView {
             .relative()
             .size_full()
             .track_focus(&self.focus)
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|view, event, _, cx| view.pressed(event, cx)),
+            )
             .child(self.document.clone())
             .child(zoom)
+            .children(self.context_menu(window, cx))
     }
 }
 
+mod menu;
 #[cfg(test)]
 mod tests;

@@ -58,7 +58,8 @@ fn a_menu_formats_the_open_blocks_selection(cx: &mut TestAppContext) {
 fn a_menu_copies_the_open_blocks_selection(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("alpha beta\n", cx);
     select_alpha(&desk, cx);
-    choose(edit_menu, 1, cx);
+    // Copy as Markdown, after Copy as Plain Text.
+    choose(edit_menu, 2, cx);
     let copied = cx.read_from_clipboard().and_then(|item| item.text());
     assert_eq!(copied.as_deref(), Some("alpha"));
 }

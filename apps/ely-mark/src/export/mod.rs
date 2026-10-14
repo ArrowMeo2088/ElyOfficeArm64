@@ -9,20 +9,20 @@ use ely_gpui_component::{
     theme::ControlSize,
 };
 use ely_office::prelude::*;
-use ely_platform::clipboard::{self, Clip};
 use ely_ui::{
     commands::{Export, Print},
     i18n::text,
 };
 use gpui::{
     AnyElement, Context, Div, InteractiveElement, IntoElement, ParentElement as _, TaskExt as _,
-    actions,
 };
 
 use crate::desk::Desk;
-use crate::output::{self, Format, Page, Pictures, Target};
+use crate::output::{self, Format, Page, Target};
 
-actions!(mark, [CopyRich]);
+mod copy;
+
+pub use copy::{CopyHtml, CopyPlain, CopyRich};
 
 const FORMATS: [(Format, &str, &str); 4] = [
     (Format::Page, "page", "html"),
@@ -41,9 +41,10 @@ fn key(format: Format) -> &'static str {
 
 impl Desk {
     pub fn output_actions(root: Div, cx: &mut Context<Self>) -> Div {
-        root.on_action(cx.listener(|desk, _: &Export, _, cx| desk.ask_export(cx)))
-            .on_action(cx.listener(|desk, _: &Print, _, cx| desk.print(cx)))
-            .on_action(cx.listener(|desk, _: &CopyRich, _, cx| desk.copy_rich(cx)))
+        let root = root
+            .on_action(cx.listener(|desk, _: &Export, _, cx| desk.ask_export(cx)))
+            .on_action(cx.listener(|desk, _: &Print, _, cx| desk.print(cx)));
+        Self::copy_actions(root, cx)
     }
 
     pub(crate) fn no_document(&self, cx: &mut Context<Self>) {
@@ -274,39 +275,6 @@ impl Desk {
             })
         })
         .detach_and_log_err(cx);
-    }
-
-    /// The selection, or the whole text, as HTML.
-    fn copy_rich(&mut self, cx: &mut Context<Self>) {
-        let Some(view) = self.active_view() else {
-            return self.no_document(cx);
-        };
-        let document = view.read(cx).document().clone();
-        let selected = document.read(cx).selected(cx);
-        let markdown = match selected.is_empty() {
-            true => document.read(cx).text(cx),
-            false => selected,
-        };
-        let beside = self
-            .active_tab()
-            .and_then(|tab| tab.session.path())
-            .and_then(|path| path.parent());
-        let copied = output::body(&markdown, beside, &Pictures::Inline).and_then(|mut page| {
-            let clip = Clip::Html {
-                html: std::mem::take(&mut page.html),
-                text: markdown,
-            };
-            clipboard::write(&clip)
-                .map(|()| page)
-                .map_err(|error| std::io::Error::other(format!("{error:#}")))
-        });
-        match copied {
-            Ok(page) => self.left_out(&page, cx),
-            Err(error) => {
-                let said = text(cx, "mark.copy.failed", &[("error", &error.to_string())]);
-                self.toast(said, Severity::Danger, cx);
-            }
-        }
     }
 }
 

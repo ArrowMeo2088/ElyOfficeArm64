@@ -13,7 +13,7 @@ use std::{io, path::Path};
 use ely_gpui_component::documents::markdown_options;
 
 pub use files::{Format, Target, write};
-pub use pictures::Pictures;
+pub use pictures::{Pictures, picture_file};
 pub use plain::plain;
 
 /// A page and what it could not carry.
