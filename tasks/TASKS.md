@@ -2,7 +2,7 @@
 
 进度真相。自上而下，逐条完成，不跳项。编号前缀是 PRD 章节号，`C00` 是用户指令的前置项。
 
-每条完成后：`scripts/review.sh ID 轮次` 在 herdr 开新分栏，codex --yolo（gpt-6.1-sol，effort high）审查，最多三轮。有问题先修，复审通过才勾选。审查只看缺陷，不收“建议增强”。每轮结论写入 `tasks/reviews/<编号>-r<轮>.md`。
+每条完成后：`scripts/review.sh ID 轮次` 在 herdr 开新分栏，codex --yolo（gpt-6-astra，effort max，fast）审查，最多三轮。有问题先修，复审通过才勾选。审查只看缺陷，不收“建议增强”。每轮结论写入 `tasks/reviews/<编号>-r<轮>.md`。
 
 状态：`[ ]` 未做　`[x]` 完成且审查通过　`[~]` 三轮用尽，末轮缺陷已修并有回归测试，未经复审　`[!]` 外部阻塞，写明原因与证据，不算完成。
 
@@ -228,3 +228,18 @@
 - [x] R3.2 缩放：Doc、Table、Show、PDF、Mark 以 Ctrl 加滚轮（macOS 为 Cmd）缩放，原认 Windows 键与 Super（Hyprland 占用，Linux 上无效）；滚轮一格为一档（原 Windows 一格三行，一下放大 1.8 倍），触控板的像素滚动照旧连续（LOK）或累积成档（PDF、Mark）；PDF 与 Mark 原无滚轮缩放
 - [x] R3.3 LOK 视图的指针随内核：`LOK_CALLBACK_MOUSE_POINTER`（单元格上为箭头，编辑单元格或文字时为文字指针，边线为拖动指针，链接为手），原一律为文字指针
 - [ ] R3.4 版本 0.1.4：`Cargo.toml` 与随版本的文档，提交并推送 main，打标签 v0.1.4，本机建三端并发布（用户定，R3.2 审查略去）
+
+## R4 ElyMark 对齐 Typora（用户 2026-10-13 定：解析、渲染、右键体验不输 Typora 1.14.10；保留块编辑、Typora 默认语法、Typora 快捷键、右键菜单用图标行；逐条做，逐条送审）
+
+- [x] R4.0 前置：`scripts/review.sh` 与本文件头改用 gpt-6-astra（effort max，fast）；PRD §14 与 `agents.md` 记下四项决定与 Typora 对照的范围；`TyporaRef` 不入库 — R1 PASS
+- [ ] R4.1 组件库：菜单的图标按钮行（`Menu` 一行若干图标按钮，各带名称与快捷键提示、可禁用）；键盘可达；选中即运行并关菜单；画廊有例，有测试
+- [ ] R4.2 组件库：行内扩展照 Typora 默认：`:shortcode:` 表情；行内 HTML 的 `u`、`b`/`strong`、`i`/`em`、`s`/`del`/`strike`、`code`、`kbd`、`mark`、`br`、`a` 按其义显示，其余标签只显示文字；脚注引用为上标数字；`~x~` 仍为删除线
+- [ ] R4.3 组件库：块扩展照 Typora 默认：GitHub 提示块（NOTE、TIP、IMPORTANT、WARNING、CAUTION）；独占一段的 `[toc]` 画成可按的标题目录；front matter 去掉 `---` 显示在框里；HTML 块按 R4.2 的标签显示，`script`、`style` 不显示；分隔线可见；嵌套无序列表的标记随层级变化
+- [ ] R4.4 ElyMark：导出 HTML、纯文本与富文本复制随 R4.2、R4.3，与可视所见一致（表情、提示块、目录、行内 HTML 的同一组标签）
+- [ ] R4.5 组件库：可视模式按下块时插入点落在所按的字处；右键不开块，把插入点放到所点处，以事件告知属主所点的目标（块的种类、链接地址、图片地址、是否在表格或代码块里）
+- [ ] R4.6 组件库：行内格式命令（粗体、斜体、行内代码、删除线、下划线、链接、图片、清除格式），照 Typora：有选区即包住或去掉，无选区取插入点所在的词，空处插一对标记、插入点在其中；代码、公式、HTML、front matter 里拒绝并说明；一步撤销；打开的块照常可续写
+- [ ] R4.7 组件库：块命令（标题 1–6、段落、标题升降一级；引用、有序、无序、任务列表的切换；插入分隔线、代码块、公式块、目录、front matter、脚注、链接定义、前后空段落；删除块），一步撤销，拒绝说明原因
+- [ ] R4.8 组件库：表格行列上下左右移动、整理表格源码；代码块取代码内容；与已有的增删行列同一套拒绝
+- [ ] R4.9 ElyMark：“段落”“格式”菜单与 Typora 同项同键（Ctrl+1–6、Ctrl+0、Ctrl+=/-、Ctrl+B/I/U、Ctrl+Shift+`、Alt+Shift+5、Ctrl+K、Ctrl+Shift+I、Ctrl+\、Ctrl+T、Ctrl+Shift+K/M/Q/[/]）；源码模式 Ctrl+/；字号 Ctrl+Shift+=/-/0；专注 F8、打字机 F9；表格菜单加移动行列；复制为 Markdown Ctrl+Shift+C、粘贴为纯文本 Ctrl+Shift+V
+- [ ] R4.10 ElyMark：右键菜单照 Typora 按目标变化：剪贴板行（剪切、复制、粘贴、删除）、复制/粘贴为 ▸（Markdown、HTML 代码、纯文本、粘贴为纯文本）、格式行、段落 ▸ 或表格 ▸ 或代码项、插入 ▸、链接（打开、复制地址）、图片（打开所在位置、删除图片）、删除块；预览只读时只留复制类
+- [ ] R4.11 验收：同一份样本在 ElyMark 与 Typora 的真窗口截图逐项对照；帮助、PRD、`agents.md` 随之；逐条核对表
