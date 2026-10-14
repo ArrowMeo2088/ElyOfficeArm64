@@ -76,3 +76,15 @@ fn delete_table_from_the_menu_is_one_undo_step(cx: &mut TestAppContext) {
     press("secondary-z", cx);
     assert_eq!(current(&desk, cx), TABLED);
 }
+
+#[gpui::test]
+fn delete_table_in_an_open_block_keeps_keyboard_undo(cx: &mut TestAppContext) {
+    let (desk, cx, _files) = opened(TABLED, cx);
+    let bounds = cx.debug_bounds("markdown-block-1").expect("the table");
+    let at = point(bounds.left() + px(4.), bounds.top() + px(4.));
+    cx.simulate_click(at, Modifiers::none());
+    choose(crate::tools::table_menu, 13, cx);
+    assert_eq!(current(&desk, cx), "before\n\nafter\n");
+    press("secondary-z", cx);
+    assert_eq!(current(&desk, cx), TABLED);
+}

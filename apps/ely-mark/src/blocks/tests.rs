@@ -1,7 +1,8 @@
 use ely_gpui_component::documents::MarkdownDocument;
+#[cfg(target_os = "windows")]
+use gpui::Action;
 use gpui::{
-    Action, ClipboardItem, Entity, Focusable as _, Menu, MenuItem, TestAppContext,
-    VisualTestContext,
+    ClipboardItem, Entity, Focusable as _, Menu, MenuItem, TestAppContext, VisualTestContext,
 };
 
 use crate::{

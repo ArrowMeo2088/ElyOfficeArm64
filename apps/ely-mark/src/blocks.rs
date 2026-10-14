@@ -230,7 +230,8 @@ impl Desk {
     }
 }
 
-#[cfg(test)]
+// macOS menus are the system's, not drawn.
+#[cfg(all(test, not(target_os = "macos")))]
 mod menus;
 #[cfg(test)]
 mod tests;
