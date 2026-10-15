@@ -205,6 +205,32 @@ fn a_later_editor_copy_outlives_a_pending_conversion(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_later_rich_copy_with_the_same_text_outlives_a_pending_conversion(cx: &mut TestAppContext) {
+    use ely_platform::clipboard::{self, Clip};
+    if std::env::var_os("ELY_CLIPBOARD_TEST").is_none() {
+        eprintln!("SKIP: set ELY_CLIPBOARD_TEST=1; this replaces the clipboard");
+        return;
+    }
+    let rich = |html: &str| Clip::Html {
+        html: html.into(),
+        text: "x".into(),
+    };
+    let (_desk, cx, _files) = opened("alpha *it*\n", cx);
+    clipboard::write(&rich("<b>x</b>")).expect("writes");
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("x".into()));
+    cx.update(|window, cx| window.dispatch_action(Box::new(crate::export::CopyHtml), cx));
+    clipboard::write(&rich("<i>x</i>")).expect("writes");
+    cx.run_until_parked();
+    let html = clipboard::html().expect("reads");
+    assert_eq!(
+        clipboard(cx).as_deref(),
+        Some("x"),
+        "the conversion is dropped"
+    );
+    assert!(html.is_some_and(|html| html.contains("<i>x</i>")));
+}
+
+#[gpui::test]
 fn a_shut_menu_stays_shut_when_its_tab_returns(cx: &mut TestAppContext) {
     let (desk, cx, files) = opened("alpha\n", cx);
     right_on(0, 1, cx);

@@ -64,7 +64,7 @@ impl Desk {
         let Some((markdown, beside)) = self.copied_text(cx) else {
             return;
         };
-        let before = cx.read_from_clipboard();
+        let before = witness(cx);
         self.copying = Some(cx.spawn(async move |desk, cx| {
             let converted = cx
                 .background_executor()
@@ -73,7 +73,7 @@ impl Desk {
             let landed = desk.update(cx, |desk, cx| {
                 desk.copying = None;
                 // A later copy, here or elsewhere, wins.
-                if cx.read_from_clipboard() != before {
+                if witness(cx) != before {
                     return log::info!("mark: the clipboard changed first; a copy is dropped");
                 }
                 desk.copied(converted, cx);
@@ -106,6 +106,15 @@ impl Desk {
             Err(error) => self.copy_failed(&error, cx),
         }
     }
+}
+
+/// What the clipboard holds, its HTML included.
+fn witness(cx: &mut Context<Desk>) -> (Option<ClipboardItem>, Result<Option<String>, String>) {
+    let html = clipboard::html().map_err(|error| {
+        log::warn!("mark: the clipboard's HTML did not read: {error:#}");
+        format!("{error:#}")
+    });
+    (cx.read_from_clipboard(), html)
 }
 
 /// The copy as `kind`, converted off the window thread.
