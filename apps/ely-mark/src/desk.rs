@@ -56,6 +56,8 @@ pub struct Desk {
     asked_print: Option<ely_files::Fingerprint>,
     /// The find box, while open.
     pub(crate) finding: Option<crate::finding::Find>,
+    /// The copy being converted; a newer one drops it.
+    pub(crate) copying: Option<gpui::Task<()>>,
 }
 
 impl Host for Desk {
@@ -205,6 +207,7 @@ pub(crate) fn open_in(
             asked: None,
             asked_print: None,
             finding: None,
+            copying: None,
         }
     });
     let menus = crate::keys::menus(&look, cx);

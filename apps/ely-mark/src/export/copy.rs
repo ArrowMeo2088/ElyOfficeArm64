@@ -9,15 +9,30 @@ use ely_ui::i18n::text;
 use gpui::{ClipboardItem, Context, Div, InteractiveElement as _, actions};
 
 use crate::desk::Desk;
-use crate::output::{self, Pictures};
+use crate::output::{self, Page, Pictures};
 
 actions!(mark, [CopyRich, CopyHtml, CopyPlain]);
 
+/// What a copy turns the Markdown into.
+#[derive(Clone, Copy)]
+enum As {
+    Rich,
+    Html,
+    Plain,
+}
+
+/// A converted copy, ready for the clipboard.
+enum Copied {
+    Rich(Clip, Page),
+    Html(String, Page),
+    Plain(String),
+}
+
 impl Desk {
     pub(super) fn copy_actions(root: Div, cx: &mut Context<Self>) -> Div {
-        root.on_action(cx.listener(|desk, _: &CopyRich, _, cx| desk.copy_rich(cx)))
-            .on_action(cx.listener(|desk, _: &CopyHtml, _, cx| desk.copy_html(cx)))
-            .on_action(cx.listener(|desk, _: &CopyPlain, _, cx| desk.copy_plain(cx)))
+        root.on_action(cx.listener(|desk, _: &CopyRich, _, cx| desk.copy(As::Rich, cx)))
+            .on_action(cx.listener(|desk, _: &CopyHtml, _, cx| desk.copy(As::Html, cx)))
+            .on_action(cx.listener(|desk, _: &CopyPlain, _, cx| desk.copy(As::Plain, cx)))
     }
 
     /// The selection or whole text, and the file's folder.
@@ -44,52 +59,64 @@ impl Desk {
         self.toast(said, Severity::Danger, cx);
     }
 
-    /// HTML for pasting, the Markdown beside it.
-    fn copy_rich(&mut self, cx: &mut Context<Self>) {
+    /// Converts in the background, then writes the clipboard.
+    fn copy(&mut self, kind: As, cx: &mut Context<Self>) {
         let Some((markdown, beside)) = self.copied_text(cx) else {
             return;
         };
-        let copied =
-            output::body(&markdown, beside.as_deref(), &Pictures::Inline).and_then(|mut page| {
-                let clip = Clip::Html {
-                    html: std::mem::take(&mut page.html),
-                    text: markdown,
-                };
-                clipboard::write(&clip)
-                    .map(|()| page)
-                    .map_err(|error| std::io::Error::other(format!("{error:#}")))
+        self.copying = Some(cx.spawn(async move |desk, cx| {
+            let converted = cx
+                .background_executor()
+                .spawn(async move { convert(kind, markdown, beside) })
+                .await;
+            let landed = desk.update(cx, |desk, cx| {
+                desk.copying = None;
+                desk.copied(converted, cx);
             });
-        match copied {
-            Ok(page) => self.left_out(&page, cx),
-            Err(error) => self.copy_failed(&error, cx),
-        }
-    }
-
-    /// The HTML as text; pictures keep their addresses.
-    fn copy_html(&mut self, cx: &mut Context<Self>) {
-        let Some((markdown, beside)) = self.copied_text(cx) else {
-            return;
-        };
-        match output::body(&markdown, beside.as_deref(), &Pictures::Written) {
-            Ok(mut page) => {
-                log::info!("mark: {} bytes copied as HTML code", page.html.len());
-                cx.write_to_clipboard(ClipboardItem::new_string(std::mem::take(&mut page.html)));
-                self.left_out(&page, cx);
+            if landed.is_err() {
+                log::warn!("mark: a copy finished after its window closed");
             }
-            Err(error) => self.copy_failed(&error, cx),
-        }
+        }));
     }
 
-    fn copy_plain(&mut self, cx: &mut Context<Self>) {
-        let Some((markdown, _)) = self.copied_text(cx) else {
-            return;
-        };
-        match output::plain(&markdown) {
-            Ok(plain) => {
+    fn copied(&mut self, converted: std::io::Result<Copied>, cx: &mut Context<Self>) {
+        let written = converted.and_then(|copied| match copied {
+            Copied::Rich(clip, page) => clipboard::write(&clip)
+                .map(|()| Some(page))
+                .map_err(|error| std::io::Error::other(format!("{error:#}"))),
+            Copied::Html(html, page) => {
+                log::info!("mark: {} bytes copied as HTML code", html.len());
+                cx.write_to_clipboard(ClipboardItem::new_string(html));
+                Ok(Some(page))
+            }
+            Copied::Plain(plain) => {
                 log::info!("mark: {} bytes copied as plain text", plain.len());
                 cx.write_to_clipboard(ClipboardItem::new_string(plain));
+                Ok(None)
             }
+        });
+        match written {
+            Ok(Some(page)) => self.left_out(&page, cx),
+            Ok(None) => {}
             Err(error) => self.copy_failed(&error, cx),
         }
+    }
+}
+
+/// The copy as `kind`, converted off the window thread.
+fn convert(kind: As, markdown: String, beside: Option<PathBuf>) -> std::io::Result<Copied> {
+    let beside = beside.as_deref();
+    match kind {
+        As::Rich => output::body(&markdown, beside, &Pictures::Inline).map(|mut page| {
+            let html = std::mem::take(&mut page.html);
+            let clip = Clip::Html {
+                html,
+                text: markdown,
+            };
+            Copied::Rich(clip, page)
+        }),
+        As::Html => output::body(&markdown, beside, &Pictures::Written)
+            .map(|mut page| Copied::Html(std::mem::take(&mut page.html), page)),
+        As::Plain => output::plain(&markdown).map(Copied::Plain),
     }
 }

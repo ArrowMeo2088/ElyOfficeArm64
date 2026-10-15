@@ -74,6 +74,7 @@ fn rich_copy_takes_the_selection_as_html(cx: &mut TestAppContext) {
             .update(cx, |editor, cx| editor.select(std::iter::once(8..22), cx))
     });
     cx.dispatch_action(crate::export::CopyRich);
+    cx.run_until_parked();
     let clip = ely_platform::clipboard::read()
         .expect("reads")
         .expect("a clip");

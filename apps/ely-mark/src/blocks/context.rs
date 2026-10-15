@@ -161,3 +161,35 @@ fn html_code_keeps_picture_addresses(cx: &mut TestAppContext) {
         "{html}"
     );
 }
+
+#[gpui::test]
+fn copies_convert_off_the_window_thread(cx: &mut TestAppContext) {
+    let (_desk, cx, _files) = opened("alpha *it*\n", cx);
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("before".into()));
+    // The context's dispatch parks; this one does not.
+    cx.update(|window, cx| window.dispatch_action(Box::new(crate::export::CopyHtml), cx));
+    assert_eq!(clipboard(cx).as_deref(), Some("before"), "not on the window thread");
+    cx.update(|window, cx| window.dispatch_action(Box::new(crate::export::CopyPlain), cx));
+    cx.run_until_parked();
+    assert_eq!(clipboard(cx).as_deref(), Some("alpha it\n"));
+}
+
+#[gpui::test]
+fn a_shut_menu_stays_shut_when_its_tab_returns(cx: &mut TestAppContext) {
+    let (desk, cx, files) = opened("alpha\n", cx);
+    right_on(0, 1, cx);
+    assert!(cx.debug_bounds("menu-button-0-0").is_some(), "opened");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("menu-button-0-0").is_none(), "shut");
+    let other = files[1].path().join("b.md");
+    std::fs::write(&other, "beta\n").expect("b");
+    crate::desk::tests::open(&desk, &other, cx);
+    let first = desk.read_with(cx, |desk, _| desk.core.tabs[0].id);
+    desk.update(cx, |desk, cx| {
+        desk.core.active = Some(first);
+        cx.notify();
+    });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("menu-button-0-0").is_none(), "not replayed");
+}
