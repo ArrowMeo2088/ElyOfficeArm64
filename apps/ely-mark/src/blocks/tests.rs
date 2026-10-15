@@ -6,7 +6,6 @@ use gpui::{
 };
 
 use crate::{
-    blocks::shifted,
     desk::{
         Desk,
         tests::{open, start},
@@ -83,9 +82,9 @@ fn paragraph_keys_retype_the_caret_block(cx: &mut TestAppContext) {
     assert_eq!(current(&desk, cx), "# Intro\n");
     press("secondary-0", cx);
     assert_eq!(current(&desk, cx), "Intro\n");
-    press(&shifted("secondary", '[', '{'), cx);
+    press("secondary-{", cx);
     assert_eq!(current(&desk, cx), "1. Intro\n");
-    press(&shifted("secondary", ']', '}'), cx);
+    press("secondary-}", cx);
     assert_eq!(current(&desk, cx), "- Intro\n");
     press("secondary-shift-q", cx);
     assert_eq!(
@@ -102,7 +101,7 @@ fn format_keys_wrap_the_caret_word(cx: &mut TestAppContext) {
     assert_eq!(current(&desk, cx), "**word**\n");
     press("secondary-\\", cx);
     assert_eq!(current(&desk, cx), "word\n");
-    press(&shifted("alt", '5', '%'), cx);
+    press("alt-%", cx);
     assert_eq!(current(&desk, cx), "~~word~~\n");
 }
 
@@ -144,10 +143,10 @@ fn alt_arrows_move_a_table_row(cx: &mut TestAppContext) {
 #[gpui::test]
 fn view_keys_follow_typora(cx: &mut TestAppContext) {
     let (desk, cx, _files) = opened("a\n", cx);
-    press(&format!("f8 f9 {}", shifted("secondary", '=', '+')), cx);
+    press("f8 f9 secondary-+", cx);
     let look = desk.read_with(cx, |desk, _| desk.look.clone());
     assert!(look.focus && look.typewriter && look.size > 100, "{look:?}");
-    press(&shifted("secondary", '0', ')'), cx);
+    press("secondary-)", cx);
     assert_eq!(desk.read_with(cx, |desk, _| desk.look.size), 100);
 }
 
@@ -284,14 +283,14 @@ fn every_command_takes_typoras_windows_key(cx: &mut TestAppContext) {
         (&MathBlock, "ctrl-shift-m"),
         (&CodeFences, "ctrl-shift-k"),
         (&Quote, "ctrl-shift-q"),
-        (&OrderedList, "ctrl-shift-["),
-        (&BulletList, "ctrl-shift-]"),
+        (&OrderedList, "ctrl-{"),
+        (&BulletList, "ctrl-}"),
         (&TaskList, "ctrl-shift-x"),
         (&Strong, "ctrl-b"),
         (&Emphasis, "ctrl-i"),
         (&Underline, "ctrl-u"),
-        (&InlineCode, "ctrl-shift-`"),
-        (&Strike, "alt-shift-5"),
+        (&InlineCode, "ctrl-~"),
+        (&Strike, "alt-%"),
         (&Hyperlink, "ctrl-k"),
         (&InsertImage, "ctrl-shift-i"),
         (&ClearFormat, "ctrl-\\"),
@@ -305,9 +304,9 @@ fn every_command_takes_typoras_windows_key(cx: &mut TestAppContext) {
         (&ToggleSource, "ctrl-/"),
         (&look::FocusMode, "f8"),
         (&look::Typewriter, "f9"),
-        (&look::Larger, "ctrl-shift-="),
-        (&look::Smaller, "ctrl-shift--"),
-        (&look::ActualSize, "ctrl-shift-0"),
+        (&look::Larger, "ctrl-+"),
+        (&look::Smaller, "ctrl-_"),
+        (&look::ActualSize, "ctrl-("),
         (&CopyMarkdown, "ctrl-shift-c"),
         (&PastePlain, "ctrl-shift-v"),
     ];

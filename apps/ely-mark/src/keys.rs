@@ -3,7 +3,7 @@
 use ely_ui::{commands, i18n::text};
 use gpui::{Action, App, Context, InteractiveElement as _, KeyBinding, Menu, MenuItem, actions};
 
-use crate::{blocks::shifted, desk::Desk, view::Mode};
+use crate::{desk::Desk, view::Mode};
 
 actions!(
     mark,
@@ -18,11 +18,14 @@ pub fn bind(cx: &mut App) {
         KeyBinding::new("secondary-/", ToggleSource, Some("ElyEditor")),
         KeyBinding::new("f8", crate::look::FocusMode, at),
         KeyBinding::new("f9", crate::look::Typewriter, at),
-        KeyBinding::new(&shifted("secondary", '=', '+'), crate::look::Larger, at),
-        KeyBinding::new(&shifted("secondary", '-', '_'), crate::look::Smaller, at),
-        KeyBinding::new(&shifted("secondary", '0', ')'), crate::look::ActualSize, at),
+        KeyBinding::new("secondary-+", crate::look::Larger, at),
+        KeyBinding::new("secondary-_", crate::look::Smaller, at),
+        KeyBinding::new("secondary-)", crate::look::ActualSize, at),
         KeyBinding::new("secondary-f", ely_office::FindReplace, at),
     ]);
+    // Windows' Chinese input keeps Ctrl+Shift+0 for itself.
+    #[cfg(target_os = "windows")]
+    cx.bind_keys([KeyBinding::new("ctrl-(", crate::look::ActualSize, at)]);
     crate::blocks::bind(cx);
     crate::tools::bind(cx);
     crate::clip::bind(cx);

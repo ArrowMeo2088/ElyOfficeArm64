@@ -50,14 +50,6 @@ actions!(
     ]
 );
 
-/// Shift with punctuation: Windows names the key, others the character.
-pub(crate) fn shifted(mods: &str, key: char, typed: char) -> String {
-    match cfg!(target_os = "windows") {
-        true => format!("{mods}-shift-{key}"),
-        false => format!("{mods}-{typed}"),
-    }
-}
-
 pub fn bind(cx: &mut App) {
     let at = Some(commands::CONTEXT);
     cx.bind_keys([
@@ -73,14 +65,14 @@ pub fn bind(cx: &mut App) {
         KeyBinding::new("secondary-shift-m", MathBlock, at),
         KeyBinding::new("secondary-shift-k", CodeFences, at),
         KeyBinding::new("secondary-shift-q", Quote, at),
-        KeyBinding::new(&shifted("secondary", '[', '{'), OrderedList, at),
-        KeyBinding::new(&shifted("secondary", ']', '}'), BulletList, at),
+        KeyBinding::new("secondary-{", OrderedList, at),
+        KeyBinding::new("secondary-}", BulletList, at),
         KeyBinding::new("secondary-shift-x", TaskList, at),
         KeyBinding::new("secondary-b", Strong, at),
         KeyBinding::new("secondary-i", Emphasis, at),
         KeyBinding::new("secondary-u", Underline, at),
-        KeyBinding::new(&shifted("secondary", '`', '~'), InlineCode, at),
-        KeyBinding::new(&shifted("alt", '5', '%'), Strike, at),
+        KeyBinding::new("secondary-~", InlineCode, at),
+        KeyBinding::new("alt-%", Strike, at),
         KeyBinding::new("secondary-k", Hyperlink, at),
         KeyBinding::new("secondary-shift-i", InsertImage, at),
         KeyBinding::new("secondary-\\", ClearFormat, at),
