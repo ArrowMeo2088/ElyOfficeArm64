@@ -112,6 +112,9 @@ PLIST
 for target in ${inner[@]+"${inner[@]}"} "$app"; do
   if [ "$identity" = - ]; then
     codesign --force --sign - "$target"
+  elif [ "$(basename "$target")" = ely-lok-worker ]; then
+    # UNO's bridge maps its vtables with MAP_JIT.
+    codesign --force --options runtime --timestamp --entitlements "$root/packaging/macos/lok-worker.entitlements" --sign "$identity" "$target"
   else
     codesign --force --options runtime --timestamp --sign "$identity" "$target"
   fi
