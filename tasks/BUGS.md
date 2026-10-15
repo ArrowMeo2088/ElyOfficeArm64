@@ -157,4 +157,5 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] P3-14 Windows：ElyTree 九个单测恒失败：五个比对 Git 写出的文字，本机 Git 的 `core.autocrlf` 写成 CRLF（测试仓库未设 `core.autocrlf false`）；其余写 Windows 不许的文件名（os error 123）。代码行为未见错，未修
 - [ ] P3-15 Windows：全量并行单测中偶有一个 LOK worker 读到的 BuildId 为 `development`（`desktop/source/app/app.cxx` 读不到 bootstrap 的 buildid 时的默认值），握手照规则拒绝；同一时刻别的 worker 读到正确的 8221e31，内核与 worker 都未重建，单独重跑即过（2026-10-14 ElyDoc `review::tests::one_unreadable_time_spares_the_other_notes`，三次重跑皆过）。疑为并发时读 `version.ini` 偶发失败，原因未查
 - [ ] P3-16 发布：`ci.sh` 在三端各自调用 `packaging/source.sh` 并上传同名的源码包与上游源码包，发布里同名文件出现三份（Gitea 允许重名）；上游源码包打的是各机的 `engines/mupdf-src`，含构建留下的文件，三份大小不同（v0.1.5：Linux 108 MB，macOS 161 MB）。v0.1.5 手动删去后到的两份，留 Linux 的一份。应只出一份，且上游包只含源码
+- [ ] P3-17 ElyTable（Windows，0.1.5 安装版，2026-10-15 录视频时见）：A1 选中后按两次 Ctrl+= 缩放到 150%，网格停在半滚动处：第 5 行被表头截去一半，第 1–4 行看不见，Ctrl+Home 也回不到 A1。应保持首行与首列在视图内（同 R2.7 的按键缩放）
 
