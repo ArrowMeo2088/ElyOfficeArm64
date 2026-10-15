@@ -1,4 +1,4 @@
-"""The recorded takes. Usage: takes.py <out dir> <samples dir> [take ...]"""
+"""Records the takes: takes.py <out> <samples> [take ...]"""
 import shutil
 import subprocess
 import sys

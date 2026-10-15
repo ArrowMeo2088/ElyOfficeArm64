@@ -1,9 +1,4 @@
-"""Finds each take's sync jump; writes footage time = log time + offset.
-
-Usage: sync.py <takes dir> <name> ...
-Converts each take to constant 60 fps (`<name>.60.mp4`) and writes
-`<name>.sync.json` with the offset and the source start time.
-"""
+"""Syncs takes to their logs: sync.py <takes dir> <name> ..."""
 import json
 import subprocess
 import sys

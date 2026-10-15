@@ -1,4 +1,4 @@
-"""Real input, window placement and screen capture for the update video."""
+"""Real input, window placement and capture for the video."""
 import ctypes
 import json
 import math
@@ -94,7 +94,7 @@ class Take:
         time.sleep(1.5)
         if self.proc.poll() is not None:
             raise RuntimeError("the capture stopped at once")
-        # A square flashes in a corner; a frame diff finds it.
+        # A corner square flashes; a frame diff finds it.
         front = user32.GetForegroundWindow()
         flash = tkinter.Tk()
         flash.overrideredirect(True)

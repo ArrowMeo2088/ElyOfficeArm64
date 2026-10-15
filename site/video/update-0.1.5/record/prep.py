@@ -1,16 +1,11 @@
-"""Copies synced takes into public/footage with events in footage time.
-
-Usage: prep.py <takes dir>
-Writes public/footage/<name>.mp4 and <name>.json: {fps, size, events, menus}.
-Event times are footage seconds; positions are footage pixels (2048×1152).
-"""
+"""Copies synced takes into public/footage: prep.py <takes dir>"""
 import json
 import shutil
 import sys
 from pathlib import Path
 
 TAKES = ["menus", "cells", "doc", "table", "show", "more"]
-# Submenu panels as recorded (x0, y0, x1, y1), for the safe triangle.
+# Recorded submenu panels (x0, y0, x1, y1) for the triangle.
 SUBMENUS = {
     "menus": {"parent": [1100, 610, 1396, 652], "panel": [1394, 576, 1784, 1144]},
     "doc": {"parent": [1072, 702, 1370, 742], "panel": [1364, 698, 1660, 874]},
