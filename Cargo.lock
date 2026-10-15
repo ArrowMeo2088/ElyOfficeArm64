@@ -1923,7 +1923,7 @@ dependencies = [
 [[package]]
 name = "ely-gpui-component"
 version = "0.1.1"
-source = "git+https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=6df9ab0aa6cba99e6a79da80f79fc166f09890a8#6df9ab0aa6cba99e6a79da80f79fc166f09890a8"
+source = "git+https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components?rev=a4bf6965f9dd4802ca37cb3da5d338b360a169d9#a4bf6965f9dd4802ca37cb3da5d338b360a169d9"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -2187,6 +2187,7 @@ dependencies = [
  "futures",
  "gpui-pre",
  "gpui-pre-platform",
+ "gpui-pre-windows",
  "log",
  "notify",
  "semver",
@@ -2981,6 +2982,7 @@ dependencies = [
  "waker-fn",
  "web-time",
  "windows 0.62.2",
+ "zed-font-kit",
  "zed-scap",
 ]
 

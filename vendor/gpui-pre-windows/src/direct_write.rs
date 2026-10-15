@@ -40,6 +40,16 @@ pub(crate) struct DirectWriteTextSystem {
     state: RwLock<DirectWriteState>,
 }
 
+/// The app's Han language, set before any window opens.
+static APP_LANGUAGE: RwLock<Option<HSTRING>> = RwLock::new(None);
+
+/// Han layout follows `tag` when it is Han.
+pub fn set_text_language(tag: &str) {
+    let chosen = han(tag).then(|| HSTRING::from(tag));
+    log::info!("text: the app's language is {tag}; Han layout follows it: {}", chosen.is_some());
+    *APP_LANGUAGE.write() = chosen;
+}
+
 struct DirectWriteComponents {
     locale: HSTRING,
     /// Text's language; picks Han glyphs and fonts.
@@ -559,7 +569,7 @@ impl DirectWriteState {
                         font_info.font_face.GetStyle(),
                         DWRITE_FONT_STRETCH_NORMAL,
                         font_size.as_f32(),
-                        &components.text_locale,
+                        APP_LANGUAGE.read().as_ref().unwrap_or(&components.text_locale),
                     )?
                     .cast()?;
                 if let Some(ref fallbacks) = font_info.fallbacks {
@@ -1859,7 +1869,6 @@ const fn make_direct_write_tag(tag_name: &str) -> DWRITE_FONT_FEATURE_TAG {
     DWRITE_FONT_FEATURE_TAG(make_open_type_tag(tag_name))
 }
 
-#[inline]
 /// The user's locale, or their first Han language.
 fn text_locale(user: &HSTRING) -> HSTRING {
     if han(&user.to_string()) {
@@ -1900,8 +1909,41 @@ mod han_tests {
             assert!(!super::han(tag), "{tag}");
         }
     }
+
+    /// Family and weight of each run laying out `text`.
+    fn faces(system: &super::DirectWriteTextSystem, text: &str) -> Vec<(String, u32)> {
+        use gpui::PlatformTextSystem as _;
+        let font = gpui::Font { weight: gpui::FontWeight::SEMIBOLD, ..gpui::font("Segoe UI") };
+        let font_id = system.font_id(&font).expect("Segoe UI");
+        let run = gpui::FontRun { len: text.len(), font_id };
+        let layout = system.layout_line(text, gpui::px(16.), &[run]);
+        let state = system.state.read();
+        let mut faces: Vec<(String, u32)> = Vec::new();
+        for run in &layout.runs {
+            let info = &state.fonts[run.font_id.0];
+            let face = (info.font_family_h.to_string(), unsafe { info.font_face.GetWeight() }.0 as u32);
+            if !faces.contains(&face) {
+                faces.push(face);
+            }
+        }
+        faces
+    }
+
+    #[test]
+    fn the_apps_chinese_leads_layout_under_a_japanese_user() {
+        let mut system = super::DirectWriteTextSystem::new(None).expect("DirectWrite");
+        system.components.text_locale = windows::core::HSTRING::from("ja-JP");
+        super::set_text_language("en-US");
+        let japanese = faces(&system, "打开仓库");
+        assert!(japanese.len() > 1, "ja-JP should split the label: {japanese:?}");
+        super::set_text_language("zh-CN");
+        let chinese = faces(&system, "打开仓库");
+        super::set_text_language("en-US");
+        assert_eq!(chinese.len(), 1, "one face for the label: {chinese:?}");
+    }
 }
 
+#[inline]
 fn get_name(string: IDWriteLocalizedStrings, locale: &HSTRING) -> Result<String> {
     let mut locale_name_index = 0u32;
     let mut exists = BOOL(0);

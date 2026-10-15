@@ -90,16 +90,14 @@ impl MarkView {
                 true => "mark.image.browser",
                 false => "mark.image.location",
             };
-            let view = view.clone();
+            let (shown, dropped, at) = (view.clone(), view.clone(), target.at);
             rows =
                 rows.row(MenuItem::new(said(key, cx)).on_click(move |_, cx| {
-                    view.update(cx, |view, cx| view.show_picture(&url, cx))
+                    shown.update(cx, |view, cx| view.show_picture(&url, cx))
                 }))
-                .row(run(
-                    said("mark.image.delete", cx),
-                    Box::new(b::DeleteImage),
-                    window,
-                ))
+                .row(MenuItem::new(said("mark.image.delete", cx)).on_click(move |_, cx| {
+                    dropped.update(cx, |view, cx| view.delete_image(at, cx))
+                }))
                 .line();
         }
         if let Some(url) = &target.link {
@@ -160,6 +158,14 @@ impl MarkView {
                 .row(run(label, Box::new(b::DeleteBlock), window));
         }
         rows.menu()
+    }
+
+    /// Deletes the picture at byte `at`, or says why not.
+    fn delete_image(&mut self, at: usize, cx: &mut Context<Self>) {
+        let deleted = (self.document).update(cx, |document, cx| document.delete_image(at, cx));
+        if let Err(why) = deleted {
+            cx.emit(super::Refused(why));
+        }
     }
 
     /// Shows a local picture's file, or opens a web one.

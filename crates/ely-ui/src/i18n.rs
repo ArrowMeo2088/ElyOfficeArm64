@@ -147,6 +147,8 @@ pub fn install(cx: &mut App) {
 
 /// Installs the catalogs speaking `locale` (en-US or zh-CN).
 pub fn install_as(locale: &'static str, cx: &mut App) {
+    #[cfg(target_os = "windows")]
+    gpui_windows::set_text_language(locale);
     let (en, zh) = catalogs();
     cx.set_global(
         I18n::new(locale)

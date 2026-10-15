@@ -46,8 +46,7 @@ actions!(
         Hyperlink,
         InsertImage,
         ClearFormat,
-        DeleteBlock,
-        DeleteImage
+        DeleteBlock
     ]
 );
 
@@ -230,7 +229,6 @@ impl Desk {
             InsertImage => |d, cx| d.format(F::Image, cx),
             ClearFormat => |d, cx| d.format(F::Clear, cx),
             DeleteBlock => |d, cx| d.block(B::Delete, cx),
-            DeleteImage => |d, cx| d.delete_image(cx),
         )
     }
 }
