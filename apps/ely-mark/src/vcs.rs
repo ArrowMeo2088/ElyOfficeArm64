@@ -4,7 +4,7 @@ use std::{io, path::Path};
 
 use ely_gpui_component::{primitives::Severity, shell::StatusBarItem};
 use ely_office::prelude::*;
-use ely_platform::AppId;
+use ely_platform::{AppId, git::NoGit};
 use ely_ui::i18n::text;
 use gpui::Context;
 
@@ -20,15 +20,22 @@ pub enum Tracked {
     Untracked,
     Ignored,
     Conflicted,
+    /// Ely's Git sits beside ElyTree, which is not installed.
+    NoGit,
     /// Git could not answer; why.
     Unknown(String),
 }
 
 /// Git's word on `file`: in a repository, then its status.
 pub fn ask(file: &Path) -> Tracked {
-    match status(file) {
-        Ok(tracked) => tracked,
-        Err(error) => Tracked::Unknown(error.to_string()),
+    status(file).unwrap_or_else(failed)
+}
+
+/// A failure: no Git at all, else why.
+fn failed(error: io::Error) -> Tracked {
+    match error.get_ref().is_some_and(|inner| inner.is::<NoGit>()) {
+        true => Tracked::NoGit,
+        false => Tracked::Unknown(error.to_string()),
     }
 }
 
@@ -119,6 +126,16 @@ impl Desk {
             Tracked::Untracked => "mark.git.untracked",
             Tracked::Ignored => "mark.git.ignored",
             Tracked::Conflicted => "mark.git.conflicted",
+            Tracked::NoGit => {
+                let this = cx.entity();
+                let item = StatusBarItem::new("mark-git")
+                    .label(text(cx, "mark.git.none", &[]))
+                    .tooltip(text(cx, "mark.git.needs", &[]));
+                return Some(item.on_click(move |_, _, cx| {
+                    let said = text(cx, "mark.git.needs", &[]);
+                    this.update(cx, |desk, cx| desk.toast(said, Severity::Warning, cx));
+                }));
+            }
             Tracked::Unknown(why) => {
                 let label = text(cx, "mark.git.unknown", &[]);
                 return Some(
@@ -170,6 +187,14 @@ mod tests {
             .current_dir(dir)
             .output();
         assert!(done.expect("git runs").status.success(), "git {args:?}");
+    }
+
+    #[test]
+    fn no_git_asks_for_elytree_and_other_failures_say_why() {
+        let missing = io::Error::new(io::ErrorKind::NotFound, NoGit);
+        assert_eq!(failed(missing), Tracked::NoGit);
+        let other = io::Error::new(io::ErrorKind::NotFound, "gone");
+        assert_eq!(failed(other), Tracked::Unknown("gone".into()));
     }
 
     #[test]
