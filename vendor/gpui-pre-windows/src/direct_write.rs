@@ -42,6 +42,8 @@ pub(crate) struct DirectWriteTextSystem {
 
 struct DirectWriteComponents {
     locale: HSTRING,
+    /// Text's language; picks Han glyphs and fonts.
+    text_locale: HSTRING,
     factory: IDWriteFactory5,
     in_memory_loader: IDWriteInMemoryFontFileLoader,
     builder: IDWriteFontSetBuilder1,
@@ -176,7 +178,9 @@ impl DirectWriteTextSystem {
         let builder = unsafe { factory.CreateFontSetBuilder()? };
         let mut locale = [0u16; LOCALE_NAME_MAX_LENGTH as usize];
         unsafe { GetUserDefaultLocaleName(&mut locale) };
-        let locale = HSTRING::from_wide(&locale);
+        let end = locale.iter().position(|unit| *unit == 0).unwrap_or(locale.len());
+        let locale = HSTRING::from_wide(&locale[..end]);
+        let text_locale = text_locale(&locale);
         let text_renderer = TextRendererWrapper::new(locale.clone());
 
         let gpu_state = directx_devices.map(GPUState::new).transpose()?;
@@ -185,6 +189,7 @@ impl DirectWriteTextSystem {
         let system_ui_font_name = get_system_ui_font_name();
         let components = DirectWriteComponents {
             locale,
+            text_locale,
             factory,
             in_memory_loader,
             builder,
@@ -554,7 +559,7 @@ impl DirectWriteState {
                         font_info.font_face.GetStyle(),
                         DWRITE_FONT_STRETCH_NORMAL,
                         font_size.as_f32(),
-                        &components.locale,
+                        &components.text_locale,
                     )?
                     .cast()?;
                 if let Some(ref fallbacks) = font_info.fallbacks {
@@ -1855,6 +1860,48 @@ const fn make_direct_write_tag(tag_name: &str) -> DWRITE_FONT_FEATURE_TAG {
 }
 
 #[inline]
+/// The user's locale, or their first Han language.
+fn text_locale(user: &HSTRING) -> HSTRING {
+    if han(&user.to_string()) {
+        return user.clone();
+    }
+    let languages = maybe!({
+        let languages = windows::System::UserProfile::GlobalizationPreferences::Languages()?;
+        anyhow::Ok(languages.into_iter().map(|tag| tag.to_string()).collect::<Vec<_>>())
+    });
+    match languages {
+        Ok(languages) => match languages.into_iter().find(|tag| han(tag)) {
+            Some(tag) => {
+                log::info!("text: laid out as {tag}, the user's Han language; the locale is {user}");
+                HSTRING::from(tag)
+            }
+            None => user.clone(),
+        },
+        Err(error) => {
+            log::warn!("text: the user's languages are unreadable, so text is laid out as {user}: {error:#}");
+            user.clone()
+        }
+    }
+}
+
+/// Whether `tag` is a language written with Han characters.
+fn han(tag: &str) -> bool {
+    matches!(tag.split('-').next(), Some("zh" | "ja" | "ko"))
+}
+
+#[cfg(test)]
+mod han_tests {
+    #[test]
+    fn han_languages_are_told_by_their_first_subtag() {
+        for tag in ["zh-Hans-CN", "zh-TW", "ja-JP", "ko"] {
+            assert!(super::han(tag), "{tag}");
+        }
+        for tag in ["en-US", "zhx-CN", "", "fr"] {
+            assert!(!super::han(tag), "{tag}");
+        }
+    }
+}
+
 fn get_name(string: IDWriteLocalizedStrings, locale: &HSTRING) -> Result<String> {
     let mut locale_name_index = 0u32;
     let mut exists = BOOL(0);

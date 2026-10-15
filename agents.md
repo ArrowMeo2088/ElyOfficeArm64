@@ -40,7 +40,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 
 ## 组件映射
 
-依赖 `ely-gpui-component`（pin 1b5fb07，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
+依赖 `ely-gpui-component`（pin 6df9ab0，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
 
 | 需要 | 用 |
 | --- | --- |
@@ -84,7 +84,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 | `A11yChecker` 的 `audit` 与对照表是私有的；Omarchy 色板要照同一套规则 | `ely-ui` 的 `omarchy/palette.rs` 抄了对照表。上游待办：公开 `audit` |
 | 组件无 role/aria 语义：菜单、列表等控件在 AX 树仍不可见 | 上游已修核心控件（7380afb：Button、TextInput、Tabs、面板行、对话框等）；其余上游待办。项目自绘控件已自带 |
 | gpui 无 aria-disabled API（`AriaProperties` 无 disabled 字段） | 组件 7380afb 起以本地化 aria_description 表达；上游待办：gpui 补 API |
-| 组件内部文案未接 i18n（面板族之外：欢迎页标题、菜单项、`SortBuilder` 与 `FilterBuilder` 等） | 面板族文案已接 i18n（7380afb，内建 en/zh-CN），`CommentSidebar` 与 `RelativeTime` 同（408f2b0）；其余上游待办 |
+| 组件内部文案未接 i18n（Ely 用到的组件已接：提示、默认占位、补全空行、字号示例，6df9ab0，`i18n/tests/shipped.rs` 防回退；其余组件之外：欢迎页标题、菜单项、`SortBuilder` 与 `FilterBuilder` 等） | 面板族文案已接 i18n（7380afb，内建 en/zh-CN），`CommentSidebar` 与 `RelativeTime` 同（408f2b0）；其余上游待办 |
 | LOK 的 `.uno:StyleApply` 状态给界面名（`Default Paragraph Style`），样式列表给程序名（`Standard`），两者对不上 | ElyDoc 属性栏：列表外的当前样式显示为占位文字；更新样式用状态里的界面名。上游待办：状态带程序名 |
 
 ## gpui 规则
@@ -294,3 +294,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-14（Gitea #1，Linux Wayland 报）：ElyShow 左侧缩略图条滚轮不滚。根因：列表包在 `ContextMenu` 宿主里，宿主无尺寸，列表随内容长高、从不溢出，滚轮无处可滚（右栏正常）；宿主改为 `size_full`（同 ElyPDF 的三处），`tests/strip.rs` 以 24 张幻灯片核对滚轮滚到最后一张。各应用其余 `ContextMenu` 宿主已核：ElyPDF 三处本有尺寸，ElyTable 的工作表标签条与下拉选项不是滚动列表。
 - 2026-10-14：ElyMark 的菜单与快捷键（R4.9，MARK-15）。项与键取自 Typora 1.14.10 主进程字节码的字符串表（`.work/typora-main-menus.txt`）与其 `zh-Hans.lproj/Menu.json`；实际大小在字节码里有 Ctrl+Shift+9 与 Ctrl+Shift+0 两串，照用户所定用 Ctrl+Shift+0，R4.11 在真窗口核对。表格是“段落”的子菜单（照 Typora），顶层不再有“表格”。原 Ctrl+1/2/3 切模式、Ctrl+=/-/0 字号、Ctrl+Shift+F 专注让给 Typora 的键；可视、源码、预览留在“视图”菜单，无键。Ctrl+/ 另绑在 `ElyEditor` 上（gpui 同深度后绑者胜），盖过代码编辑器的 `//` 注释切换（Markdown 没有这种注释）；`MarkdownDocument` 的键上下文只在可视模式有。带 Shift 的标点：Windows 写键名（`ctrl-shift-[`），macOS 与 Linux 写字符（`cmd-{`），见 `blocks::shifted`。Ctrl+Enter 在打开的块里原是输入框的 Submit（文档不处理），改绑为下方插入行。拒绝一律成信息提示：当场的由 `Desk::edit` 说，后台读出的经 `DocumentEvent::EditRefused`、`view::Refused` 到宿主。菜单打开时，打开的块把焦点借给菜单，块与选区都留着，菜单命令照样作用于所选（组件 6d90351）。复制为 Markdown 与粘贴为纯文本只作用于文档：焦点在文档外的输入框（查找框、对话框）时交给该框自己的复制、粘贴。表格子菜单末项为删除表格（组件 `TableEdit::Delete`，一步撤销，插入点不在表格里即拒绝；在打开的块里删除后焦点回到文档，撤销键照用，组件 6c2d28c）。Typora 有而组件库暂缺的不进菜单：行内公式、上下标、注释、提示块子菜单、任务状态、列表缩进 Ctrl+[/]、代码工具。
 - 2026-10-14：ElyMark 的右键菜单（R4.10）。项、次序与显隐规则取自 Typora 1.14.10 的 `resources/window.html`（`#context-menu` 与其子菜单）与 `frame.js` 的显隐函数，记在 `.work/R4.10/typora-context-menu.txt`。菜单在 `view/menu.rs`，`MarkView` 自持（`ely_office::menu::Offer` 与 `ContextMenu::manual`）：可视模式由组件的 `DocumentEvent::Pointed` 开在指针处，源码与预览由视图自己的右键开。剪切、复制、粘贴、删除所选范围为图标行，按下即把其键交回菜单打开前的焦点（`dispatch_keystroke`），与键盘同一路径；无选区时剪切、复制、删除灰显。其余项经各自的动作，显示所绑的键。组件 013f142、1b5fb07：文本框与代码编辑器右键落在选区里时保留选区，否则把插入点移到所点处；可视模式打开的块右键不写回、不关闭，目标在后台按全文读出（块外的引用定义照样解析）；`MarkdownDocument::delete_image`（删除图片，一步撤销，无图片即 `EditRefusal::NoImage`）；可视无块时 Ctrl+V 粘贴文字（原只收图片，文字被丢弃）。复制为 HTML 代码的图片照原地址（`Pictures::Written`，同 Typora），复制为富文本照旧内嵌。“编辑”菜单的复制项照 Typora 次序：纯文本、Markdown、HTML 代码、富文本。Typora 有而不做的：缩进与减少缩进行（可视只在打开的块里有）、复制表格、代码自动缩进、图片上传、缩放、移动与语法切换、拼写、表情复制、检查元素。gpui 的测试只发按下，菜单在 Enter 松开时选中，测试另发松开（`blocks/context.rs` 的 `choose`）。
+- 2026-10-14（用户报：整个软件中文显示问题很多）：中文显示（R4.13）。Windows 上 gpui 以用户区域（本机为 en-US）排版全部文字，DirectWrite 按日文为汉字选回退字体，日文字体缺的简体字再落到另一字体，同一个词里字形与粗细不一（ElyTree 的“打开仓库”：“打开”粗、“仓库”细）。`vendor/gpui-pre-windows` 的 `text_locale`：用户区域不是中日韩时，改用 Windows 语言列表（WinRT `GlobalizationPreferences::Languages`，Win32 的界面语言只给 en-US）里第一个中日韩语言排版（日志 `text: laid out as …`）；在 Windows 上打中文须把中文加进该列表，所以它就是用户读的汉字。只换排版的区域，字体族名与字体列表仍按用户区域。读不出语言列表即记警告、照用户区域。组件库 6df9ab0：Ely 用到的组件里写死的英文（下拉的“Choose…”、清除、关闭、移除、取消固定的提示，公式补全的“No suggestions”，设置里字号的重置提示与示例句）改走内建中英目录。仍为英文的是内核的文字（LibreOffice 界面语言固定英文：幻灯片占位“Click to add Title”、母版“Default”、配色名、数字格式代码“General”、函数名），以及启动失败对话框（出现在读入语言之前，中英并列）。
