@@ -45,7 +45,28 @@ SetCompressor /SOLID lzma
 LangString DeleteData ${LANG_SIMPCHINESE} "同时删除 ${APP_NAME} 的缓存、账号与本地历史吗？你的文档不受影响。"
 LangString DeleteData ${LANG_ENGLISH} "Also delete the cache, accounts and local history of ${APP_NAME}? Your documents stay."
 
+!macro ElyRemoveFiles
+  ; What stage.sh lays out, and nothing else.
+  RMDir /r "$INSTDIR\libreoffice"
+  RMDir /r "$INSTDIR\tessdata"
+  RMDir /r "$INSTDIR\git"
+  RMDir /r "$INSTDIR\content"
+  RMDir /r "$INSTDIR\locales"
+  RMDir /r "$INSTDIR\licenses"
+  Delete "$INSTDIR\*.exe"
+  Delete "$INSTDIR\*.dll"
+  Delete "$INSTDIR\*.pak"
+  Delete "$INSTDIR\*.bin"
+  Delete "$INSTDIR\*.dat"
+  Delete "$INSTDIR\*.json"
+  Delete "$INSTDIR\${APP_SLUG}.ico"
+!macroend
+
 Section "Install"
+  ; An older install's files go first, so none linger.
+  IfFileExists "$INSTDIR\${APP_SLUG}.exe" 0 fresh
+  !insertmacro ElyRemoveFiles
+fresh:
   SetOutPath "$INSTDIR"
   File /r "${STAGE}\*.*"
   File "/oname=${APP_SLUG}.ico" "${ICON}"
@@ -63,20 +84,7 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
-  ; What stage.sh lays out, and nothing else.
-  RMDir /r "$INSTDIR\libreoffice"
-  RMDir /r "$INSTDIR\tessdata"
-  RMDir /r "$INSTDIR\git"
-  RMDir /r "$INSTDIR\content"
-  RMDir /r "$INSTDIR\locales"
-  RMDir /r "$INSTDIR\licenses"
-  Delete "$INSTDIR\*.exe"
-  Delete "$INSTDIR\*.dll"
-  Delete "$INSTDIR\*.pak"
-  Delete "$INSTDIR\*.bin"
-  Delete "$INSTDIR\*.dat"
-  Delete "$INSTDIR\*.json"
-  Delete "$INSTDIR\${APP_SLUG}.ico"
+  !insertmacro ElyRemoveFiles
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\${APP_NAME}.lnk"
   DeleteRegKey HKCU "Software\Ely Office\${APP_NAME}"
