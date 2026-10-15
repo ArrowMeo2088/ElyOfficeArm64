@@ -28,7 +28,7 @@ pub(super) fn write(
         placed,
         page,
         source,
-        reader: MarkdownReader::new(source, tree),
+        reader: MarkdownReader::joined(source, tree),
         anchored: HashSet::new(),
     };
     writer.root(tree)

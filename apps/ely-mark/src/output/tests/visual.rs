@@ -230,3 +230,10 @@ fn a_copied_fragment_carries_its_look() {
         "the look needs no page style: {page}"
     );
 }
+
+#[test]
+fn a_soft_break_joins_in_exports_as_typora_exports_it() {
+    let page = html("你好\n测试  \nend\n");
+    assert!(page.contains("<p>你好 测试<br>end</p>"), "{page}");
+    assert_eq!(text("你好\n测试\n"), "你好 测试\n");
+}

@@ -11,7 +11,7 @@ use markdown::mdast::Node;
 pub fn plain(text: &str) -> io::Result<String> {
     let tree = markdown::to_mdast(text, &markdown_options())
         .map_err(|error| io::Error::other(error.to_string()))?;
-    let reader = MarkdownReader::new(text, &tree);
+    let reader = MarkdownReader::joined(text, &tree);
     let mut blocks = Vec::new();
     // Alerts and `[toc]` live only at the root.
     for child in tree.children().into_iter().flatten() {
