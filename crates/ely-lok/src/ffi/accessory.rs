@@ -13,6 +13,8 @@ unsafe extern "C" {
 
 /// NSApplicationActivationPolicyAccessory: no Dock icon, no menu bar.
 const ACCESSORY: isize = 1;
+/// NSApplicationActivationPolicyProhibited: an unbundled worker starts so.
+const PROHIBITED: isize = 2;
 
 type Id = *mut c_void;
 
@@ -38,7 +40,7 @@ fn get(object: Id, selector: &std::ffi::CStr) -> io::Result<Id> {
     Ok(result)
 }
 
-/// Marks this process a UI element before the kit registers it.
+/// Marks the process a UI element before registration.
 pub fn hide() -> io::Result<()> {
     // The kit reads the bundle's LSUIElement when it registers.
     let info = get(get(class(c"NSBundle")?, c"mainBundle")?, c"infoDictionary")?;
@@ -59,9 +61,18 @@ pub fn hide() -> io::Result<()> {
 /// Fails unless the kernel's application came up an accessory.
 pub fn check() -> io::Result<()> {
     type Policy = unsafe extern "C" fn(Id, Id) -> isize;
+    type SetPolicy = unsafe extern "C" fn(Id, Id, isize) -> i8;
     let policy: Policy = unsafe { std::mem::transmute(send()) };
+    let set: SetPolicy = unsafe { std::mem::transmute(send()) };
     let app = get(class(c"NSApplication")?, c"sharedApplication")?;
-    let found = unsafe { policy(app, sel_registerName(c"activationPolicy".as_ptr())) };
+    let read = || unsafe { policy(app, sel_registerName(c"activationPolicy".as_ptr())) };
+    let mut found = read();
+    if found == PROHIBITED {
+        // Outside a bundle nothing registers; accessory lets it draw.
+        let done = unsafe { set(app, sel_registerName(c"setActivationPolicy:".as_ptr()), ACCESSORY) };
+        found = read();
+        log::info!("lok: the unbundled worker asked for accessory ({done})");
+    }
     if found != ACCESSORY {
         return Err(io::Error::other(format!("the worker's activation policy is {found}, not accessory")));
     }

@@ -4,7 +4,8 @@ set -euo pipefail
 [ "$(uname)" = Darwin ] || { echo "SKIP: macOS only"; exit 0; }
 runs=${ELY_DOCK_RUNS:-5}
 apps=("$@")
-[ ${#apps[@]} -gt 0 ] || apps=(dist/ElyDoc.app dist/ElyTable.app dist/ElyShow.app)
+# Bundled apps from dist and one unbundled dev build.
+[ ${#apps[@]} -gt 0 ] || apps=(dist/ElyDoc.app dist/ElyTable.app dist/ElyShow.app target/debug/ely-doc)
 
 # One launch: samples the worker's type until a tile shows.
 launch() {
@@ -35,9 +36,14 @@ launch() {
 }
 
 for app in "${apps[@]}"; do
-  [ -d "$app" ] || { echo "FAIL: $app is missing"; exit 1; }
-  bin=$(find "$app/Contents/MacOS" -maxdepth 1 -type f -name 'ely-*' ! -name 'ely-lok-worker' | head -1)
-  [ -n "$bin" ] || { echo "FAIL: $app has no app binary"; exit 1; }
+  if [ -f "$app" ]; then
+    bin=$app
+    [ -x "$(dirname "$app")/ely-lok-worker" ] || { echo "FAIL: no worker beside $app (cargo build -p ely-lok --bins)"; exit 1; }
+  else
+    [ -d "$app" ] || { echo "FAIL: $app is missing"; exit 1; }
+    bin=$(find "$app/Contents/MacOS" -maxdepth 1 -type f -name 'ely-*' ! -name 'ely-lok-worker' | head -1)
+    [ -n "$bin" ] || { echo "FAIL: $app has no app binary"; exit 1; }
+  fi
   log="$HOME/Library/Application Support/ElyOffice/$(basename "$bin")/ely.log"
   for _ in $(seq 1 "$runs"); do launch "$bin" "$log"; done
 done
