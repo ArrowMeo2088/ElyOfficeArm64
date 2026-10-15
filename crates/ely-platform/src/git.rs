@@ -81,10 +81,15 @@ fn own(exe: &Path) -> io::Result<PathBuf> {
     // ElyTree carries Git; the other apps use its copy.
     let trees = crate::apps::beside(exe, AppId::Tree).into_iter().chain(crate::apps::registered(AppId::Tree));
     let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../engines/git").join(GIT);
+    find(exe, trees, built)
+}
+
+/// The first Git beside `exe`, beside a tree, or built.
+fn find(exe: &Path, trees: impl IntoIterator<Item = PathBuf>, built: PathBuf) -> io::Result<PathBuf> {
     exe.parent()
         .map(Path::to_path_buf)
         .into_iter()
-        .chain(trees.filter_map(|tree| tree.parent().map(Path::to_path_buf)))
+        .chain(trees.into_iter().filter_map(|tree| tree.parent().map(Path::to_path_buf)))
         .flat_map(|dir| [dir.join("git").join(GIT), dir.join("../Resources/git").join(GIT)])
         .chain([built])
         .find(|path| path.is_file())
@@ -130,7 +135,18 @@ mod tests {
         assert_eq!(super::parse_version("hello"), None);
     }
 
-    use super::{GIT, own};
+    use super::{GIT, NoGit, find};
+    use crate::{AppId, apps::beside};
+    use std::path::Path;
+
+    /// `find` with only temp folders: no installed or built Git.
+    fn found(exe: &Path, root: &Path) -> std::io::Result<std::path::PathBuf> {
+        find(exe, beside(exe, AppId::Tree), root.join("built").join(GIT))
+    }
+
+    fn same(found: std::path::PathBuf, git: &Path) {
+        assert_eq!(std::fs::canonicalize(found).expect("found"), std::fs::canonicalize(git).expect("git"));
+    }
 
     #[test]
     fn apps_beside_elytree_use_its_git() {
@@ -140,25 +156,32 @@ mod tests {
         std::fs::create_dir_all(&mark).expect("ElyMark");
         std::fs::create_dir_all(apps.path().join("ElyTree.app/Contents/MacOS")).expect("ElyTree");
         let exe = mark.join("ely-mark");
-        let built = own(&exe).expect("the built Git");
-        assert!(built.ends_with(std::path::Path::new("engines/git").join(GIT)));
+        let missing = found(&exe, apps.path()).expect_err("no Git yet");
+        assert!(missing.get_ref().is_some_and(|error| error.is::<NoGit>()), "{missing}");
         std::fs::create_dir_all(git.parent().expect("a folder")).expect("ElyTree's Git");
         std::fs::write(&git, "").expect("git");
-        let found = own(&exe).expect("ElyTree's Git");
-        assert_eq!(std::fs::canonicalize(found).expect("found"), std::fs::canonicalize(&git).expect("git"));
+        same(found(&exe, apps.path()).expect("ElyTree's Git"), &git);
     }
 
     #[test]
     fn a_windows_install_uses_elytrees_git() {
-        for (mark, tree) in [("Ely Office/ElyMark", "Ely Office/ElyTree")] {
-            let root = tempfile::tempdir().expect("a temp dir");
-            let exe = root.path().join(mark).join("ely-mark");
-            let git = root.path().join(tree).join("git").join(GIT);
-            std::fs::create_dir_all(exe.parent().expect("a folder")).expect("ElyMark");
-            std::fs::create_dir_all(git.parent().expect("a folder")).expect("ElyTree's Git");
-            std::fs::write(&git, "").expect("git");
-            let found = std::fs::canonicalize(own(&exe).expect("ElyTree's Git")).expect("found");
-            assert_eq!(found, std::fs::canonicalize(&git).expect("git"), "{mark}");
-        }
+        let root = tempfile::tempdir().expect("a temp dir");
+        let exe = root.path().join("Ely Office/ElyMark/ely-mark");
+        let git = root.path().join("Ely Office/ElyTree/git").join(GIT);
+        std::fs::create_dir_all(exe.parent().expect("a folder")).expect("ElyMark");
+        assert!(found(&exe, root.path()).is_err(), "no Git yet");
+        std::fs::create_dir_all(git.parent().expect("a folder")).expect("ElyTree's Git");
+        std::fs::write(&git, "").expect("git");
+        same(found(&exe, root.path()).expect("ElyTree's Git"), &git);
+    }
+
+    #[test]
+    fn the_built_git_comes_last() {
+        let root = tempfile::tempdir().expect("a temp dir");
+        let exe = root.path().join("app/ely-mark");
+        let built = root.path().join("built").join(GIT);
+        std::fs::create_dir_all(built.parent().expect("a folder")).expect("built");
+        std::fs::write(&built, "").expect("git");
+        same(found(&exe, root.path()).expect("the built Git"), &built);
     }
 }
