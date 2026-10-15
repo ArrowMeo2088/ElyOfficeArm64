@@ -140,7 +140,7 @@ done:
 FunctionEnd
 
 !macro ElyAside UN
-; Reads $R2's next line: $R3 path, $R6 "d", "f" or "" at end.
+; Next line of $R2: path $R3, kind $R6.
 Function ${UN}ElyNext
 next:
   ClearErrors
@@ -184,7 +184,7 @@ passed:
   StrCmp $8 "again" pass
 FunctionEnd
 
-; Moves $R0's files into .ely-old; $R5 names a blocker.
+; Moves $R0's files to numbered .ely-old entries; $R5: blocker.
 Function ${UN}ElyAside
   StrCpy $R5 ""
   StrCpy $R9 "$INSTDIR\.ely-old"
@@ -212,18 +212,17 @@ check:
 checked:
   CreateDirectory "$R9"
   FileSeek $R2 0 SET
+  ; Numbered names keep backup paths short.
+  StrCpy $9 0
 move:
   Call ${UN}ElyNext
   StrCmp $R6 "" moved
-  StrCmp $R6 "f" file
-  IfFileExists "$INSTDIR\$R3\*.*" 0 move
-  CreateDirectory "$R9\$R3"
-  Goto move
-file:
+  StrCmp $R6 "d" move
+  IntOp $9 $9 + 1
   IfFileExists "$INSTDIR\$R3\*.*" move
   IfFileExists "$INSTDIR\$R3" 0 move
   ClearErrors
-  Rename "$INSTDIR\$R3" "$R9\$R3"
+  Rename "$INSTDIR\$R3" "$R9\$9"
   IfErrors 0 move
   StrCpy $R5 "$INSTDIR\$R3"
   FileClose $R2
@@ -240,17 +239,17 @@ FunctionEnd
 ; Puts $R0's files back from .ely-old.
 Function ${UN}ElyBack
   FileOpen $R2 "$R0" r
+  StrCpy $9 0
 back:
   Call ${UN}ElyNext
   StrCmp $R6 "" done
   StrCmp $R6 "d" back
-  IfFileExists "$R9\$R3" 0 back
-  Rename "$R9\$R3" "$INSTDIR\$R3"
+  IntOp $9 $9 + 1
+  IfFileExists "$R9\$9" 0 back
+  Rename "$R9\$9" "$INSTDIR\$R3"
   Goto back
 done:
   FileClose $R2
-  StrCpy $R1 "$R9"
-  Call ${UN}ElyPrune
   RMDir "$R9"
   IfFileExists "$R9" 0 +2
     MessageBox MB_ICONSTOP "$(Stuck)$\r$\n$R9" /SD IDOK
@@ -259,7 +258,7 @@ FunctionEnd
 !insertmacro ElyAside ""
 !insertmacro ElyAside "un."
 
-; Sets $R5 to a path in the way; notes folders to create.
+; Sets $R5 to a path in the way.
 Function ElyClear
   StrCpy $R5 ""
   FileOpen $R2 "$PLUGINSDIR\new.txt" r
@@ -359,22 +358,36 @@ copy:
 SectionEnd
 
 Section "Uninstall"
-  StrCpy $R0 "$INSTDIR\.ely-installed"
-  IfFileExists "$R0" listed
+  StrCpy $R5 "$INSTDIR\.ely-installed"
+  IfFileExists "$R5" listed
   MessageBox MB_ICONSTOP "$(NoList)$\r$\n$INSTDIR" /SD IDOK
   SetErrorLevel 2
   Quit
 listed:
+  ; The list is checked too, before anything moves.
+  ClearErrors
+  FileOpen $R4 "$R5" a
+  IfErrors busy
+  FileClose $R4
+  InitPluginsDir
+  StrCpy $R0 "$PLUGINSDIR\owned.txt"
+  CopyFiles /SILENT "$R5" "$R0"
   Call un.ElyAside
-  StrCmp $R5 "" gone
+  StrCmp $R5 "" gone busy
+gone:
+  ClearErrors
+  Delete "$INSTDIR\.ely-installed"
+  IfErrors 0 deleted
+  Call un.ElyBack
+  StrCpy $R5 "$INSTDIR\.ely-installed"
+busy:
   MessageBox MB_ICONSTOP "$(Busy)$\r$\n$R5" /SD IDOK
   SetErrorLevel 2
   Quit
-gone:
+deleted:
   RMDir /r "$INSTDIR\.ely-old"
   StrCpy $R1 "$INSTDIR"
   Call un.ElyPrune
-  Delete "$R0"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\${APP_NAME}.lnk"
   DeleteRegKey HKCU "Software\Ely Office\${APP_NAME}"

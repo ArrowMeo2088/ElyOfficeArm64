@@ -22,7 +22,7 @@ rm -rf "$work"
 mkdir -p "$work"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-# Two releases of a fake app; v2 adds extra.txt and zz.
+# Two fake releases; v2 adds extra.txt and zz.
 build() {
   local version=$1 stage=$work/stage-$1
   mkdir -p "$stage/licenses" "$stage/data" "$stage/bin"
@@ -47,10 +47,10 @@ snapshot() { (cd "$1" && find . -type f -exec md5sum {} + | sort); }
 put() { mkdir -p "$(dirname "$1")" && echo user >"$1"; }
 must() { [ -e "$1" ] || fail "$2: $1 is gone"; }
 mustnt() { [ ! -e "$1" ] || fail "$2: $1 is still there"; }
-# Holds a file open without delete or write sharing.
+# Holds a file open; sharing defaults to read only.
 hold() {
   rm -f "$work/held"
-  powershell -NoProfile -Command "\$f=[IO.File]::Open('$(cygpath -w "$1")','Open','Read','Read'); \
+  powershell -NoProfile -Command "\$f=[IO.File]::Open('$(cygpath -w "$1")','Open','Read','${2:-Read}'); \
     New-Item '$(cygpath -w "$work/held")' | Out-Null; Start-Sleep 60" &
   until [ -e "$work/held" ]; do sleep 0.2; done
 }
@@ -131,7 +131,7 @@ cp /c/Windows/System32/PING.EXE "$dir/git/cmd/git.exe"
 reg add "$key" /v InstallDir /d "$(cygpath -w "$dir")" /f >/dev/null
 running "running legacy git" "$dir" "$dir/git/cmd/git.exe"
 
-# A copy failing after earlier writes puts the old release back.
+# A late copy failure puts the old release back.
 dir=$work/rollback
 [ "$(install 1 "$dir")" = 0 ] || fail "rollback setup"
 put "$dir/zz/user.txt"
@@ -142,6 +142,35 @@ icacls "$(cygpath -w "$dir/zz")" /remove:d '*S-1-1-0' >/dev/null
 [ "$result" != 0 ] || fail "rollback: blocked copy succeeded"
 [ "$(snapshot "$dir")" = "$before" ] || fail "rollback: the old install changed"
 mustnt "$dir/.ely-old" rollback
+
+# Paths near the limit upgrade and uninstall too.
+long=$(cygpath -w "$work/long")
+dir=$work/long/$(printf "%$((233 - ${#long} - 1))s" | tr ' ' a)
+[ "$(install 1 "$dir")" = 0 ] || fail "long path install"
+worker=$(cygpath -w "$dir/ely-probe-worker.exe")
+[ ${#worker} = 254 ] || fail "long path is ${#worker} long"
+[ "$(install 2 "$dir")" = 0 ] || fail "long path upgrade"
+must "$dir/extra.txt" "long path upgrade"
+cp "$dir/uninstall.exe" "$work/uninstall.exe"
+"$work/uninstall.exe" /S "_?=$(cygpath -w "$dir")" || fail "long path uninstall"
+mustnt "$dir/ely-probe-worker.exe" "long path uninstall"
+
+# A held install list stops uninstall; nothing changes.
+unheld() {
+  local name=$1 dir=$2 share=$3 before result
+  before=$(snapshot "$dir")
+  hold "$dir/.ely-installed" "$share"
+  "$work/uninstall.exe" /S "_?=$(cygpath -w "$dir")" && result=0 || result=$?
+  kill %% 2>/dev/null; wait 2>/dev/null || true
+  [ "$result" = 2 ] || fail "$name: uninstall did not refuse"
+  [ "$(snapshot "$dir")" = "$before" ] || fail "$name: the install changed"
+  mustnt "$dir/.ely-old" "$name"
+}
+dir=$work/held-list
+[ "$(install 1 "$dir")" = 0 ] || fail "held list setup"
+cp "$dir/uninstall.exe" "$work/uninstall.exe"
+unheld "list held for reading" "$dir" Read
+unheld "list held against deletion" "$dir" ReadWrite
 
 # Uninstalling removes only what was installed.
 dir=$work/stranger

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the files and folders an install owns: files.sh <stage> <slug>
+# Prints what an install owns: files.sh <stage> <slug>
 set -euo pipefail
 
 stage=${1:?staged folder from packaging/stage.sh}
