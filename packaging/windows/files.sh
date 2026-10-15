@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Prints NSIS macros naming what a stage installs.
-# Usage: files.sh <stage> <slug>
+# Prints NSIS macros naming a stage: files.sh <stage> <slug>
 set -euo pipefail
 
 stage=${1:?staged folder from packaging/stage.sh}
