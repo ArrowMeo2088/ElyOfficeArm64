@@ -1,10 +1,9 @@
 //! The worker stays out of the Dock (macOS).
 
-use std::ffi::{CString, c_char, c_void};
+use std::ffi::{c_char, c_void};
 use std::io;
-use std::os::unix::ffi::OsStrExt as _;
-use std::path::Path;
 
+#[link(name = "Foundation", kind = "framework")]
 #[link(name = "objc")]
 unsafe extern "C" {
     fn objc_getClass(name: *const c_char) -> *mut c_void;
@@ -12,36 +11,59 @@ unsafe extern "C" {
     fn objc_msgSend();
 }
 
-/// The kernel's Aqua plugin; it defines `VCL_NSApplication`.
-const PLUGIN: &str = "libvclplug_osxlo.dylib";
 /// NSApplicationActivationPolicyAccessory: no Dock icon, no menu bar.
 const ACCESSORY: isize = 1;
 
-/// Makes the kernel's application an accessory before the kit starts.
-pub fn accessory(install: &Path) -> io::Result<()> {
-    // Loaded for good; the kernel later opens the same image.
-    let path = install.join(PLUGIN);
-    let c = CString::new(path.as_os_str().as_bytes()).map_err(|_| io::Error::other("the path holds a NUL"))?;
-    if unsafe { libc::dlopen(c.as_ptr(), libc::RTLD_LAZY | libc::RTLD_GLOBAL) }.is_null() {
-        return Err(io::Error::other(format!("dlopen {}: {}", path.display(), super::dl_error())));
-    }
-    // The kernel's own class, so it reuses this instance.
-    let class = unsafe { objc_getClass(c"VCL_NSApplication".as_ptr()) };
+type Id = *mut c_void;
+
+fn send() -> unsafe extern "C" fn() {
+    objc_msgSend as unsafe extern "C" fn()
+}
+
+fn class(name: &std::ffi::CStr) -> io::Result<Id> {
+    let class = unsafe { objc_getClass(name.as_ptr()) };
     if class.is_null() {
-        return Err(io::Error::other(format!("{PLUGIN} has no VCL_NSApplication class")));
+        return Err(io::Error::other(format!("no {} class", name.to_string_lossy())));
     }
-    type Shared = unsafe extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void;
-    type Policy = unsafe extern "C" fn(*mut c_void, *mut c_void, isize) -> i8;
-    let send = objc_msgSend as unsafe extern "C" fn();
-    let shared: Shared = unsafe { std::mem::transmute(send) };
-    let policy: Policy = unsafe { std::mem::transmute(send) };
-    let app = unsafe { shared(class, sel_registerName(c"sharedApplication".as_ptr())) };
-    if app.is_null() {
-        return Err(io::Error::other("the kernel's application did not start"));
+    Ok(class)
+}
+
+fn get(object: Id, selector: &std::ffi::CStr) -> io::Result<Id> {
+    type F = unsafe extern "C" fn(Id, Id) -> Id;
+    let f: F = unsafe { std::mem::transmute(send()) };
+    let result = unsafe { f(object, sel_registerName(selector.as_ptr())) };
+    if result.is_null() {
+        return Err(io::Error::other(format!("{} gave nothing", selector.to_string_lossy())));
     }
-    let set = unsafe { policy(app, sel_registerName(c"setActivationPolicy:".as_ptr()), ACCESSORY) };
-    if set == 0 {
-        return Err(io::Error::other("macOS refused the accessory policy"));
+    Ok(result)
+}
+
+/// Marks this process a UI element before the kit registers it.
+pub fn hide() -> io::Result<()> {
+    // The kit reads the bundle's LSUIElement when it registers.
+    let info = get(get(class(c"NSBundle")?, c"mainBundle")?, c"infoDictionary")?;
+    type Text = unsafe extern "C" fn(Id, Id, *const c_char) -> Id;
+    type Flag = unsafe extern "C" fn(Id, Id, i8) -> Id;
+    type Set = unsafe extern "C" fn(Id, Id, Id, Id);
+    let text: Text = unsafe { std::mem::transmute(send()) };
+    let flag: Flag = unsafe { std::mem::transmute(send()) };
+    let set: Set = unsafe { std::mem::transmute(send()) };
+    unsafe {
+        let key = text(class(c"NSString")?, sel_registerName(c"stringWithUTF8String:".as_ptr()), c"LSUIElement".as_ptr());
+        let yes = flag(class(c"NSNumber")?, sel_registerName(c"numberWithBool:".as_ptr()), 1);
+        set(info, sel_registerName(c"setObject:forKey:".as_ptr()), yes, key);
+    }
+    Ok(())
+}
+
+/// Fails unless the kernel's application came up an accessory.
+pub fn check() -> io::Result<()> {
+    type Policy = unsafe extern "C" fn(Id, Id) -> isize;
+    let policy: Policy = unsafe { std::mem::transmute(send()) };
+    let app = get(class(c"NSApplication")?, c"sharedApplication")?;
+    let found = unsafe { policy(app, sel_registerName(c"activationPolicy".as_ptr())) };
+    if found != ACCESSORY {
+        return Err(io::Error::other(format!("the worker's activation policy is {found}, not accessory")));
     }
     log::info!("lok: the worker is an accessory app");
     Ok(())

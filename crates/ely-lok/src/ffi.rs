@@ -84,7 +84,7 @@ impl Lok {
         let lib = Library::open(install)?;
         // Before the kit starts, so no Dock icon shows.
         #[cfg(target_os = "macos")]
-        accessory::accessory(install)?;
+        accessory::hide()?;
         let hook: Hook2 = unsafe {
             lib.symbol(b"libreofficekit_hook_2\0")
                 .or_else(|_| lib.symbol(b"libreofficekit_hook\0"))
@@ -102,6 +102,8 @@ impl Lok {
                 "lok hook failed for {install_str}"
             )));
         }
+        #[cfg(target_os = "macos")]
+        accessory::check()?;
         log::info!("lok: hooked {}", install_str);
         Ok(Self { kit, _lib: lib })
     }
