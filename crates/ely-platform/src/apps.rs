@@ -9,7 +9,7 @@ use std::{
 use crate::AppId;
 
 /// Where `app` sits for an install laid out like `exe`'s.
-fn beside(exe: &Path, app: AppId) -> Vec<PathBuf> {
+pub(crate) fn beside(exe: &Path, app: AppId) -> Vec<PathBuf> {
     let file = format!("{}{}", app.slug(), std::env::consts::EXE_SUFFIX);
     let Some(dir) = exe.parent() else {
         return Vec::new();
@@ -40,7 +40,7 @@ fn find(app: AppId) -> io::Result<Option<PathBuf>> {
 }
 
 #[cfg(target_os = "macos")]
-fn registered(app: AppId) -> Option<PathBuf> {
+pub(crate) fn registered(app: AppId) -> Option<PathBuf> {
     use objc2_app_kit::NSWorkspace;
     use objc2_foundation::NSString;
     let id = NSString::from_str(&app.bundle_id());
@@ -51,7 +51,7 @@ fn registered(app: AppId) -> Option<PathBuf> {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn registered(_: AppId) -> Option<PathBuf> {
+pub(crate) fn registered(_: AppId) -> Option<PathBuf> {
     None
 }
 

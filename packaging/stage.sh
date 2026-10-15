@@ -64,7 +64,8 @@ if [ "$slug" = ely-pdf ]; then
   mkdir "$out/tessdata"
   cp "$tessdata"/{eng,chi_sim,chi_tra}.traineddata "$out/tessdata/"
 fi
-if [ "$slug" = ely-tree ] || [ "$slug" = ely-mark ]; then
+# ElyTree carries Git; ElyMark uses its copy.
+if [ "$slug" = ely-tree ]; then
   need "$root/engines/git" "scripts/build-git.sh and scripts/fetch-git-lfs.sh"
   cp -R "$root/engines/git" "$out/git"
 fi

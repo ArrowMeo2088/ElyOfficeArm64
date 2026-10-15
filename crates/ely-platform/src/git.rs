@@ -32,8 +32,7 @@ pub fn locate() -> io::Result<(PathBuf, bool)> {
         Some(serde_json::Value::String(path)) => return Ok((PathBuf::from(path), false)),
         Some(other) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("settings: git cannot be {other}"))),
     }
-    let exe = std::env::current_exe()?;
-    Ok((own(exe.parent().unwrap_or(Path::new("."))), true))
+    Ok((own(&std::env::current_exe()?), true))
 }
 
 /// `git version 2.56.0…` as (2, 56); None for anything else.
@@ -65,19 +64,18 @@ pub fn system_version(path: &Path) -> io::Result<String> {
     Ok(version)
 }
 
-/// Beside `dir`, in its bundle, in ElyTree's, or built.
-fn own(dir: &Path) -> PathBuf {
+/// The app at `exe`'s own Git, else ElyTree's, else built.
+fn own(exe: &Path) -> PathBuf {
     // ElyTree carries Git; the other apps use its copy.
-    let tree = format!("../../../{}.app/Contents/Resources/git", AppId::Tree.name());
+    let trees = crate::apps::beside(exe, AppId::Tree).into_iter().chain(crate::apps::registered(AppId::Tree));
     let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../engines/git").join(GIT);
-    [
-        dir.join("git").join(GIT),
-        dir.join("../Resources/git").join(GIT),
-        dir.join(tree).join(GIT),
-    ]
-    .into_iter()
-    .find(|path| path.is_file())
-    .unwrap_or(built)
+    exe.parent()
+        .map(Path::to_path_buf)
+        .into_iter()
+        .chain(trees.filter_map(|tree| tree.parent().map(Path::to_path_buf)))
+        .flat_map(|dir| [dir.join("git").join(GIT), dir.join("../Resources/git").join(GIT)])
+        .find(|path| path.is_file())
+        .unwrap_or(built)
 }
 
 /// Git at `git` in `dir`, as Ely runs it.
@@ -127,9 +125,24 @@ mod tests {
         let mark = apps.path().join("ElyMark.app/Contents/MacOS");
         let git = apps.path().join("ElyTree.app/Contents/Resources/git").join(GIT);
         std::fs::create_dir_all(&mark).expect("ElyMark");
-        assert!(own(&mark).ends_with(std::path::Path::new("engines/git").join(GIT)));
+        let exe = mark.join("ely-mark");
+        assert!(own(&exe).ends_with(std::path::Path::new("engines/git").join(GIT)));
         std::fs::create_dir_all(git.parent().expect("a folder")).expect("ElyTree's Git");
         std::fs::write(&git, "").expect("git");
-        assert_eq!(own(&mark), mark.join("../../../ElyTree.app/Contents/Resources/git").join(GIT));
+        assert_eq!(std::fs::canonicalize(own(&exe)).expect("found"), std::fs::canonicalize(&git).expect("git"));
+    }
+
+    #[test]
+    fn windows_and_linux_installs_use_elytrees_git() {
+        for (mark, tree) in [("Ely Office/ElyMark", "Ely Office/ElyTree"), ("ely-office/ely-mark/bin", "ely-office/ely-tree/bin")] {
+            let root = tempfile::tempdir().expect("a temp dir");
+            let exe = root.path().join(mark).join("ely-mark");
+            let git = root.path().join(tree).join("git").join(GIT);
+            std::fs::create_dir_all(exe.parent().expect("a folder")).expect("ElyMark");
+            std::fs::create_dir_all(git.parent().expect("a folder")).expect("ElyTree's Git");
+            std::fs::write(&git, "").expect("git");
+            let found = std::fs::canonicalize(own(&exe)).expect("found");
+            assert_eq!(found, std::fs::canonicalize(&git).expect("git"), "{mark}");
+        }
     }
 }

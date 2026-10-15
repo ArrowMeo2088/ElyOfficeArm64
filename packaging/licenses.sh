@@ -88,8 +88,8 @@ case $slug in
     put KaTeX "$katex/fonts/OFL.txt" "$katex/fonts/FONT_NOTICE.txt"
     ;;
 esac
-# ElyTree carries Git; on Windows and Linux ElyMark does too.
-if [ "$slug" = ely-tree ] || { [ "$slug" = ely-mark ] && [ "$(uname)" != Darwin ]; }; then
+# ElyTree carries Git.
+if [ "$slug" = ely-tree ]; then
   case $(uname) in
     MINGW* | MSYS*) put Git "$root/engines/git/LICENSE.txt" ;;
     *) put Git "$root/engines/git-src/COPYING" "$root/engines/git-src/LGPL-2.1" ;;
