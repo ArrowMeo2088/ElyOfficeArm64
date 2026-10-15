@@ -40,7 +40,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 
 ## 组件映射
 
-依赖 `ely-gpui-component`（pin acbbe1d，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
+依赖 `ely-gpui-component`（pin 90bd37b，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
 
 | 需要 | 用 |
 | --- | --- |
@@ -301,4 +301,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-15（用户报：ElyMark 的最近列表清不掉）：侧栏“清除最近文件”（R6.3，98692cb）写空 `recent.json`（`ely_files::recent::clear`），失败即提示。会话恢复的标签不把文件加回列表（`Desk::remembered` 预先记下），清空在重启后照旧；显式打开照样加入，已开着的文件（按文件身份，含硬链接，`Sessions::is_open`）只切到该标签，也加入列表。
 - 2026-10-15（用户报：ElyMark 代码块后的“你好↵测试”离开输入框后成了“你好 测试”）：单个换行照 Typora 的默认（编辑时保留，导出与打印不保留）：组件库 93efa7f 起 `MarkdownReader::new`（屏上：可视、预览、右键与命令的读法）把软换行读作换行，`MarkdownReader::joined`（输出）照 GFM 读作空格；标题的大纲与目录文字照旧一行。ElyMark 的 HTML、PDF、富文本复制与纯文本导出用 `joined`（R6.7）。组件库 c31d092 与 26af4be：画出成一个换行的 CRLF 对回其起点（原先按在 CRLF 行末键入落在 CR 与 LF 之间），行内代码照留两字则逐字对回。
 - 2026-10-15（用户报：ElyMark 源码模式“测”后的插入点画在“测”的中间）：组件库 `CodeEditor` 原按“列 × m 的宽”放插入点、选区、按下处与输入法框，中日韩字与表情约宽两格。组件库 9fb607b 起按 gpui 排好的这一行定位（`editor::measure`，含着色带来的字重），块状与下划线插入点取所在字的宽；标尺与缩进参考线仍按列（R6.8）。上下移动仍按字数记目标列。cd61653：按下处取最近的字首或行末（gpui 的 `closest_index_for_x` 越过末字字首即给行末）；上次绘制得出的括号与配对位置只属当时的文字（`Buffer` 每次改动换一个戳），输入法改字后、下次绘制前的测量不用它们（原先把新字切进不同字体段，DirectWrite 崩溃）。
-- 2026-10-15（用户报：ElyMark 三、四级标题不显眼）：组件库 5954132 起标题字号随正文按 Typora 的倍数（一至六级 2.25、1.75、1.5、1.25、1、1），一律加粗，六级为次要色，行高为字号的 1.3 倍（原为固定的 24、20、16、14 像素，正文 13，三、四级只是中等字重）（R6.9）。Windows 真窗口核对（`.work/r69`）：可视模式各级标题分明、“你好↵测试”两行，源码模式“测”后的插入点落在两字之间。
+- 2026-10-15（用户报：ElyMark 三、四级标题不显眼）：组件库 5954132 起标题字号随正文按 Typora 的倍数（一至六级 2.25、1.75、1.5、1.25、1、1），一律加粗，六级为次要色，行高为字号的 1.3 倍（原为固定的 24、20、16、14 像素，正文 13，三、四级只是中等字重）（R6.9）。90bd37b：粗体与标题同一字重（原粗体为半粗，标题里的粗体反而更细，正文粗体随之由半粗改为粗，同 Typora）；标题行高按自身字号取 1.3 倍。Windows 真窗口核对（`.work/r69`）：可视模式各级标题分明、“你好↵测试”两行，源码模式“测”后的插入点落在两字之间。
