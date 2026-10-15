@@ -200,7 +200,7 @@ impl Side {
             .action(open)
             .into_any_element();
         }
-        let opener = desk.downgrade();
+        let (opener, clearer) = (desk.downgrade(), desk.downgrade());
         let rows = read.recent.iter().map(|path| {
             let name = path
                 .file_name()
@@ -214,15 +214,32 @@ impl Side {
             );
             (key, item)
         });
-        rows.fold(
-            SelectableList::new("mark-recent").label(text(cx, "mark.recent", &[])),
-            |list, (key, item)| list.row(key, item),
-        )
-        .on_activate(move |key, _, cx| {
-            let path = PathBuf::from(key.as_ref());
-            opener.update(cx, |desk, cx| desk.open_path(path, cx)).ok();
-        })
-        .into_any_element()
+        let list = rows
+            .fold(
+                SelectableList::new("mark-recent").label(text(cx, "mark.recent", &[])),
+                |list, (key, item)| list.row(key, item),
+            )
+            .on_activate(move |key, _, cx| {
+                let path = PathBuf::from(key.as_ref());
+                opener.update(cx, |desk, cx| desk.open_path(path, cx)).ok();
+            });
+        let clear = Button::new("mark-clear-recent", text(cx, "mark.recent.clear", &[]))
+            .size(ControlSize::Sm)
+            .on_click(move |_, _, cx| {
+                clearer.update(cx, |desk, cx| desk.clear_recent(cx)).ok();
+            });
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .size_full()
+            .child(div().flex_1().min_h_0().child(list))
+            .child(
+                div()
+                    .debug_selector(|| "mark-clear-recent".into())
+                    .child(clear),
+            )
+            .into_any_element()
     }
 
     fn outline(&self, desk: &Entity<Desk>, cx: &mut Context<Self>) -> AnyElement {

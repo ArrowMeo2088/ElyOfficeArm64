@@ -39,6 +39,14 @@ pub fn forget(file: &Path, root: &Path) -> io::Result<()> {
     .map(drop)
 }
 
+/// Empties the list.
+pub fn clear(file: &Path) -> io::Result<()> {
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    crate::save_atomic(file, b"[]", 0).map(drop)
+}
+
 /// Puts `root` first in the list and writes it.
 pub fn remember(file: &Path, root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut list = recent(file)?;
@@ -60,7 +68,7 @@ pub fn remember(file: &Path, root: &Path) -> io::Result<Vec<PathBuf>> {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{forget, recent, remember};
+    use super::{clear, forget, recent, remember};
 
     #[test]
     fn the_list_puts_the_newest_first_and_keeps_twenty() {
@@ -82,6 +90,8 @@ mod tests {
             let plain = [PathBuf::from(r"C:\r\old"), PathBuf::from(r"C:\r\new")];
             assert_eq!(recent(&file).expect("reads"), plain);
         }
+        clear(&file).expect("clears");
+        assert!(recent(&file).expect("reads").is_empty());
         std::fs::write(&file, "not json").expect("writes");
         assert!(
             remember(&file, Path::new("/r/1")).is_err(),

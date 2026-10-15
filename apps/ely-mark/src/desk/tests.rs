@@ -83,6 +83,26 @@ fn a_file_opens_with_its_outline_and_joins_the_recent_list(cx: &mut TestAppConte
 }
 
 #[gpui::test]
+fn the_recent_list_clears_from_its_button(cx: &mut TestAppContext) {
+    let (data, files) = (
+        tempfile::tempdir().expect("data"),
+        tempfile::tempdir().expect("files"),
+    );
+    let path = files.path().join("a.md");
+    std::fs::write(&path, "Text.\n").expect("a file");
+    let (desk, cx) = start(cx, data.path());
+    open(&desk, &path, cx);
+    assert!(desk.read_with(cx, |desk, _| !desk.recent.is_empty()));
+    let button = cx.debug_bounds("mark-clear-recent").expect("the button");
+    cx.simulate_click(button.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert!(desk.read_with(cx, |desk, _| desk.recent.is_empty()));
+    let kept = std::fs::read_to_string(data.path().join("recent.json")).expect("the list");
+    assert_eq!(kept, "[]");
+    assert!(cx.debug_bounds("mark-clear-recent").is_none(), "nothing left to clear");
+}
+
+#[gpui::test]
 fn the_outline_follows_typing(cx: &mut TestAppContext) {
     let (data, files) = (
         tempfile::tempdir().expect("data"),

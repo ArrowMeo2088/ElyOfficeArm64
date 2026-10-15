@@ -108,6 +108,22 @@ impl Desk {
         }
     }
 
+    /// Empties the recent list.
+    pub fn clear_recent(&mut self, cx: &mut Context<Self>) {
+        match ely_files::recent::clear(&self.recent_file) {
+            Ok(()) => {
+                log::info!("mark: the recent list is cleared");
+                self.recent.clear();
+                cx.notify();
+            }
+            Err(error) => {
+                log::error!("mark: the recent list did not clear: {error}");
+                let said = text(cx, "office.error.engine", &[("error", &error.to_string())]);
+                self.toast(said, Severity::Danger, cx);
+            }
+        }
+    }
+
     /// Line and column `at` in a tab or file.
     pub fn open_at(
         &mut self,
