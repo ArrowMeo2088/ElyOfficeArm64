@@ -441,4 +441,40 @@ mod window {
             "the session"
         );
     }
+
+    #[gpui::test]
+    fn a_cleared_recent_list_stays_cleared_with_tabs_restored(
+        first: &mut TestAppContext,
+        second: &mut TestAppContext,
+    ) {
+        let (data, files) = (
+            tempfile::tempdir().expect("data"),
+            tempfile::tempdir().expect("files"),
+        );
+        let (a, b) = (files.path().join("a.md"), files.path().join("b.md"));
+        std::fs::write(&a, "A
+").expect("a");
+        std::fs::write(&b, "B
+").expect("b");
+        let (desk, cx) = start(first, data.path());
+        open(&desk, &a, cx);
+        let button = cx.debug_bounds("mark-clear-recent").expect("the button");
+        cx.simulate_click(button.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+        desk.update(cx, |desk, cx| {
+            desk.leave(cx);
+            desk.keeping.close();
+        });
+        cx.run_until_parked();
+
+        let (desk, cx) = start(second, data.path());
+        assert_eq!(names(&desk, cx), ["a.md"]);
+        assert!(desk.read_with(cx, |desk, _| desk.recent.is_empty()));
+        let list = data.path().join("recent.json");
+        assert_eq!(std::fs::read_to_string(&list).expect("the list"), "[]");
+        // An explicit open still joins the list.
+        open(&desk, &b, cx);
+        let real = dunce::canonicalize(&b).expect("real");
+        assert_eq!(desk.read_with(cx, |desk, _| desk.recent.clone()), [real]);
+    }
 }

@@ -227,7 +227,12 @@ pub(crate) fn open_in(
         // Launch files stand alone; unsaved text still returns.
         if asked.is_empty() {
             for path in kept {
+                // A restored tab does not rejoin the recent list.
+                let (id, real) = (desk.core.next, dunce::canonicalize(&path).ok());
                 desk.open_path(path, cx);
+                if let Some(real) = real.filter(|_| desk.core.next > id) {
+                    desk.remembered.insert(id, real);
+                }
             }
         }
         for (at, name) in desk.keeping.untitled() {
