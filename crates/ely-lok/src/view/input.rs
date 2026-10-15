@@ -298,7 +298,10 @@ impl LokView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.walk(&event.keystroke, cx) || self.key_down(&event.keystroke) {
+        if self.walk(&event.keystroke, cx)
+            || self.turn_key(&event.keystroke, cx)
+            || self.key_down(&event.keystroke)
+        {
             cx.stop_propagation();
         }
     }

@@ -95,7 +95,11 @@ impl Host for Deck {
             && !tab.extra.fitted
         {
             tab.extra.fitted = true;
-            view.update(cx, |view, cx| view.fit_page(cx));
+            view.update(cx, |view, cx| {
+                view.fit_page(cx);
+                view.turn_parts();
+            });
+            cx.subscribe(view, move |deck, view, turn: &ely_lok::Turn, cx| deck.turn(id, &view, turn.0, cx)).detach();
         }
         // Pictures follow the kernel's light or dark scheme.
         let dark = view.read(cx).dark();
@@ -263,7 +267,12 @@ impl Deck {
                     Ok(((slides, at), (design, objects, notes, remarks, (motion, media)), size, history)) => {
                         tab.extra.read_at = Some(at);
                         log::info!("show: tab {id} has {} parts", slides.list.len());
-                        view.update(cx, |view, _| view.set_part(slides.current));
+                        // A queued turn outranks a read made before it.
+                        view.update(cx, |view, _| {
+                            if view.settled() {
+                                view.set_part(slides.current)
+                            }
+                        });
                         let names: HashSet<&String> =
                             slides.list.iter().map(|slide| &slide.name).collect();
                         tab.extra.keep_pictures(&names);

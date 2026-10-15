@@ -24,6 +24,16 @@ pub fn scheme(dark: bool) -> &'static str {
     if dark { DARK } else { LIGHT }
 }
 
+/// A page's colour; the kernel's Ely schemes share it.
+pub fn paper(cx: &gpui::App) -> gpui::Hsla {
+    let theme = cx.theme();
+    if theme.is_dark() {
+        theme.colors.surface
+    } else {
+        theme.colors.paper
+    }
+}
+
 impl LokView {
     /// Paints with the app's light or dark scheme.
     pub(super) fn follow_theme(&mut self, dark: bool) {

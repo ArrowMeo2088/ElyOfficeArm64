@@ -19,6 +19,7 @@ mod play_time;
 mod review;
 mod slides;
 mod strip;
+mod turn;
 
 /// An unrendered Deck over a fresh worker, if LOK exists.
 pub(super) fn deck(cx: &mut TestAppContext, dir: &Path) -> Option<Entity<Deck>> {

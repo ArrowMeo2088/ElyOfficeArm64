@@ -60,6 +60,8 @@ macro_rules! call {
     }};
 }
 
+#[cfg(target_os = "macos")]
+mod accessory;
 mod document;
 mod slideshow;
 pub use document::{Raw, close_window};
@@ -80,6 +82,9 @@ impl Lok {
         let install_c = cstring(&install_str)?;
         let profile_c = cstring(profile_url)?;
         let lib = Library::open(install)?;
+        // Before the kit starts, so no Dock icon shows.
+        #[cfg(target_os = "macos")]
+        accessory::accessory(install)?;
         let hook: Hook2 = unsafe {
             lib.symbol(b"libreofficekit_hook_2\0")
                 .or_else(|_| lib.symbol(b"libreofficekit_hook\0"))

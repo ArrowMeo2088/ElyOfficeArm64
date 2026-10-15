@@ -20,7 +20,7 @@ pub use client::{
 };
 #[cfg(feature = "view")]
 pub use view::{
-    CONTEXT, Copy, Cut, Geom, Layout, LokError, LokView, Paste, Reported, ZOOM_STEPS,
+    CONTEXT, Copy, Cut, Geom, Layout, LokError, LokView, Paste, Reported, Turn, ZOOM_STEPS,
     Zoomed, init, layout, paper, read_off, scheme,
 };
 #[cfg(feature = "view")]

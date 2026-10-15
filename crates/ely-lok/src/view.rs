@@ -32,7 +32,9 @@ mod scroll;
 mod sheet;
 pub use input::{CONTEXT, Copy, Cut, Paste, init};
 pub use off::read_off;
-pub use render::scheme;
+pub use render::{paper, scheme};
+mod turn;
+pub use turn::Turn;
 
 pub(crate) use crate::{TILE_TWIPS, TWIPS_PER_PIXEL};
 
@@ -125,6 +127,8 @@ pub struct LokView {
     dark: Option<bool>,
     /// The zoom follows the viewport so a page fits.
     fit: bool,
+    /// Set when the wheel and Up, Down turn parts.
+    turning: Option<turn::Turning>,
     /// The sheet shown, and the offered function chosen.
     part: usize,
     picked: usize,
@@ -149,17 +153,6 @@ pub struct LokView {
 pub type Layout = ((i64, i64), Vec<Rect>);
 
 use sheet::{Measured, measure};
-
-/// A page's colour; the kernel's Ely schemes share it.
-pub fn paper(cx: &gpui::App) -> gpui::Hsla {
-    use ely_gpui_component::theme::ActiveTheme as _;
-    let theme = cx.theme();
-    if theme.is_dark() {
-        theme.colors.surface
-    } else {
-        theme.colors.paper
-    }
-}
 
 /// Reads `doc`'s size and page frames.
 pub fn layout(worker: &mut Worker, doc: &Doc) -> io::Result<Layout> {
@@ -227,6 +220,7 @@ impl LokView {
             cell: crate::Cell::default(),
             dark: None,
             fit: false,
+            turning: None,
             part: 0,
             picked: 0,
             marked: None,
