@@ -156,4 +156,5 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] P3-13 Windows：ElyPDF 三个单测恒失败（2026-10-14 组件 6b033f3 下实测，与组件无关）：`reads::a_failed_read_is_not_asked_again` 用 `kill -9` 杀 worker（同 P3-07）；`sign::a_signed_file_lists_its_checks_and_saves_as_a_copy` 报 “self-signed”（证书信任在 Windows 未构建，未细查）；`organize::a_save_writes_the_edits_and_undo_after_it_is_unsaved_again` 报状态未落定（原因未查）
 - [ ] P3-14 Windows：ElyTree 九个单测恒失败：五个比对 Git 写出的文字，本机 Git 的 `core.autocrlf` 写成 CRLF（测试仓库未设 `core.autocrlf false`）；其余写 Windows 不许的文件名（os error 123）。代码行为未见错，未修
 - [ ] P3-15 Windows：全量并行单测中偶有一个 LOK worker 读到的 BuildId 为 `development`（`desktop/source/app/app.cxx` 读不到 bootstrap 的 buildid 时的默认值），握手照规则拒绝；同一时刻别的 worker 读到正确的 8221e31，内核与 worker 都未重建，单独重跑即过（2026-10-14 ElyDoc `review::tests::one_unreadable_time_spares_the_other_notes`，三次重跑皆过）。疑为并发时读 `version.ini` 偶发失败，原因未查
+- [ ] P3-16 发布：`ci.sh` 在三端各自调用 `packaging/source.sh` 并上传同名的源码包与上游源码包，发布里同名文件出现三份（Gitea 允许重名）；上游源码包打的是各机的 `engines/mupdf-src`，含构建留下的文件，三份大小不同（v0.1.5：Linux 108 MB，macOS 161 MB）。v0.1.5 手动删去后到的两份，留 Linux 的一份。应只出一份，且上游包只含源码
 
