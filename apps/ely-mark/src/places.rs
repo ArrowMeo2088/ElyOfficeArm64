@@ -13,9 +13,14 @@ use crate::folder::{Folder, markdown_under};
 impl Desk {
     /// A folder lists beside; a file opens in a tab.
     pub fn open_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
-        match path.is_dir() {
-            true => self.open_folder(path, cx),
-            false => self.open_file(path, cx),
+        if path.is_dir() {
+            return self.open_folder(path, cx);
+        }
+        // A shown file only takes focus; the list still learns.
+        let shown = self.tab_of(&path).is_some();
+        self.open_file(path.clone(), cx);
+        if shown {
+            self.remember(&path, cx);
         }
     }
 
