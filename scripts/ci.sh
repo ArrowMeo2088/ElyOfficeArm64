@@ -11,6 +11,10 @@ version=$(awk -F'"' '/^version = / { print $2; exit }' "$root/Cargo.toml")
   exit 1
 }
 : "${ELY_RELEASE_TOKEN:?the Gitea token that uploads}"
+if [ "$os" = macos ]; then
+  : "${ELY_SIGN_IDENTITY:?the Developer ID Application certificate}"
+  : "${ELY_NOTARY_PROFILE:?the notarytool keychain profile}"
+fi
 [ -z "${ELY_PATH:-}" ] || PATH=$ELY_PATH:$PATH
 cd "$root"
 # Linux builds and packages in the Ubuntu 26.04 container.
