@@ -64,6 +64,7 @@ impl Desk {
         let Some((markdown, beside)) = self.copied_text(cx) else {
             return;
         };
+        let before = cx.read_from_clipboard();
         self.copying = Some(cx.spawn(async move |desk, cx| {
             let converted = cx
                 .background_executor()
@@ -71,6 +72,10 @@ impl Desk {
                 .await;
             let landed = desk.update(cx, |desk, cx| {
                 desk.copying = None;
+                // A later copy, here or elsewhere, wins.
+                if cx.read_from_clipboard() != before {
+                    return log::info!("mark: the clipboard changed first; a copy is dropped");
+                }
                 desk.copied(converted, cx);
             });
             if landed.is_err() {

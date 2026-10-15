@@ -168,10 +168,40 @@ fn copies_convert_off_the_window_thread(cx: &mut TestAppContext) {
     cx.write_to_clipboard(gpui::ClipboardItem::new_string("before".into()));
     // The context's dispatch parks; this one does not.
     cx.update(|window, cx| window.dispatch_action(Box::new(crate::export::CopyHtml), cx));
-    assert_eq!(clipboard(cx).as_deref(), Some("before"), "not on the window thread");
+    assert_eq!(
+        clipboard(cx).as_deref(),
+        Some("before"),
+        "not on the window thread"
+    );
     cx.update(|window, cx| window.dispatch_action(Box::new(crate::export::CopyPlain), cx));
     cx.run_until_parked();
     assert_eq!(clipboard(cx).as_deref(), Some("alpha it\n"));
+}
+
+#[gpui::test]
+fn a_later_markdown_copy_outlives_a_pending_conversion(cx: &mut TestAppContext) {
+    let (_desk, cx, _files) = opened("alpha *it*\n", cx);
+    cx.update(|window, cx| window.dispatch_action(Box::new(crate::export::CopyHtml), cx));
+    cx.update(|window, cx| window.dispatch_action(Box::new(crate::clip::CopyMarkdown), cx));
+    cx.run_until_parked();
+    assert_eq!(clipboard(cx).as_deref(), Some("alpha *it*\n"));
+}
+
+#[gpui::test]
+fn a_later_editor_copy_outlives_a_pending_conversion(cx: &mut TestAppContext) {
+    use gpui::Focusable as _;
+    let (desk, cx, _files) = opened("alpha *it*\n", cx);
+    switch(&desk, Mode::Source, cx);
+    let editor = document(&desk, cx).read_with(cx, |document, _| document.editor().clone());
+    editor.update(cx, |editor, cx| editor.select(std::iter::once(0..5), cx));
+    let focus = editor.read_with(cx, |editor, cx| editor.focus_handle(cx));
+    cx.update(|window, cx| window.focus(&focus, cx));
+    cx.run_until_parked();
+    cx.update(|window, cx| window.dispatch_action(Box::new(crate::export::CopyHtml), cx));
+    let copy = gpui::Keystroke::parse("secondary-c").expect("key");
+    cx.update(|window, cx| window.dispatch_keystroke(copy, cx));
+    cx.run_until_parked();
+    assert_eq!(clipboard(cx).as_deref(), Some("alpha"));
 }
 
 #[gpui::test]
