@@ -264,7 +264,7 @@
 - [x] R6.3 ElyMark 侧栏清除最近列表：核对 98692cb 已做到（文件页能清空最近列表），随本次发布；会话恢复的标签不把文件加回列表，显式打开（含已开着的文件与其硬链接）照样加入
 - [x] R6.4 重发 0.1.5：删去 v0.1.5 的标签与发布，在修复的提交上重打；Windows、WSL2 的 Linux、Mac mini 本机建（签名、公证）并上传；本机装上（标签在 39ff567；44 个文件，同名的源码包只留 Linux 的一份，见 P3-16；六个 dmg 公证并钉票；本机六个应用 0.1.5，冒烟启动均正常退出）
 - [ ] R6.5 macOS 的 ElyDoc、ElyTable、ElyShow 启动即报“文档引擎未启动”（用户 2026-10-15 报，worker SIGABRT）：0.1.5 起以 Developer ID 签名、开强化运行时，UNO 桥以 MAP_JIT 映射虚表须 `com.apple.security.cs.allow-jit`，worker 未带即在首个请求时中止；`bundle.sh` 给 worker 签此权利。用户定：删去 Gitea v0.1.5 里这三个应用的 Mac 与 Linux 包，本机重建后重传
-- [ ] R6.6 Windows 的 ElyMark 不带 Git（用户 2026-10-15 问为何 ElyMark 安装目录有 git 文件夹）：同 macOS，状态栏的 Git 项用同级 ElyTree 的 Git（`git::own` 先找本应用旁的，再按 `apps` 的同级查找与 macOS 的登记找 ElyTree 旁的），找不到时 Git 项写明要装 ElyTree；Linux 的 AppImage 须自成一体（与 deb、rpm、Arch 包同一 AppDir），ElyMark 照带 Git（第 1 轮审查查出）
+- [x] R6.6 Windows 的 ElyMark 不带 Git（用户 2026-10-15 问为何 ElyMark 安装目录有 git 文件夹）：同 macOS，状态栏的 Git 项用同级 ElyTree 的 Git（`git::own` 先找本应用旁的，再按 `apps` 的同级查找与 macOS 的登记找 ElyTree 旁的），找不到时 Git 项写明要装 ElyTree；Linux 的 AppImage 须自成一体（与 deb、rpm、Arch 包同一 AppDir），ElyMark 照带 Git（第 1 轮审查查出）
 - [ ] R6.7 ElyMark 可视与预览保留单个换行（用户报：代码块后的“你好↵测试”离开输入框后变成“你好 测试”）：照 Typora 默认（编辑时保留单个换行，导出与打印照 GFM 读作空格）；组件库的读法分屏上与输出两种
 - [ ] R6.8 源码模式插入点落在字中（用户报：“测”后的插入点画在“测”中间）：代码编辑器按“列 × m 的宽”定位，中日韩字宽约两格；插入点、选区、按下、输入法框改按排版后的实际位置（组件库 `CodeEditor`）
 - [ ] R6.9 ElyMark 三、四级标题不显眼（用户报）：各级字号随正文按 Typora 的倍数（2.25、1.75、1.5、1.25、1、1），一律加粗，六级为次要色（组件库渲染）
