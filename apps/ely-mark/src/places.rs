@@ -17,7 +17,7 @@ impl Desk {
             return self.open_folder(path, cx);
         }
         // A shown file only takes focus; the list still learns.
-        let shown = self.tab_of(&path).is_some();
+        let shown = self.core.sessions.is_open(&path).unwrap_or(false);
         self.open_file(path.clone(), cx);
         if shown {
             self.remember(&path, cx);

@@ -472,19 +472,19 @@ mod window {
         assert!(desk.read_with(cx, |desk, _| desk.recent.is_empty()));
         let list = data.path().join("recent.json");
         assert_eq!(std::fs::read_to_string(&list).expect("the list"), "[]");
-        // Explicit opens still join it, the restored file too.
+        // Explicit opens still join it: the restored file, a link.
+        let alias = files.path().join("alias.md");
+        std::fs::hard_link(&a, &alias).expect("a hard link");
         open(&desk, &a, cx);
+        open(&desk, &alias, cx);
         open(&desk, &b, cx);
         assert_eq!(names(&desk, cx), ["a.md", "b.md"]);
         let real = |path: &std::path::Path| dunce::canonicalize(path).expect("real");
-        let (a, b) = (real(&a), real(&b));
-        assert_eq!(
-            desk.read_with(cx, |desk, _| desk.recent.clone()),
-            [b.clone(), a.clone()]
-        );
+        let want = [real(&b), real(&alias), real(&a)];
+        assert_eq!(desk.read_with(cx, |desk, _| desk.recent.clone()), want);
         let kept: Vec<std::path::PathBuf> =
             serde_json::from_str(&std::fs::read_to_string(&list).expect("the list"))
                 .expect("a list");
-        assert_eq!(kept, [b, a]);
+        assert_eq!(kept, want);
     }
 }
