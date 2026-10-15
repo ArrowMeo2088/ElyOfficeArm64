@@ -20,10 +20,12 @@ stage=$root/target/stage/$slug
 "$root/packaging/stage.sh" "$slug" "$stage"
 types=$root/target/stage/$slug-types.nsh
 "$root/packaging/windows/types.sh" "$slug" >"$types"
+files=$root/target/stage/$slug-files.nsh
+"$root/packaging/windows/files.sh" "$stage" "$slug" >"$files"
 mkdir -p "$dist"
 out=$dist/$name-$version-windows-x86_64-setup.exe
 "$makensis" -V2 -INPUTCHARSET UTF8 -DAPP_NAME="$name" -DAPP_SLUG="$slug" -DVERSION="$version" \
   -DSTAGE="$(cygpath -w "$stage")" -DICON="$(cygpath -w "$root/assets/icons/$slug.ico")" \
-  -DTYPES="$(cygpath -w "$types")" -DOUTFILE="$(cygpath -w "$out")" \
+  -DTYPES="$(cygpath -w "$types")" -DFILES="$(cygpath -w "$files")" -DOUTFILE="$(cygpath -w "$out")" \
   "$(cygpath -w "$root/packaging/windows/installer.nsi")"
 echo "$out"
