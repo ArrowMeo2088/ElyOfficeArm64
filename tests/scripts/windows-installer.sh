@@ -22,20 +22,21 @@ rm -rf "$work"
 mkdir -p "$work"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-# Two releases of a fake app; v2 adds extra.txt.
+# Two releases of a fake app; v2 adds extra.txt and zz.
 build() {
   local version=$1 stage=$work/stage-$1
-  mkdir -p "$stage/licenses" "$stage/data"
+  mkdir -p "$stage/licenses" "$stage/data" "$stage/bin"
   cp /c/Windows/System32/PING.EXE "$stage/ely-probe.exe"
+  cp /c/Windows/System32/PING.EXE "$stage/bin/helper.exe"
   echo "$version" >"$stage/ely-probe-worker.exe"
   echo "$version" >"$stage/licenses/LICENSE"
   echo "$version" >"$stage/data/info.txt"
-  [ "$version" = 1 ] || echo "$version" >"$stage/extra.txt"
+  [ "$version" = 1 ] || { echo "$version" >"$stage/extra.txt"; mkdir -p "$stage/zz"; echo 2 >"$stage/zz/deep.txt"; }
   printf '!macro ElyTypesInstall\n!macroend\n!macro ElyTypesUninstall\n!macroend\n' >"$work/types.nsh"
-  "$root/packaging/windows/files.sh" "$stage" ely-probe >"$work/files-$version.nsh"
+  "$root/packaging/windows/files.sh" "$stage" ely-probe >"$work/files-$version.txt"
   "$makensis" -V1 -INPUTCHARSET UTF8 -DAPP_NAME=ElyProbe -DAPP_SLUG=ely-probe -DVERSION="$version" \
     -DSTAGE="$(cygpath -w "$stage")" -DICON="$(cygpath -w "$root/assets/icons/ely-mark.ico")" \
-    -DTYPES="$(cygpath -w "$work/types.nsh")" -DFILES="$(cygpath -w "$work/files-$version.nsh")" \
+    -DTYPES="$(cygpath -w "$work/types.nsh")" -DLIST="$(cygpath -w "$work/files-$version.txt")" \
     -DOUTFILE="$(cygpath -w "$work/setup-$version.exe")" "$(cygpath -w "$root/packaging/windows/installer.nsi")"
 }
 build 1
@@ -56,10 +57,11 @@ hold() {
 
 # A chosen folder's own files survive install and reinstall.
 dir=$work/stranger
-for f in keep.exe keep.dll keep.json git/keep.txt notes/note.md; do put "$dir/$f"; done
+own="keep.exe keep.dll keep.json git/keep.txt notes/note.md licenses/my-notes.md"
+for f in $own; do put "$dir/$f"; done
 [ "$(install 1 "$dir")" = 0 ] || fail "stranger install"
 [ "$(install 2 "$dir")" = 0 ] || fail "stranger reinstall"
-for f in keep.exe keep.dll keep.json git/keep.txt notes/note.md; do must "$dir/$f" stranger; done
+for f in $own; do must "$dir/$f" stranger; done
 must "$dir/extra.txt" "stranger reinstall"
 grep -q '^2$' "$dir/licenses/LICENSE" || fail "stranger reinstall kept the old licence"
 
@@ -68,10 +70,21 @@ legacy() {
   for f in ely-probe.exe libcef.dll chrome_100.pak old.json git/cmd/git.exe locales/en.pak \
     notes/note.md keep.md; do put "$1/$f"; done
 }
+# Another install's file in the way: refused, nothing changes.
+untouched() {
+  local name=$1 dir=$2 before
+  before=$(snapshot "$dir")
+  [ "$(install 2 "$dir")" = 2 ] || fail "$name: installer did not refuse"
+  [ "$(snapshot "$dir")" = "$before" ] || fail "$name: the folder changed"
+  mustnt "$dir/.ely-old" "$name"
+}
 dir=$work/unkeyed
 legacy "$dir"
-[ "$(install 2 "$dir")" = 0 ] || fail "unkeyed install"
-must "$dir/git/cmd/git.exe" "unkeyed folder"
+untouched "unkeyed folder" "$dir"
+dir=$work/taken
+[ "$(install 1 "$dir")" = 0 ] || fail "taken setup"
+put "$dir/extra.txt"
+untouched "user file in the way" "$dir"
 dir=$work/legacy
 legacy "$dir"
 reg add "$key" /v InstallDir /d "$(cygpath -w "$dir")" /f >/dev/null
@@ -98,21 +111,35 @@ legacy "$dir"
 reg add "$key" /v InstallDir /d "$(cygpath -w "$dir")" /f >/dev/null
 busy "held legacy git" "$dir" "$dir/git/cmd/git.exe"
 
+running() {
+  local name=$1 dir=$2 program=$3 before
+  before=$(snapshot "$dir")
+  "$program" -n 30 127.0.0.1 >/dev/null &
+  sleep 1
+  [ "$(install 2 "$dir")" = 2 ] || fail "$name: installer did not refuse"
+  kill %% 2>/dev/null; wait 2>/dev/null || true
+  [ "$(snapshot "$dir")" = "$before" ] || fail "$name: the old install changed"
+  mustnt "$dir/.ely-old" "$name"
+}
 dir=$work/running
 [ "$(install 1 "$dir")" = 0 ] || fail "running setup"
-before=$(snapshot "$dir")
-"$dir/ely-probe.exe" -n 30 127.0.0.1 >/dev/null &
-sleep 1
-[ "$(install 2 "$dir")" = 2 ] || fail "running: installer did not refuse"
-kill %% 2>/dev/null; wait 2>/dev/null || true
-[ "$(snapshot "$dir")" = "$before" ] || fail "running: the old install changed"
+running "running program" "$dir" "$dir/ely-probe.exe"
+running "running program in a folder" "$dir" "$dir/bin/helper.exe"
+dir=$work/running-legacy
+legacy "$dir"
+cp /c/Windows/System32/PING.EXE "$dir/git/cmd/git.exe"
+reg add "$key" /v InstallDir /d "$(cygpath -w "$dir")" /f >/dev/null
+running "running legacy git" "$dir" "$dir/git/cmd/git.exe"
 
-# A failed copy puts the old release back.
+# A copy failing after earlier writes puts the old release back.
 dir=$work/rollback
 [ "$(install 1 "$dir")" = 0 ] || fail "rollback setup"
-put "$dir/extra.txt/blocker"
+put "$dir/zz/user.txt"
+icacls "$(cygpath -w "$dir/zz")" /deny '*S-1-1-0:(WD)' >/dev/null
 before=$(snapshot "$dir")
-[ "$(install 2 "$dir")" != 0 ] || fail "rollback: blocked copy succeeded"
+result=$(install 2 "$dir")
+icacls "$(cygpath -w "$dir/zz")" /remove:d '*S-1-1-0' >/dev/null
+[ "$result" != 0 ] || fail "rollback: blocked copy succeeded"
 [ "$(snapshot "$dir")" = "$before" ] || fail "rollback: the old install changed"
 mustnt "$dir/.ely-old" rollback
 
@@ -120,8 +147,8 @@ mustnt "$dir/.ely-old" rollback
 dir=$work/stranger
 cp "$dir/uninstall.exe" "$work/uninstall.exe"
 "$work/uninstall.exe" /S "_?=$(cygpath -w "$dir")" || fail "uninstall"
-for f in keep.exe keep.dll keep.json git/keep.txt notes/note.md; do must "$dir/$f" uninstall; done
-for f in ely-probe.exe ely-probe-worker.exe extra.txt licenses data uninstall.exe .ely-files; do
+for f in $own; do must "$dir/$f" uninstall; done
+for f in ely-probe.exe ely-probe-worker.exe extra.txt licenses/LICENSE data bin zz uninstall.exe .ely-installed; do
   mustnt "$dir/$f" uninstall
 done
 rm -rf "$work"
