@@ -31,6 +31,8 @@ struct Doc {
     /// What MuPDF warned at open; kept as the repair report.
     warnings: String,
     repair: Option<String>,
+    /// Damage a read met that no draw has told yet.
+    found: bool,
     /// The repaired copy standing in; removed on close.
     copy: Option<std::path::PathBuf>,
     /// MuPDF's steps: an edit's id, or none for a save.
@@ -359,7 +361,7 @@ impl Worker {
                 let id = self.next;
                 self.next += 1;
                 let warnings = output::open_warnings();
-                let doc = Doc { open, password: String::new(), owner, warnings, repair: None, copy: None, steps: Vec::new(), at: 0 };
+                let doc = Doc { open, password: String::new(), owner, warnings, repair: None, found: false, copy: None, steps: Vec::new(), at: 0 };
                 self.docs.insert(id, doc);
                 if !locked && let Err(error) = self.repair(id) {
                     self.forget(id)?;
@@ -405,13 +407,12 @@ impl Worker {
                 self.drawn(id, page, (scale, rotate), tile, dark)
             }
             tag::TEXT => {
-                let doc = self.doc(ask.u64()?)?;
-                self.mupdf.text(doc, ask.u64()? as usize)
+                let (id, page) = (ask.u64()?, ask.u64()? as usize);
+                self.read(id, |mupdf, doc| mupdf.text(doc, page))
             }
             tag::SEARCH => {
-                let doc = self.doc(ask.u64()?)?;
-                let page = ask.u64()? as usize;
-                self.mupdf.search(doc, page, &ask.str()?)
+                let (id, page, needle) = (ask.u64()?, ask.u64()? as usize, ask.str()?);
+                self.read(id, |mupdf, doc| mupdf.search(doc, page, &needle))
             }
             tag::OUTLINE => self.mupdf.outline(self.doc(ask.u64()?)?),
             tag::HELLO => Ok(Pack::new().str(ely_pdf_engine::proto::BUILD).bytes()),

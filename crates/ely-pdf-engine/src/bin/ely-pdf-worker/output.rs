@@ -82,6 +82,24 @@ impl crate::Worker {
         Ok(())
     }
 
+    /// A text read; damage it meets waits for a draw.
+    pub(crate) fn read(&mut self, id: u64, read: impl FnOnce(&Mupdf, &Open) -> io::Result<Vec<u8>>) -> io::Result<Vec<u8>> {
+        let doc = self.doc(id)?;
+        unsafe { ely_watch_begin(self.mupdf.ctx) };
+        let answer = read(&self.mupdf, doc);
+        if unsafe { ely_watch_end(self.mupdf.ctx) } != 0 {
+            self.note_damage(id)?;
+            self.docs.get_mut(&id).expect("just read").found = true;
+        }
+        answer
+    }
+
+    /// Takes damage a read found; the caller tells it.
+    fn found(&mut self, id: u64) -> io::Result<bool> {
+        let doc = self.docs.get_mut(&id).ok_or_else(|| io::Error::other(format!("no document {id}")))?;
+        Ok(std::mem::take(&mut doc.found))
+    }
+
     /// A tile, and whether drawing it met damage.
     pub(crate) fn drawn(&mut self, id: u64, page: usize, view: (f32, i32), tile: [i32; 4], dark: bool) -> io::Result<Vec<u8>> {
         unsafe { ely_watch_begin(self.mupdf.ctx) };
@@ -90,7 +108,9 @@ impl crate::Worker {
         if warned {
             self.note_damage(id)?;
         }
-        Ok(Pack::new().u64(u64::from(warned)).blob(&pixels?).bytes())
+        let pixels = pixels?;
+        let damaged = warned | self.found(id)?;
+        Ok(Pack::new().u64(u64::from(damaged)).blob(&pixels).bytes())
     }
 
     /// Every picture decoded before an overwrite; true if any failed.
@@ -99,6 +119,7 @@ impl crate::Worker {
         if failed {
             self.note_damage(id)?;
         }
+        let failed = failed | self.found(id)?;
         Ok(Pack::new().u64(u64::from(failed)).bytes())
     }
 
@@ -153,6 +174,12 @@ impl crate::Worker {
     pub(crate) fn output(&mut self, kind: u8, id: u64, ask: &mut Unpack) -> io::Result<Vec<u8>> {
         let has = self.allowed(id)?;
         let doc = self.record(id)?;
+        // What a read found is no whole export.
+        if matches!(kind, tag::EXPORT_IMAGE | tag::EXPORT_TEXT) && doc.found {
+            refuse(may::COPY, has)?;
+            let report = doc.repair.as_deref().expect("noted with the damage");
+            return Err(io::Error::other(format!("the document did not read whole: {report}")));
+        }
         match kind {
             tag::EXPORT_IMAGE => {
                 refuse(may::COPY, has)?;
