@@ -172,6 +172,45 @@ fn a_print_copy_carries_no_lock() {
 }
 
 #[test]
+fn a_print_copy_shows_what_prints_to_any_screen_renderer() {
+    let dir = tempfile::tempdir().expect("a temp dir");
+    // No looks of their own: MuPDF makes them.
+    let square = |flags: u8, rect: &str, color: &str| format!("<< /Type /Annot /Subtype /Square /F {flags} /Rect [{rect}] /C [{color}] /IC [{color}] >>");
+    let annots = [
+        square(4, "50 100 150 180", "1 0 0"),
+        square(0, "200 100 300 180", "0 1 0"),
+        // Print and NoView: printed, never shown.
+        square(36, "350 100 450 180", "0 0 1"),
+        // Print and Hidden: neither.
+        square(6, "50 300 150 380", "0 1 0"),
+        "<< /Type /Annot /Subtype /Link /F 4 /Rect [200 300 300 380] /A << /S /URI /URI (https://example.com) >> >>".to_string(),
+    ];
+    let path = dir.path().join("doc.pdf");
+    std::fs::write(&path, one_page("", " /Annots [5 0 R 6 0 R 7 0 R 8 0 R 9 0 R]", "", &annots)).expect("writes");
+    let (mut worker, doc) = opened(&path);
+    let print = dir.path().join("print.pdf");
+    worker.print_copy(doc, &print).expect("writes");
+    // Only the link stays an annotation.
+    let copy = lopdf::Document::load(&print).expect("a PDF");
+    let left = copy.get_dictionary(copy.get_pages()[&1]).and_then(|page| page.get(b"Annots")).and_then(lopdf::Object::as_array).expect("annotations");
+    let kinds: Vec<&[u8]> = left.iter().map(|annot| copy.dereference(annot).and_then(|(_, a)| a.as_dict()?.get(b"Subtype")?.as_name()).expect("a kind")).collect();
+    assert_eq!(kinds, [b"Link".as_slice()]);
+    assert!(copy.catalog().expect("a catalog").get(b"AcroForm").is_err(), "no form left");
+    // MuPDF draws by screen rules, as Windows' renderer does.
+    let mut third = self::worker();
+    let printed = third.open(&print).expect("opens").doc;
+    let bgra = third.render(printed, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws").bgra;
+    let at = |x: usize, y: usize| -> [u8; 3] {
+        let p = &bgra[((792 - y) * 612 + x) * 4..][..3];
+        [p[2], p[1], p[0]]
+    };
+    assert_eq!(at(100, 140), [255, 0, 0], "printable");
+    assert_eq!(at(250, 140), [255, 255, 255], "not for print");
+    assert_eq!(at(400, 140), [0, 0, 255], "print, not view");
+    assert_eq!(at(100, 340), [255, 255, 255], "hidden");
+}
+
+#[test]
 fn a_broken_picture_shows_when_drawn_or_checked() {
     let dir = tempfile::tempdir().expect("a temp dir");
     let picture = "<< /Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length 12 >>\nstream\nnot a zlib!!\nendstream".to_string();
@@ -299,18 +338,18 @@ fn a_broken_picture_read_before_is_still_damage() {
     // Reading caches the pictures; their repeat waits.
     let read: [fn(&mut Worker, Doc); 2] = [|w, d| drop(w.text(d, 0).expect("reads")), |w, d| drop(w.search(d, 0, "x").expect("searches"))];
     for (path, first) in files.iter().flat_map(|p| read.map(|r| (p, r))) {
-        let (mut worker, doc) = opened(&path);
+        let (mut worker, doc) = opened(path);
         first(&mut worker, doc);
         let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws");
         assert!(tile.damaged, "the picture draws as damage");
         assert!(worker.repair_report(doc).expect("asks").is_some());
-        let (mut worker, doc) = opened(&path);
+        let (mut worker, doc) = opened(path);
         first(&mut worker, doc);
         assert!(worker.export_image(doc, 0, 72.0, &dir.path().join("page.png")).is_err(), "its page read whole");
-        let (mut worker, doc) = opened(&path);
+        let (mut worker, doc) = opened(path);
         first(&mut worker, doc);
         assert!(worker.export_text(doc, &dir.path().join("doc.txt")).is_err(), "its text read whole");
-        let (mut worker, doc) = opened(&path);
+        let (mut worker, doc) = opened(path);
         first(&mut worker, doc);
         assert!(worker.check_pictures(doc).expect("checks"), "the check finds it");
     }
