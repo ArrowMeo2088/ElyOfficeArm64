@@ -64,6 +64,18 @@ pub(super) enum Input {
     Visible(Rect, (u32, i32)),
     /// Shows sheet or slide `part`, from 0.
     Part(usize),
+    /// Up or Down; turns `step` parts when nothing is picked.
+    Turn {
+        char_code: u32,
+        key_code: i32,
+        step: i32,
+    },
+}
+
+/// What an input gives back.
+pub(super) enum Back {
+    Copied(String),
+    Turned(i32),
 }
 
 impl Input {
@@ -73,6 +85,7 @@ impl Input {
             // Arrows, Home, End, Page keys, Escape.
             Input::Key { key_code, .. } => !matches!(key_code & 0x0FFF, 1024..=1031 | 1281),
             Input::Mouse(_)
+            | Input::Turn { .. }
             | Input::Copy { cut: false }
             | Input::Visible(..)
             | Input::Part(_)
@@ -169,7 +182,7 @@ fn lok_button(button: MouseButton) -> Option<i32> {
 }
 
 /// Runs one input; gives a copy's mark and the revision.
-pub(super) fn run(worker: &Mutex<Worker>, doc: &Doc, input: Input) -> (io::Result<Option<String>>, Option<u64>) {
+pub(super) fn run(worker: &Mutex<Worker>, doc: &Doc, input: Input) -> (io::Result<Option<Back>>, Option<u64>) {
     let mut worker = worker.lock().expect("the worker lock");
     let counts = !matches!(input, Input::Visible(..));
     let copied = apply(&mut worker, doc, input);
@@ -181,12 +194,16 @@ pub(super) fn run(worker: &Mutex<Worker>, doc: &Doc, input: Input) -> (io::Resul
     (copied, now)
 }
 
-fn apply(worker: &mut Worker, doc: &Doc, input: Input) -> io::Result<Option<String>> {
+fn apply(worker: &mut Worker, doc: &Doc, input: Input) -> io::Result<Option<Back>> {
     let done = match input {
         Input::Key {
             char_code,
             key_code,
         } => worker.post_key(doc, char_code, key_code),
+        Input::Turn { char_code, key_code, step } => {
+            let turned = worker.turn_key(doc, char_code, key_code)?;
+            return Ok(turned.then_some(Back::Turned(step)));
+        }
         Input::Mouse(event) => worker.post_mouse(doc, event),
         Input::Drag { from, to } => worker.drag_graphic(doc, from, to),
         Input::Visible(area, scale) => doc.visible_area(worker, area, scale),
@@ -195,9 +212,8 @@ fn apply(worker: &mut Worker, doc: &Doc, input: Input) -> io::Result<Option<Stri
         Input::Theme(scheme) => worker.run(doc, "view.theme", &[scheme]),
         Input::Text { commit, text } => worker.post_text(doc, commit, &text),
         Input::Copy { cut } => {
-            return clip::copy_out(worker, doc, cut, |clip| {
-                clipboard::write(clip).map_err(io::Error::other)
-            });
+            let copied = clip::copy_out(worker, doc, cut, |clip| clipboard::write(clip).map_err(io::Error::other));
+            return copied.map(|copied| copied.map(Back::Copied));
         }
         Input::Run { commands, at } => {
             let values: Vec<Vec<&str>> =
@@ -299,7 +315,7 @@ impl LokView {
         cx: &mut Context<Self>,
     ) {
         if self.walk(&event.keystroke, cx)
-            || self.turn_key(&event.keystroke, cx)
+            || self.turn_key(&event.keystroke)
             || self.key_down(&event.keystroke)
         {
             cx.stop_propagation();

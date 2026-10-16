@@ -2,7 +2,7 @@ use ely_lok::LokView;
 use ely_office::prelude::*;
 use gpui::{Entity, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext, point};
 
-use super::objects::blank;
+use super::objects::{blank, selection};
 use super::{counts, quiet, settle, update};
 use crate::deck::Deck;
 
@@ -22,9 +22,10 @@ fn current(shown: &mut VisualTestContext, deck: &Entity<Deck>) -> usize {
     shown.update(|_, app| deck.read(app).active_tab().map(|tab| tab.extra.slides.current).expect("a tab"))
 }
 
-fn wheel(shown: &mut VisualTestContext, lines: f32) {
+/// Whole notches, in this platform's lines.
+fn wheel(shown: &mut VisualTestContext, notches: f32) {
     let middle = shown.update(|window, _| window.viewport_size()).center();
-    let delta = ScrollDelta::Lines(point(0.0, lines));
+    let delta = ScrollDelta::Lines(point(0.0, notches * ely_lok::notch()));
     shown.simulate_event(ScrollWheelEvent { position: middle.into(), delta, ..Default::default() });
 }
 
@@ -59,4 +60,8 @@ fn the_wheel_and_up_down_turn_slides() {
     assert_eq!(current(&mut shown, &deck), 1, "Up turns back");
     wheel(&mut shown, 1.0);
     assert_eq!(current(&mut shown, &deck), 0, "the wheel turns up");
+    // Down queued behind Tab moves the object Tab picks.
+    shown.simulate_keystrokes("tab down");
+    assert_eq!(current(&mut shown, &deck), 0, "Down after Tab moves, not turns");
+    assert!(shown.update(|_, app| selection(app, &deck)).is_some(), "Tab picked an object");
 }

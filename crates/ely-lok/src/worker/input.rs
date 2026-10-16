@@ -99,6 +99,20 @@ pub(super) fn key(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
     Ok(Vec::new())
 }
 
+/// Up or Down after earlier input: 1 if it turns.
+pub(super) fn turn_key(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
+    let (id, char_code, key_code) = (unpack.u64()?, unpack.i64()?, unpack.i64()?);
+    // Earlier input's callbacks already landed here.
+    if !crate::events::picked(id) {
+        return Ok(Pack::new().u64(1).bytes());
+    }
+    with_doc(id, |doc| {
+        doc.post_key(0, char_code as i32, key_code as i32);
+        doc.post_key(1, char_code as i32, key_code as i32);
+    })?;
+    Ok(Pack::new().u64(0).bytes())
+}
+
 /// One mouse event: kind, x, y, count, buttons, modifiers.
 pub(super) fn mouse(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
     let id = unpack.u64()?;

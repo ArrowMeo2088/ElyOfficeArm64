@@ -237,6 +237,14 @@ impl Worker {
         Ok(())
     }
 
+    /// Up or Down: whether it turned, not reaching the kernel.
+    pub fn turn_key(&mut self, doc: &Doc, char_code: u32, key_code: i32) -> io::Result<bool> {
+        let doc_id = self.doc_id(doc)?;
+        let payload = Pack::new().u64(doc_id).i64(char_code as i64).i64(key_code as i64).bytes();
+        let reply = self.request(tag::TURN_KEY, &payload)?;
+        Ok(Unpack::new(&reply).u64()? == 1)
+    }
+
     /// Drags a selected object's handle, start then end.
     pub fn drag_graphic(&mut self, doc: &Doc, from: (i32, i32), to: (i32, i32)) -> io::Result<()> {
         for (kind, (x, y)) in [(0, from), (1, to)] {

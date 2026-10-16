@@ -362,11 +362,14 @@ pub fn stop_all(docs: &HashMap<u64, Document>) {
 
 /// The current generation of `id`.
 pub fn generation(id: u64) -> u64 {
-    slots()
-        .lock()
-        .expect("the events lock")
-        .get(&id)
-        .map_or(0, |slot| slot.batch.generation)
+    slots().lock().expect("the events lock").get(&id).map_or(0, |slot| slot.batch.generation)
+}
+
+/// Whether `id` shows a selection, object or caret.
+pub fn picked(id: u64) -> bool {
+    let slots = slots().lock().expect("the events lock");
+    let Some(batch) = slots.get(&id).map(|slot| &slot.batch) else { return false };
+    batch.graphic.is_some() || !batch.selection.is_empty() || batch.cursor_visible && batch.cursor.is_some()
 }
 
 /// Blocks until documents have unpushed events.
@@ -399,12 +402,7 @@ pub fn clear_result(id: u64) {
 
 /// The completion the last dispatch reported.
 pub fn take_result(id: u64) -> Option<(String, bool)> {
-    slots()
-        .lock()
-        .expect("the events lock")
-        .get_mut(&id)?
-        .result
-        .take()
+    slots().lock().expect("the events lock").get_mut(&id)?.result.take()
 }
 
 /// The bridged a11y text now.

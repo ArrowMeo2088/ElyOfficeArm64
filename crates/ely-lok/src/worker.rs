@@ -218,6 +218,7 @@ fn answer(lok: &Lok, tag: u8, id: u64, payload: &[u8]) {
             }
         }),
         tag::POST_KEY => input::key(unpack),
+        tag::TURN_KEY => input::turn_key(unpack),
         tag::POST_MOUSE => input::mouse(unpack),
         tag::GRAPHIC => input::graphic(unpack),
         tag::POST_TEXT => input::text(unpack),
