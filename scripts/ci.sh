@@ -55,7 +55,10 @@ rm -rf "$dist"
 batch=$(awk -F'\t' '$4 == 1 { print $1 }' packaging/apps.tsv)
 case $os in
   macos) packaging/macos/release.sh 1 ;;
-  windows) for slug in $batch; do packaging/windows/installer.sh "$slug"; done ;;
+  windows)
+    for slug in $batch; do packaging/windows/installer.sh "$slug"; done
+    packaging/windows/bundle.sh
+    ;;
   linux) for slug in $batch; do ${inside[@]+"${inside[@]}"} packaging/linux/package.sh "$slug"; done ;;
   *)
     echo "ci.sh: no release for $os" >&2

@@ -141,7 +141,8 @@ tests/scripts/linux-distros.sh   deb 在 Ubuntu 26.04、rpm 在 Fedora 44 容器
 cargo test -p ely-show --test compose  切换半程帧经 Metal 取像素（主线程，仅 macOS）
 tests/scripts/*.sh *.py        脚本测试（缺工具时报 SKIP）
 packaging/macos/bundle.sh ely-doc debug    出 dist/ElyDoc.app（带图标、文档类型与该应用的引擎）
-packaging/macos/release.sh [批次]          该批各应用的 release 包与 dmg；ELY_SIGN_IDENTITY 加 ELY_NOTARY_PROFILE 即公证
+packaging/macos/release.sh [批次]          该批各应用的 release 包与 dmg，另有装全部的 ElyOffice dmg；ELY_SIGN_IDENTITY 加 ELY_NOTARY_PROFILE 即公证
+packaging/windows/bundle.sh   由 dist 里各应用的安装程序出合集 ElyOffice 安装程序（先跑 installer.sh）
 packaging/icons/masters.py     写出 assets/icons 的全部 SVG 母版（图标设计只改这里）
 packaging/icons/build.sh       由 assets/icons 的母版渲染 icns、png、ico（只在 macOS）
 tests/scripts/icons.sh         八个图标齐全、未过期，macOS 为 squircle，其余无底形
@@ -171,6 +172,7 @@ tests/scripts/autosave.sh      真窗口 ElyDoc：自动保存开关、停手即
 tests/scripts/print.sh         真窗口 ElyDoc：打印用文档自己的纸张，取消不动文档（需辅助功能权限）
 tests/scripts/show-fullscreen.sh  真窗口 ElyShow：F5 放映的窗口盖住整块屏幕（菜单栏与程序坞之上，需辅助功能权限）
 tests/scripts/dock-macos.sh      dist 里 ElyDoc、ElyTable、ElyShow 与包外的 target/debug/ely-doc 各启动数次：LOK worker 从未登记为程序坞应用，图块照出
+tests/scripts/windows-bundle.sh  合集安装程序逐个静默运行所选应用的安装程序；某个被拒即停下并报出其名与退出码（缺 makensis 时 SKIP）
 tests/scripts/windows-installer.sh  假应用的安装程序：所选目录原有的文件经两次安装与卸载都在，旧版按注册表清理，文件被占用或程序在运行时什么也不改，写不进时放回旧版（缺 makensis 时 SKIP）
 tests/scripts/types.sh         packaging/types.tsv 的文件类型在 Linux 桌面项、Windows 安装程序与 macOS 文档类型里一致，从不设为默认
 tests/scripts/layout.sh        真窗口：六个应用在 640、800、1100 宽下无元素越出窗口左右，留截图（需辅助功能与屏幕录制权限）
@@ -306,3 +308,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-15（用户报：ElyMark 三、四级标题不显眼）：组件库 5954132 起标题字号随正文按 Typora 的倍数（一至六级 2.25、1.75、1.5、1.25、1、1），一律加粗，六级为次要色，行高为字号的 1.3 倍（原为固定的 24、20、16、14 像素，正文 13，三、四级只是中等字重）（R6.9）。90bd37b：粗体与标题同一字重（原粗体为半粗，标题里的粗体反而更细，正文粗体随之由半粗改为粗，同 Typora）；标题行高按自身字号取 1.3 倍。Windows 真窗口核对（`.work/r69`）：可视模式各级标题分明、“你好↵测试”两行，源码模式“测”后的插入点落在两字之间。
 - 2026-10-15（用户报：macOS 打开一个文档，程序坞里有两个同样的图标）：LOK worker 在应用包的 `Contents/MacOS` 里启动 AppKit，系统按包的 Info.plist 把它也登记为常规应用（`lsappinfo` 里应用与 worker 都是 Foreground），程序坞多一个图标；内核自己从不设激活策略。worker 在内核启动 AppKit 之前（`Lok::hook` 打开内核之后、调钩子之前）把本进程主包信息里的 `LSUIElement` 设为真，AppKit 登记时即为辅助应用（无程序坞图标、无菜单栏，仍可建屏外窗口）；钩子之后核对激活策略是辅助，不是即报错、不启动（`ffi/accessory.rs`）；包外的 worker（`cargo run`、单测）无包可登记，策略为禁止，此时改设辅助（R6.12 第 2 轮）。原先在登记之后才改策略，审查实测 15 次启动有 11 次先登记为 Foreground 约 30 毫秒（R6.12 第 1 轮）。`tests/scripts/dock-macos.sh` 连续启动三个应用与包外的开发构建，从 worker 启动起采样其类型到首块图块，见 Foreground 即失败（R6.12）。
 - 2026-10-15（用户报：ElyShow 编辑区滚轮与上下键不换页，三端）：内核在未选中对象时把上下键当作滚动窗口（`fupoor.cxx`），Ely 的画布整页适合、无处可滚，滚轮同样。`LokView::turn_parts`（ElyShow 首次适合时调用）之后：整页可见时滚轮换页（`view/turn.rs`）：滚轮的行按本平台每格的行数（`ely_lok::notch`：macOS 1，Windows 取系统设置，X11 与 Wayland 为 3）折成格，整格的行每格一页（快速连滚与一次多格都照格数）；一串行里出现不足一格的（X11、Windows 的触控板）即为平滑滚动，此后到停顿前不再换页，像素（macOS、Wayland 的触控板）同按手势：一次手势换一页（满一格或 50 像素），惯性不算；有起止的手势（macOS）只到结束才算完，没有起止的停 200 毫秒即为下一次。X11 的滚轮与触控板同为行、gpui 不分，以整格开头的触控板滑动在出现小数之前会按格换页（已知限制）。未选中对象、未编辑文字时上下键换页。换页一律经有序输入队列交 worker（`TURN`）：worker 按之前各输入回报后的状态判定，有选区、选中对象或插入点即把方向键照常交内核，否则当场切页（到首末页即停，同缩略图条的 `setPart`），视图在落地时换上 worker 所示的页，其后排队的键与点按都落在新页上（Tab 后紧接的 Down 移动所选对象；Down、Tab、Down 是换页后在新页上选中并移动）；ElyShow 后台读回的当前页只在视图已无待落地输入时采用（R6.13）。
+- 2026-10-16（用户定）：合集安装包（R7.1）。macOS 一个公证的 `ElyOffice-<版本>-<架构>.dmg`，装首批六个已签名的 .app 与“应用程序”替身，用户拖入所要的（`release.sh` 的 `dmg` 与单个应用共用）；无 Developer ID Installer 证书，不出 .pkg。Windows 一个 `ElyOffice-<版本>-windows-x86_64-setup.exe`（`packaging/windows/bundle.nsi`），组件页勾选应用，所选的各自的安装程序以 `/S` 运行，所以装法、位置、升级、卸载项与单装完全相同；某个退出码非零即停下并写明其名与退出码（2 为文件被占用或位置被占），之前装上的照旧。Linux 不出合集。单个应用的包、更新清单照旧。
