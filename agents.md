@@ -40,7 +40,7 @@ site/        官网（Vite 8、pnpm、TypeScript，无框架；等轴 SVG 积木
 
 ## 组件映射
 
-依赖 `ely-gpui-component`（pin 90bd37b，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
+依赖 `ely-gpui-component`（pin 2e65b05，gpui 为 crates.io 的 `gpui-pre` =0.3.8）。名字取自 `reference/Ely-GPUI-Components/src`。gpui 用法规则见该仓库 `AGENTS.md`。`tests/scripts/agents_md.py` 核对下表每个名字都是组件库公开项。
 
 | 需要 | 用 |
 | --- | --- |
@@ -312,3 +312,4 @@ cargo run -p ely-doc          启动一个应用（ElyDoc 先 cargo build -p ely
 - 2026-10-16（Gitea #6）：设置窗口多出一行应用菜单（R7.2）。设置窗口沿用主窗口的外壳 `Shell`，Windows 与 Linux 上随之画出菜单栏（macOS 菜单在系统菜单栏，不受影响）与更新横幅。菜单栏与更新横幅只属主窗口：`Shell::secondary` 去掉两者，设置窗口用它；`settings/tests.rs` 量内容起点距标题栏底：只装菜单时主窗口大于零（macOS 为零），再有待下载的新版时更大，设置窗口为零。
 - 2026-10-16（Gitea #4）：装了宋体仍报缺少（R7.3）。内核按名找字体时比较 `GetEnglishSearchFontName`（小写 ASCII、去空格、中日韩本地名译为英文名，`宋体` 即 `simsun`），所以文档的 `宋体` 找到并用上 SimSun；缺字检查却比较原名与所用字体名，报为缺失。Linux 上内核以界面语言（英文）为 fontconfig 字体取名，文档里的本地名一律报缺。补丁 `0048-lok-fonts-missing-by-search-name.patch`：缺字检查同样比较检索名。实测（2026-10-16）：Arch 容器装 ElyDoc 0.1.5 的 Arch 包与 simsun.ttc，40 行宋体五号、文档网格的 docx 报缺宋体，正文实为 SimSun（无此字体时为方框），与 Windows 同为一页；换上打过 0048 的内核后同一容器不再报缺、仍为一页。用户所说一页变两页未能复现，需其文件。缺字检查测试：`navigate/tests.rs` 以随包的 DejaVu Sans 写作 `DEJAVU SANS`，只报真缺的字体。另见：Linux 上属性栏的字体框为空（字体列表只有 SimSun，文档写宋体），未改。
 - 2026-10-16（Gitea #5）：每个 PDF 打开即报已损坏（R7.4）。C11.8 把画图块与导出时 MuPDF 的任何警告都算作损坏；读页面时载入未嵌入的字体也发警告（中文文件里写名而不嵌入的宋体等：`non-embedded font using identity encoding`），合法的文件因此转为修复副本、保存一律另存。现在警告监视（`keep_warning`，打开时的扫描、画图块、导出与 Markdown 的 PDF 共用）只略去这一句与紧随其后的 MuPDF 重复计数（`... repeated N times...`）；其余照算损坏，含内容的语法错误、无字体写字、坏的嵌入字体与图片流。读文字与搜索也受监视（坏图片读过即被缓存，之后画图块、导出与检查都不再报警告）：其间遇到的损坏记入报告与该文档，下一次画图块或检查图片报出，报出之前导出图片与文字一律拒绝。监视开始时，MuPDF 尚未报出的重复计数（来自其余未受监视的读取）按它所重复的那句归类（`ctx->warn.message`）：字体提示的重复略去，其余照算。`tests/output.rs` 核对：两个同名未嵌入字体的文件先读文字再画图块、导出图片与文字都不算损坏；无字体写字与 `BT ] ET` 的图块为损坏；`[/FlateDecode /ASCIIHexDecode]` 下校验和错的图片使两种导出都被拒、图块为损坏。先读文字或搜索后，这样的两张图片、颜色键掩码无效的一张图片、以及它在两个未嵌入字体之前或之后画出，画图块、导出与检查图片仍报损坏。
+- 2026-10-16（用户定）：ElyMark 打开的块保持原样（R7.5）。组件库 bff7ebc 起，可视模式里按下的块以原文显示在它合上时的框里（同样的边距与透明边框），字号、行高与颜色同合上时：段落、列表、引用等为正文，标题按其级数的字号、1.3 倍行高、加粗（六级为次要色），照原文写出的块（链接定义等）为等宽次要色；不再加深色底板与另一套边距，按下前后不挪位置。代码块、块公式与 front matter 仍有自己的底板（代码与 front matter 为等宽小号，front matter 为次要色，同合上时）。输入框的着色（源码模式同用）给标题与粗体同一字重（原为半粗，压过所设的加粗），六级标题里的字照为次要色（行内代码照为正文色，2e65b05），front matter 照 front matter 读（原读成分隔线加标题，键名变亮变粗）（1ff993d、962964e）。表格单元格照旧。打字机模式的居中另按两端余量判定（原只按块高与视图高，打开前后同高时首块不再居中）。同批带入组件库 cdc5ce8（标题栏拖动区里的控件按下归控件，Windows）。Windows 真窗口核对（`.work/r75`）：段落、三级标题、代码块打开前后位置相同。
