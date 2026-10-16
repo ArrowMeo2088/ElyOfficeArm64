@@ -46,6 +46,11 @@ fn the_wheel_and_up_down_turn_slides() {
     let mut shown = VisualTestContext::from_window(window.into(), &cx);
     shown.run_until_parked();
     assert_eq!(current(&mut shown, &deck), 0);
+    wheel(&mut shown, -2.0);
+    assert_eq!(current(&mut shown, &deck), 2, "two notches in one event turn two");
+    wheel(&mut shown, 1.0);
+    wheel(&mut shown, 1.0);
+    assert_eq!(current(&mut shown, &deck), 0, "rapid notches each turn");
     wheel(&mut shown, -1.0);
     assert_eq!(current(&mut shown, &deck), 1, "the wheel turns down");
     shown.update(|window, app| {

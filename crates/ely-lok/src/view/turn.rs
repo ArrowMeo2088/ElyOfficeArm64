@@ -42,6 +42,8 @@ pub(super) struct Turning {
     spent: bool,
     /// The platform began a gesture it has not ended.
     held: bool,
+    /// Fractional lines in this run: a touchpad, not a wheel.
+    smooth: bool,
     last: Option<Instant>,
 }
 
@@ -58,7 +60,16 @@ impl Turning {
         };
         // Phases bound a gesture; without them, a pause does.
         if phase == Some(TouchPhase::Started) || paused && !self.held {
-            (self.travel, self.spent) = (0.0, false);
+            (self.travel, self.spent, self.smooth) = (0.0, false, false);
+        }
+        let whole = travel.round();
+        if phase.is_none() && (whole == 0.0 || (travel - whole).abs() >= 1e-3) {
+            self.smooth = true;
+        }
+        // Whole wheel notches each turn, until fractions show a touchpad.
+        if phase.is_none() && !self.smooth {
+            (self.travel, self.spent, self.held) = (0.0, true, false);
+            return -(whole as i32);
         }
         self.held = match phase {
             Some(TouchPhase::Started) => true,
@@ -83,11 +94,6 @@ impl LokView {
     /// The wheel and Up, Down turn parts from now on.
     pub fn turn_parts(&mut self) {
         self.turning.get_or_insert_default();
-    }
-
-    /// The part shown.
-    pub fn part(&self) -> usize {
-        self.part
     }
 
     /// Queues Up, Down; the worker turns if nothing is picked.
@@ -148,7 +154,9 @@ mod tests {
         assert_eq!(wheel(-3.0, now), 1, "Windows and Linux scroll three lines a notch");
         assert_eq!(wheel(-3.0, now + PAUSE), 1);
         assert_eq!(wheel(3.0, now + PAUSE * 2), -1);
-        assert_eq!(wheel(-6.0, now + PAUSE * 3), 1, "two notches at once turn once");
+        assert_eq!(wheel(-6.0, now + PAUSE * 3), 2, "two notches in one event");
+        assert_eq!(wheel(-3.0, now + PAUSE * 3), 1, "rapid notches each turn");
+        assert_eq!(wheel(-3.0, now + PAUSE * 3), 1);
         assert_eq!(wheel(-1.0, now + PAUSE * 4), 0, "a third of a notch");
         let mut mac = Turning::default();
         assert_eq!(mac.wheel(lines(-1.0), TouchPhase::Moved, now, 1.0), 1, "macOS scrolls a line a notch");
@@ -157,8 +165,8 @@ mod tests {
     #[test]
     fn a_stream_of_lines_turns_once() {
         let (mut turning, now) = (Turning::default(), std::time::Instant::now());
-        // X11 smooth scrolling: whole steps, then fractions, no pause.
-        let stream = [-3.0, -3.0, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4];
+        // A whole step, then fractions: no more turns once smooth.
+        let stream = [-3.0, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4, -3.0];
         let turned: i32 = stream.iter().map(|&y| turning.wheel(lines(y), TouchPhase::Moved, now, NOTCH)).sum();
         assert_eq!(turned, 1, "one swipe turns once");
         let mut turning = Turning::default();
