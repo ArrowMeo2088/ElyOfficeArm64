@@ -99,7 +99,6 @@ impl Host for Deck {
                 view.fit_page(cx);
                 view.turn_parts();
             });
-            cx.subscribe(view, move |deck, view, turn: &ely_lok::Turn, cx| deck.turn(id, &view, turn.0, cx)).detach();
         }
         // Pictures follow the kernel's light or dark scheme.
         let dark = view.read(cx).dark();
@@ -267,7 +266,7 @@ impl Deck {
                     Ok(((slides, at), (design, objects, notes, remarks, (motion, media)), size, history)) => {
                         tab.extra.read_at = Some(at);
                         log::info!("show: tab {id} has {} parts", slides.list.len());
-                        // A queued turn outranks a read made before it.
+                        // A queued turn or part outranks an earlier read.
                         view.update(cx, |view, _| {
                             if view.settled() {
                                 view.set_part(slides.current)

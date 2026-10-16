@@ -34,7 +34,7 @@ pub use input::{CONTEXT, Copy, Cut, Paste, init};
 pub use off::read_off;
 pub use render::{paper, scheme};
 mod turn;
-pub use turn::{Turn, notch};
+pub use turn::notch;
 
 pub(crate) use crate::{TILE_TWIPS, TWIPS_PER_PIXEL};
 

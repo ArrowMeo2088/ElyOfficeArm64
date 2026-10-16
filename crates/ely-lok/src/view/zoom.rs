@@ -67,7 +67,7 @@ impl LokView {
 
     /// Ctrl (macOS: Cmd) wheel zooms; else it turns or scrolls.
     pub(super) fn on_wheel(&mut self, event: &ScrollWheelEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.wheel_zoom(event, cx) && !self.turn_wheel(event, cx) {
+        if !self.wheel_zoom(event, cx) && !self.turn_wheel(event) {
             self.on_scroll(event, window, cx);
         }
     }

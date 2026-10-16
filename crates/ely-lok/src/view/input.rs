@@ -64,18 +64,14 @@ pub(super) enum Input {
     Visible(Rect, (u32, i32)),
     /// Shows sheet or slide `part`, from 0.
     Part(usize),
-    /// Up or Down; turns `step` parts when nothing is picked.
-    Turn {
-        char_code: u32,
-        key_code: i32,
-        step: i32,
-    },
+    /// Turns `step` parts; a picked object takes the arrow `key`.
+    Turn { step: i32, key: Option<(u32, i32)> },
 }
 
 /// What an input gives back.
 pub(super) enum Back {
     Copied(String),
-    Turned(i32),
+    Shown(usize),
 }
 
 impl Input {
@@ -200,10 +196,7 @@ fn apply(worker: &mut Worker, doc: &Doc, input: Input) -> io::Result<Option<Back
             char_code,
             key_code,
         } => worker.post_key(doc, char_code, key_code),
-        Input::Turn { char_code, key_code, step } => {
-            let turned = worker.turn_key(doc, char_code, key_code)?;
-            return Ok(turned.then_some(Back::Turned(step)));
-        }
+        Input::Turn { step, key } => return Ok(worker.turn(doc, step, key)?.map(Back::Shown)),
         Input::Mouse(event) => worker.post_mouse(doc, event),
         Input::Drag { from, to } => worker.drag_graphic(doc, from, to),
         Input::Visible(area, scale) => doc.visible_area(worker, area, scale),

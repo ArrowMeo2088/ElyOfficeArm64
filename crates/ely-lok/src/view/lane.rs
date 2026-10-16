@@ -10,7 +10,7 @@ use futures::{StreamExt, channel::mpsc, select_biased};
 use gpui::Context;
 
 use super::input::{Back, Input};
-use super::{Geom, LokError, LokView, Reported, TILE_TWIPS, Turn};
+use super::{Geom, LokError, LokView, Reported, TILE_TWIPS};
 use crate::{Doc, Tile, Worker};
 
 /// An input slower than this is logged as a warning.
@@ -113,7 +113,12 @@ impl LokView {
                     self.seen_revision(now.unwrap_or(0));
                     match outcome {
                         Ok(Some(Back::Copied(copied))) => self.copied = Some(copied),
-                        Ok(Some(Back::Turned(step))) => cx.emit(Turn(step)),
+                        Ok(Some(Back::Shown(part))) if part != self.part => {
+                            // The worker turned in order.
+                            self.part = part;
+                            self.invalidate(cx);
+                        }
+                        Ok(Some(Back::Shown(_))) => {}
                         Ok(None) => {}
                         Err(error) => {
                             log::error!("lok: input failed ({:?})", error.kind());

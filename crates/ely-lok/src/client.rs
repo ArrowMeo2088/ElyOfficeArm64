@@ -237,12 +237,13 @@ impl Worker {
         Ok(())
     }
 
-    /// Up or Down: whether it turned, not reaching the kernel.
-    pub fn turn_key(&mut self, doc: &Doc, char_code: u32, key_code: i32) -> io::Result<bool> {
+    /// Turns `step` parts, or posts `key` if something is picked.
+    pub fn turn(&mut self, doc: &Doc, step: i32, key: Option<(u32, i32)>) -> io::Result<Option<usize>> {
+        let (char_code, key_code) = key.unwrap_or_default();
         let doc_id = self.doc_id(doc)?;
-        let payload = Pack::new().u64(doc_id).i64(char_code as i64).i64(key_code as i64).bytes();
-        let reply = self.request(tag::TURN_KEY, &payload)?;
-        Ok(Unpack::new(&reply).u64()? == 1)
+        let payload = Pack::new().u64(doc_id).i64(step.into()).i64(char_code.into()).i64(key_code.into()).bytes();
+        let shown = Unpack::new(&self.request(tag::TURN, &payload)?).i64()?;
+        Ok(usize::try_from(shown).ok())
     }
 
     /// Drags a selected object's handle, start then end.

@@ -9,11 +9,10 @@ use ely_gpui_component::{
 };
 use ely_office::prelude::*;
 use gpui::{
-    Action, App, Context, Div, Entity, InteractiveElement as _, IntoElement, Menu, MenuItem,
+    Action, App, Context, Div, InteractiveElement as _, IntoElement, Menu, MenuItem,
     ParentElement as _, Render, RenderImage, Role, StatefulInteractiveElement as _, Styled as _,
     WeakEntity, Window, actions, div, img, prelude::FluentBuilder as _, px,
 };
-use ely_lok::LokView;
 use image::{Frame, ImageBuffer, Rgba};
 
 use crate::deck::Deck;
@@ -97,19 +96,6 @@ impl Deck {
             return self.toast(text, ely_gpui_component::primitives::Severity::Warning, cx);
         }
         self.run_active(id, &[], cx);
-    }
-
-    /// Shows the slide `step` away, as the strip would.
-    pub(crate) fn turn(&mut self, id: u64, view: &Entity<LokView>, step: i32, cx: &mut Context<Self>) {
-        let Some(count) = self.tab(id).map(|tab| tab.extra.slides.list.len()).filter(|count| *count > 0) else {
-            return;
-        };
-        // From the part asked last, so quick turns add up.
-        let shown = view.read(cx).part();
-        let part = (shown as i64 + i64::from(step)).clamp(0, count as i64 - 1) as usize;
-        if part != shown {
-            view.update(cx, |view, _| view.show_part(part));
-        }
     }
 
     /// Paints the next missing or stale slide picture.

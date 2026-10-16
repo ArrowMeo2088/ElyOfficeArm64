@@ -99,18 +99,26 @@ pub(super) fn key(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
     Ok(Vec::new())
 }
 
-/// Up or Down after earlier input: 1 if it turns.
-pub(super) fn turn_key(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
-    let (id, char_code, key_code) = (unpack.u64()?, unpack.i64()?, unpack.i64()?);
+/// Turns `step` parts in order, or posts the arrow (-1).
+pub(super) fn turn(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
+    let (id, step, char_code, key_code) = (unpack.u64()?, unpack.i64()?, unpack.i64()?, unpack.i64()?);
     // Earlier input's callbacks already landed here.
-    if !crate::events::picked(id) {
-        return Ok(Pack::new().u64(1).bytes());
+    if key_code != 0 && crate::events::picked(id) {
+        with_doc(id, |doc| {
+            doc.post_key(0, char_code as i32, key_code as i32);
+            doc.post_key(1, char_code as i32, key_code as i32);
+        })?;
+        return Ok(Pack::new().i64(-1).bytes());
     }
-    with_doc(id, |doc| {
-        doc.post_key(0, char_code as i32, key_code as i32);
-        doc.post_key(1, char_code as i32, key_code as i32);
+    let shown = with_doc(id, |doc| {
+        let (part, last) = (i64::from(doc.part()), i64::from(doc.parts()) - 1);
+        let next = (part + step).clamp(0, last.max(0));
+        if next != part {
+            doc.set_part(next as i32);
+        }
+        next
     })?;
-    Ok(Pack::new().u64(0).bytes())
+    Ok(Pack::new().i64(shown).bytes())
 }
 
 /// One mouse event: kind, x, y, count, buttons, modifiers.

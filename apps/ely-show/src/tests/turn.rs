@@ -64,4 +64,8 @@ fn the_wheel_and_up_down_turn_slides() {
     shown.simulate_keystrokes("tab down");
     assert_eq!(current(&mut shown, &deck), 0, "Down after Tab moves, not turns");
     assert!(shown.update(|_, app| selection(app, &deck)).is_some(), "Tab picked an object");
+    // A turn lands before the keys queued after it.
+    shown.simulate_keystrokes("escape down tab down");
+    assert_eq!(current(&mut shown, &deck), 1, "Down turns, then moves");
+    assert!(shown.update(|_, app| selection(app, &deck)).is_some(), "Tab picked on the new slide");
 }

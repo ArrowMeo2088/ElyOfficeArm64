@@ -2,21 +2,15 @@
 
 use std::time::{Duration, Instant};
 
-use gpui::{Context, EventEmitter, Keystroke, Modifiers, ScrollDelta, ScrollWheelEvent, TouchPhase};
+use gpui::{Keystroke, Modifiers, ScrollDelta, ScrollWheelEvent, TouchPhase};
 
 use super::LokView;
 use super::input::{Input, vcl_key};
 
-/// Asks for the part `step` away from the shown one.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Turn(pub i32);
-
-impl EventEmitter<Turn> for LokView {}
-
 /// Trackpad pixels one turn takes.
 const SWIPE: f32 = 50.0;
 /// A pause this long ends a gesture without phases.
-const PAUSE: Duration = Duration::from_millis(250);
+const PAUSE: Duration = Duration::from_millis(200);
 
 /// Lines one wheel notch scrolls on this platform.
 pub fn notch() -> f32 {
@@ -48,8 +42,6 @@ pub(super) struct Turning {
     spent: bool,
     /// The platform began a gesture it has not ended.
     held: bool,
-    /// Fractional lines: a smooth touchpad, not a wheel.
-    smooth: bool,
     last: Option<Instant>,
 }
 
@@ -58,42 +50,27 @@ impl Turning {
     pub(super) fn wheel(&mut self, delta: ScrollDelta, phase: TouchPhase, now: Instant, notch: f32) -> i32 {
         let paused = self.last.is_none_or(|last| now.duration_since(last) >= PAUSE);
         self.last = Some(now);
-        let travel = match delta {
+        // X11 lines mix wheels and touchpads; they carry no phase.
+        let (travel, phase) = match delta {
             ScrollDelta::Lines(_) if notch <= 0.0 => return 0,
-            ScrollDelta::Lines(lines) => {
-                let notches = lines.y / notch;
-                let whole = notches.round();
-                // Whole notches outside a smooth stream: each turns once.
-                if whole != 0.0 && (notches - whole).abs() < 1e-3 && (paused || !self.smooth) {
-                    (self.travel, self.spent, self.smooth) = (0.0, false, false);
-                    return -(whole as i32);
-                }
-                if paused || !self.smooth {
-                    (self.travel, self.spent) = (0.0, false);
-                }
-                self.smooth = true;
-                notches
-            }
-            ScrollDelta::Pixels(pixels) => {
-                self.smooth = false;
-                // Without phases, only a pause ends a gesture.
-                if phase == TouchPhase::Started || paused && !self.held {
-                    (self.travel, self.spent) = (0.0, false);
-                }
-                self.held = match phase {
-                    TouchPhase::Started => true,
-                    TouchPhase::Ended | TouchPhase::Cancelled => false,
-                    TouchPhase::Moved => self.held,
-                };
-                f32::from(pixels.y) / SWIPE
-            }
+            ScrollDelta::Lines(lines) => (lines.y / notch, None),
+            ScrollDelta::Pixels(pixels) => (f32::from(pixels.y) / SWIPE, Some(phase)),
+        };
+        // Phases bound a gesture; without them, a pause does.
+        if phase == Some(TouchPhase::Started) || paused && !self.held {
+            (self.travel, self.spent) = (0.0, false);
+        }
+        self.held = match phase {
+            Some(TouchPhase::Started) => true,
+            Some(TouchPhase::Moved) => self.held,
+            Some(TouchPhase::Ended | TouchPhase::Cancelled) | None => false,
         };
         // One gesture turns once, momentum included.
         if self.spent {
             return 0;
         }
         self.travel += travel;
-        if self.travel.abs() < 1.0 {
+        if self.travel.abs() < 1.0 - 1e-3 {
             return 0;
         }
         self.spent = true;
@@ -123,15 +100,15 @@ impl LokView {
             "up" => -1,
             _ => return false,
         };
-        let Some((char_code, key_code)) = vcl_key(keystroke) else {
+        let Some(key) = vcl_key(keystroke) else {
             return false;
         };
-        self.send(Input::Turn { char_code, key_code, step });
+        self.send(Input::Turn { step, key: Some(key) });
         true
     }
 
     /// The wheel turns while the whole page shows.
-    pub(super) fn turn_wheel(&mut self, event: &ScrollWheelEvent, cx: &mut Context<Self>) -> bool {
+    pub(super) fn turn_wheel(&mut self, event: &ScrollWheelEvent) -> bool {
         let (width, height) = self.extent();
         // A pixel of slack for rounding.
         let whole = self.geom.px_of(width) <= self.viewport.0 + 1.0
@@ -141,7 +118,8 @@ impl LokView {
         };
         let step = turning.wheel(event.delta, event.touch_phase, Instant::now(), notch());
         if step != 0 {
-            cx.emit(Turn(step));
+            // In order with the input around it.
+            self.send(Input::Turn { step, key: None });
         }
         true
     }
@@ -164,26 +142,29 @@ mod tests {
     }
 
     #[test]
-    fn each_notch_turns_once() {
+    fn each_notch_with_a_pause_turns_once() {
         let (mut turning, now) = (Turning::default(), std::time::Instant::now());
-        let mut wheel = |y| turning.wheel(lines(y), TouchPhase::Moved, now, NOTCH);
-        assert_eq!(wheel(-3.0), 1, "Windows and Linux scroll three lines a notch");
-        assert_eq!(wheel(-3.0), 1);
-        assert_eq!(wheel(3.0), -1);
-        assert_eq!(wheel(-6.0), 2, "two notches in one event");
+        let mut wheel = |y, at| turning.wheel(lines(y), TouchPhase::Moved, at, NOTCH);
+        assert_eq!(wheel(-3.0, now), 1, "Windows and Linux scroll three lines a notch");
+        assert_eq!(wheel(-3.0, now + PAUSE), 1);
+        assert_eq!(wheel(3.0, now + PAUSE * 2), -1);
+        assert_eq!(wheel(-6.0, now + PAUSE * 3), 1, "two notches at once turn once");
+        assert_eq!(wheel(-1.0, now + PAUSE * 4), 0, "a third of a notch");
         let mut mac = Turning::default();
-        assert_eq!(mac.wheel(lines(-1.0), TouchPhase::Moved, now, 1.0), 1);
+        assert_eq!(mac.wheel(lines(-1.0), TouchPhase::Moved, now, 1.0), 1, "macOS scrolls a line a notch");
     }
 
     #[test]
-    fn smooth_lines_turn_once_a_gesture() {
+    fn a_stream_of_lines_turns_once() {
         let (mut turning, now) = (Turning::default(), std::time::Instant::now());
-        // An X11 or Windows touchpad: fractions, no phases.
-        let turned: i32 = (0..30).map(|_| turning.wheel(lines(-0.4), TouchPhase::Moved, now, NOTCH)).sum();
+        // X11 smooth scrolling: whole steps, then fractions, no pause.
+        let stream = [-3.0, -3.0, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4, -0.4];
+        let turned: i32 = stream.iter().map(|&y| turning.wheel(lines(y), TouchPhase::Moved, now, NOTCH)).sum();
         assert_eq!(turned, 1, "one swipe turns once");
-        assert_eq!(turning.wheel(lines(-3.0), TouchPhase::Moved, now, NOTCH), 0, "a whole step mid-swipe");
-        let later = now + PAUSE;
-        assert_eq!(turning.wheel(lines(-3.0), TouchPhase::Moved, later, NOTCH), 1, "a pause ends the swipe");
+        let mut turning = Turning::default();
+        let turned: i32 = (0..30).map(|_| turning.wheel(lines(-0.4), TouchPhase::Moved, now, NOTCH)).sum();
+        assert_eq!(turned, 1, "fractions add up once");
+        assert_eq!(turning.wheel(lines(-3.0), TouchPhase::Moved, now + PAUSE, NOTCH), 1, "a pause ends it");
     }
 
     #[test]
