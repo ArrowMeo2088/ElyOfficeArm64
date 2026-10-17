@@ -18,6 +18,10 @@ makensis=${MAKENSIS:-"/c/Program Files (x86)/NSIS/makensis.exe"}
 }
 stage=$root/target/stage/$slug
 "$root/packaging/stage.sh" "$slug" "$stage"
+# Explorer's New copies these; the install list owns them.
+for ext in $(awk -F'\t' -v slug="$slug" '$1 == slug { print $2 }' "$root/packaging/types.tsv"); do
+  [ ! -e "$root/packaging/windows/new/new.$ext" ] || cp "$root/packaging/windows/new/new.$ext" "$stage/"
+done
 types=$root/target/stage/$slug-types.nsh
 "$root/packaging/windows/types.sh" "$slug" >"$types"
 list=$root/target/stage/$slug-files.txt

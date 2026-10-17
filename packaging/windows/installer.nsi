@@ -1,6 +1,7 @@
 ; Per-user installer; pass each define the checks below name.
 Unicode true
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 
 !ifndef APP_NAME
   !error "pass -DAPP_NAME"
