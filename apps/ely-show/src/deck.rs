@@ -100,12 +100,12 @@ impl Host for Deck {
                 view.turn_parts();
             });
         }
-        // Pictures follow the kernel's light or dark scheme.
-        let dark = view.read(cx).dark();
+        // Pictures before the scheme landed are repainted.
+        let lit = view.read(cx).lit();
         if let Some(tab) = self.tab_mut(id)
-            && tab.extra.dark != dark
+            && tab.extra.lit != lit
         {
-            tab.extra.dark = dark;
+            tab.extra.lit = lit;
             self.repaint_all(id, cx);
         }
         self.offer_menu(id, view, cx);

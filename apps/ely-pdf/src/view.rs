@@ -87,11 +87,11 @@ pub struct PdfView {
     pub saved: String,
     /// Saves so far: a read from before one is stale.
     pub saves: u64,
-    /// Page pictures for the side panel, by page and darkness.
-    pub thumbs: HashMap<(usize, bool), Arc<RenderImage>>,
+    /// Page pictures for the side panel, by page.
+    pub thumbs: HashMap<usize, Arc<RenderImage>>,
     pub thumbs_failed: HashSet<usize>,
     /// Pictures from before an edit; shown until repainted.
-    pub thumbs_stale: HashSet<(usize, bool)>,
+    pub thumbs_stale: HashSet<usize>,
     /// A picture is on its way from the worker.
     pub thumbing: bool,
     /// Pages picked in the side panel, and the anchor.

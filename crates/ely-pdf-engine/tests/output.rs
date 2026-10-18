@@ -199,7 +199,7 @@ fn a_print_copy_shows_what_prints_to_any_screen_renderer() {
     // MuPDF draws by screen rules, as Windows' renderer does.
     let mut third = self::worker();
     let printed = third.open(&print).expect("opens").doc;
-    let bgra = third.render(printed, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws").bgra;
+    let bgra = third.render(printed, 0, (1.0, 0), [0, 0, 612, 792]).expect("draws").bgra;
     let at = |x: usize, y: usize| -> [u8; 3] {
         let p = &bgra[((792 - y) * 612 + x) * 4..][..3];
         [p[2], p[1], p[0]]
@@ -219,7 +219,7 @@ fn a_broken_picture_shows_when_drawn_or_checked() {
     std::fs::write(&path, &bytes).expect("writes");
     let (mut worker, doc) = opened(&path);
     assert_eq!(worker.repair_report(doc).expect("asks"), None, "pictures wait to be drawn");
-    let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws");
+    let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792]).expect("draws");
     assert!(tile.damaged, "drawing finds it");
     assert!(worker.repair_report(doc).expect("asks").is_some());
     let (mut other, again) = opened(&path);
@@ -249,7 +249,7 @@ fn an_unembedded_font_is_no_damage() {
     let (mut worker, doc) = opened(&path);
     // Read unwatched first: its repeat is pending.
     worker.text(doc, 0).expect("reads");
-    let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws");
+    let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792]).expect("draws");
     assert!(!tile.damaged, "a substituted font draws whole");
     assert_eq!(worker.repair_report(doc).expect("asks"), None);
 }
@@ -262,7 +262,7 @@ fn unreadable_content_still_draws_as_damage() {
         let path = dir.path().join("doc.pdf");
         std::fs::write(&path, one_page("", "", content, &[])).expect("writes");
         let (mut worker, doc) = opened(&path);
-        let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws");
+        let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792]).expect("draws");
         assert!(tile.damaged, "{content} draws as damage");
     }
 }
@@ -327,7 +327,7 @@ fn a_broken_picture_under_two_filters_fails_exports() {
     let (mut worker, doc) = opened(&path);
     assert!(worker.export_image(doc, 0, 72.0, &dir.path().join("page.png")).is_err(), "its page read whole");
     let (mut worker, doc) = opened(&path);
-    let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws");
+    let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792]).expect("draws");
     assert!(tile.damaged, "the picture draws as damage");
 }
 
@@ -340,7 +340,7 @@ fn a_broken_picture_read_before_is_still_damage() {
     for (path, first) in files.iter().flat_map(|p| read.map(|r| (p, r))) {
         let (mut worker, doc) = opened(path);
         first(&mut worker, doc);
-        let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792], false).expect("draws");
+        let tile = worker.render(doc, 0, (1.0, 0), [0, 0, 612, 792]).expect("draws");
         assert!(tile.damaged, "the picture draws as damage");
         assert!(worker.repair_report(doc).expect("asks").is_some());
         let (mut worker, doc) = opened(path);

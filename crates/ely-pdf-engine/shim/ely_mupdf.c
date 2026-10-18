@@ -224,7 +224,7 @@ static fz_matrix placed(fz_rect box, float scale, int rotate)
 
 /* Paints device pixels x, y, w, h as BGRA. */
 int ely_render(fz_context *ctx, fz_document *doc, int number, float scale, int rotate,
-	const int tile[4], int dark, unsigned char *bgra)
+	const int tile[4], unsigned char *bgra)
 {
 	fz_page *page = NULL;
 	fz_pixmap *pix = NULL;
@@ -242,8 +242,6 @@ int ely_render(fz_context *ctx, fz_document *doc, int number, float scale, int r
 		dev = fz_new_draw_device(ctx, fz_identity, pix);
 		fz_run_page(ctx, page, dev, ctm, NULL);
 		fz_close_device(ctx, dev);
-		if (dark)
-			fz_invert_pixmap_luminance(ctx, pix);
 		int stride = (int)fz_pixmap_stride(ctx, pix);
 		unsigned char *rows = fz_pixmap_samples(ctx, pix);
 		for (int y = 0; y < tile[3]; y++)

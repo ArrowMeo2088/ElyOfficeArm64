@@ -32,7 +32,7 @@ mod scroll;
 mod sheet;
 pub use input::{CONTEXT, Copy, Cut, Paste, init};
 pub use off::read_off;
-pub use render::{paper, scheme};
+pub use render::{SCHEME, paper};
 mod turn;
 pub use turn::notch;
 
@@ -123,8 +123,8 @@ pub struct LokView {
     pointer: gpui::CursorStyle,
     selection: Vec<Rect>,
     cell: crate::Cell,
-    /// Whether the kernel was last told to paint dark.
-    dark: Option<bool>,
+    /// Whether the kernel was told Ely's scheme.
+    lit: bool,
     /// The zoom follows the viewport so a page fits.
     fit: bool,
     /// Set when the wheel and Up, Down turn parts.
@@ -218,7 +218,7 @@ impl LokView {
             pointer: gpui::CursorStyle::Arrow,
             selection: Vec::new(),
             cell: crate::Cell::default(),
-            dark: None,
+            lit: false,
             fit: false,
             turning: None,
             part: 0,

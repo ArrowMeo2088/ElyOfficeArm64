@@ -15,33 +15,21 @@ use gpui::{Pixels, RenderImage, point};
 use super::{CONTEXT, LokView, TILE_TWIPS, TWIPS_PER_PIXEL, handles, input};
 use crate::Rect;
 
-/// Ely's kernel color schemes, from `ely.xcd`.
-const DARK: &str = "COLOR_SCHEME_ELY_DARK";
-const LIGHT: &str = "COLOR_SCHEME_ELY_LIGHT";
+/// Ely's kernel color scheme, from `ely.xcd`.
+pub const SCHEME: &str = "COLOR_SCHEME_ELY_LIGHT";
 
-/// The kernel scheme for a light or dark app.
-pub fn scheme(dark: bool) -> &'static str {
-    if dark { DARK } else { LIGHT }
-}
-
-/// A page's colour; the kernel's Ely schemes share it.
-pub fn paper(cx: &gpui::App) -> gpui::Hsla {
-    let theme = cx.theme();
-    if theme.is_dark() {
-        theme.colors.surface
-    } else {
-        theme.colors.paper
-    }
+/// A page's colour, the scheme's `DocColor`.
+pub fn paper() -> gpui::Hsla {
+    gpui::white()
 }
 
 impl LokView {
-    /// Paints with the app's light or dark scheme.
-    pub(super) fn follow_theme(&mut self, dark: bool) {
-        if self.dark != Some(dark) {
-            self.dark = Some(dark);
-            let scheme = scheme(dark);
-            log::info!("lok: paints with {scheme}");
-            self.send(input::Input::Theme(scheme));
+    /// Content keeps the file's colours in any app theme.
+    pub(super) fn paint_light(&mut self) {
+        if !self.lit {
+            self.lit = true;
+            log::info!("lok: paints with {SCHEME}");
+            self.send(input::Input::Theme(SCHEME));
         }
     }
 }
@@ -53,11 +41,11 @@ impl Render for LokView {
             self.keep_scroll(|view| view.geom.dpi = dpi);
             self.retire_tiles();
         }
-        self.follow_theme(cx.theme().is_dark());
+        self.paint_light();
         let this = cx.entity().clone();
         let focus = self.focus.clone();
         let colors = &cx.theme().colors;
-        let paper = super::paper(cx);
+        let paper = super::paper();
         let (selection_color, caret_color) = (colors.selection, colors.focus);
         let canvas_color = colors.sunken;
         let caret_width = cx.theme().caret_width().to_pixels(window.rem_size());

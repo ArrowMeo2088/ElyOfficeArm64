@@ -21,7 +21,7 @@ pub use client::{
 #[cfg(feature = "view")]
 pub use view::{
     CONTEXT, Copy, Cut, Geom, Layout, LokError, LokView, Paste, Reported, ZOOM_STEPS, notch,
-    Zoomed, init, layout, paper, read_off, scheme,
+    SCHEME, Zoomed, init, layout, paper, read_off,
 };
 #[cfg(feature = "view")]
 mod view;

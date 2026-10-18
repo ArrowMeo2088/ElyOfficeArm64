@@ -6,9 +6,9 @@ use super::LokView;
 use crate::Rect;
 
 impl LokView {
-    /// Whether the kernel paints dark; None before the first frame.
-    pub fn dark(&self) -> Option<bool> {
-        self.dark
+    /// Whether the kernel was told Ely's scheme.
+    pub fn lit(&self) -> bool {
+        self.lit
     }
 
     /// The kernel's state for `uno`, as LOK reports it (LOK-05).

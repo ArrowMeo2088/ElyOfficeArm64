@@ -182,18 +182,16 @@ pub(super) fn open_book(text: &str) -> (tempfile::TempDir, Worker, Doc) {
 }
 
 #[test]
-fn a_theme_switch_is_no_edit() {
+fn the_scheme_is_no_edit() {
     if install().is_none() {
         eprintln!("SKIP: no pinned LOK build");
         return;
     }
     let (_dir, mut worker, doc) = open_book(FODS);
-    for scheme in ["COLOR_SCHEME_ELY_DARK", "COLOR_SCHEME_ELY_LIGHT"] {
-        worker.run(&doc, "view.theme", &[scheme]).expect("the theme runs");
-        let undo = worker.values(&doc, ".uno:Undo").expect("the undo stack");
-        let undo: serde_json::Value = serde_json::from_str(&undo).expect("undo JSON");
-        assert_eq!(undo["actions"], "", "{scheme} left undo steps");
-    }
+    worker.run(&doc, "view.theme", &["COLOR_SCHEME_ELY_LIGHT"]).expect("the scheme runs");
+    let undo = worker.values(&doc, ".uno:Undo").expect("the undo stack");
+    let undo: serde_json::Value = serde_json::from_str(&undo).expect("undo JSON");
+    assert_eq!(undo["actions"], "", "the scheme left undo steps");
 }
 
 #[test]

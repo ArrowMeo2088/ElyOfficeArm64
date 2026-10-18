@@ -101,9 +101,9 @@ impl crate::Worker {
     }
 
     /// A tile, and whether drawing it met damage.
-    pub(crate) fn drawn(&mut self, id: u64, page: usize, view: (f32, i32), tile: [i32; 4], dark: bool) -> io::Result<Vec<u8>> {
+    pub(crate) fn drawn(&mut self, id: u64, page: usize, view: (f32, i32), tile: [i32; 4]) -> io::Result<Vec<u8>> {
         unsafe { ely_watch_begin(self.mupdf.ctx) };
-        let pixels = self.mupdf.render(self.doc(id)?, page, view, tile, dark);
+        let pixels = self.mupdf.render(self.doc(id)?, page, view, tile);
         let warned = unsafe { ely_watch_end(self.mupdf.ctx) } != 0;
         if warned {
             self.note_damage(id)?;

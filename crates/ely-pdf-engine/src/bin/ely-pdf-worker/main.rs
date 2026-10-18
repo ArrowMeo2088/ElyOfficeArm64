@@ -403,8 +403,7 @@ impl Worker {
                 for value in &mut tile {
                     *value = i32::try_from(ask.i64()?).map_err(io::Error::other)?;
                 }
-                let dark = ask.u64()? != 0;
-                self.drawn(id, page, (scale, rotate), tile, dark)
+                self.drawn(id, page, (scale, rotate), tile)
             }
             tag::TEXT => {
                 let (id, page) = (ask.u64()?, ask.u64()? as usize);

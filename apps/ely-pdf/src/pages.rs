@@ -16,14 +16,13 @@ use crate::view::{PdfView, Reported};
 /// A tile's side in device pixels.
 pub const TILE: i32 = 512;
 
-/// A page tile at one scale, turn and theme.
+/// A page tile at one scale and turn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TileKey {
     pub page: usize,
     /// Device pixels a point, times a thousand.
     pub scale: u32,
     pub rotate: i32,
-    pub dark: bool,
     pub tx: i32,
     pub ty: i32,
 }
@@ -123,17 +122,14 @@ impl PdfView {
 
     /// Pages in view and their tiles; missing ones asked.
     pub fn page_view(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let (sf, dark) = (window.scale_factor(), cx.theme().is_dark());
-        let (sunken, paper) = {
-            let colors = &cx.theme().colors;
-            (colors.sunken, if dark { colors.surface } else { colors.paper })
-        };
+        let sf = window.scale_factor();
+        let (sunken, paper) = (cx.theme().colors.sunken, gpui::white());
         let laid = self.laid_out();
         if let Some((x, y)) = self.go_to.take() {
             self.scroll.set_offset(point(px(-x), px(-y)));
         }
         let top = -f32::from(self.scroll.offset().y);
-        let showing = self.showing(sf, dark);
+        let showing = self.showing(sf);
         // The current page: first showing more than a sliver.
         if let Some(first) = showing.iter().map(|s| s.place).find(|p| p.y + p.h > top + GAP * 3.0) {
             let paired = showing.iter().any(|s| s.place.page == self.current) && first.page / 2 == self.current / 2;
@@ -266,7 +262,7 @@ impl PdfView {
         self.painting = true;
         let (doc, scale, version) = (self.doc, key.scale as f32 / 1000.0, self.version);
         self.off(
-            move |worker| worker.render(doc, key.page, (scale, key.rotate), rect, key.dark),
+            move |worker| worker.render(doc, key.page, (scale, key.rotate), rect),
             move |view, painted, cx| {
                 view.painting = false;
                 if view.version != version {
