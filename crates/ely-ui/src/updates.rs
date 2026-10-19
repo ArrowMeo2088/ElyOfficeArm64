@@ -18,7 +18,7 @@ use gpui::{
 };
 
 /// The release server's newest release, listed by its API.
-const LATEST: &str = "https://git.zacharyzhang.com/api/v1/repos/ZacharyZhang-NY/ElyOffice/releases/latest";
+const LATEST: &str = "https://api.github.com/repos/ELY-Open-Source/ElyOffice/releases/latest";
 /// The argument that runs this binary as the installer.
 const INSTALL: &str = "--ely-install-update";
 
