@@ -7,7 +7,7 @@ batch=${1:-1}
 dist=${ELY_DIST:-$root/dist}
 version=$(awk -F'"' '/^version = / { print $2; exit }' "$root/Cargo.toml")
 arch=$(uname -m)
-releases=https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice/releases
+releases=https://github.com/ELY-Open-Source/ElyOffice/releases
 [ -z "${ELY_NOTARY_PROFILE:-}" ] || [ -n "${ELY_SIGN_IDENTITY:-}" ] || {
   echo "release.sh: notarizing needs ELY_SIGN_IDENTITY, a Developer ID" >&2
   exit 1
