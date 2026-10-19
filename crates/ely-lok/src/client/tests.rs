@@ -29,6 +29,7 @@ mod sheet;
 pub(crate) mod show;
 mod slides;
 mod tools;
+mod word;
 mod workbook;
 
 /// The pinned LibreOffice commit the build must report.
