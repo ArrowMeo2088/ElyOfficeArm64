@@ -19,6 +19,8 @@ pub enum Error {
     Timeout(&'static str),
     /// An address or login the protocol cannot carry.
     Invalid(String),
+    /// A message that cannot be read or written.
+    Mime(String),
 }
 
 impl fmt::Display for Error {
@@ -31,6 +33,7 @@ impl fmt::Display for Error {
             Self::Protocol(text) => write!(f, "unreadable reply: {text}"),
             Self::Timeout(step) => write!(f, "no answer while {step}"),
             Self::Invalid(text) => write!(f, "cannot be sent: {text}"),
+            Self::Mime(text) => write!(f, "unreadable message: {text}"),
         }
     }
 }

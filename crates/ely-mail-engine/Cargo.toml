@@ -7,9 +7,12 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-imap-proto.workspace = true
 base64.workspace = true
+getrandom.workspace = true
+imap-proto.workspace = true
 log.workspace = true
+mail-builder.workspace = true
+mail-parser.workspace = true
 mail-send.workspace = true
 nom.workspace = true
 rustls.workspace = true

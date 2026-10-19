@@ -2,7 +2,10 @@ mod fake;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use ely_mail_engine::{Error, Secret, Security, Smtp};
-use fake::{Step, certs, expect, login, send, serve};
+use fake::{
+    Step, certs, expect, login, send, serve,
+    smtp::{logged_in, transaction},
+};
 
 #[tokio::test]
 async fn starttls_password_login_sends_one_message() {
@@ -170,7 +173,7 @@ async fn a_refused_recipient_keeps_the_server_words() {
             send("250 ok\n"),
             expect("DATA"),
             send("354 go\n"),
-            Step::Data("x".into()),
+            Step::Data("Subject: x\n\nx".into()),
             send("250 queued\n"),
         ],
     )
@@ -186,7 +189,7 @@ async fn a_refused_recipient_keeps_the_server_words() {
         .send(
             "ann@example.com",
             &["nobody@example.com".to_owned()],
-            b"x\r\n",
+            b"Subject: x\r\n\r\nx\r\n",
         )
         .await
         .unwrap_err();
@@ -194,9 +197,13 @@ async fn a_refused_recipient_keeps_the_server_words() {
         matches!(&err, Error::Server(text) if text.contains("550") && text.contains("No such user")),
         "{err}"
     );
-    smtp.send("ann@example.com", &["bo@example.com".to_owned()], b"x\r\n")
-        .await
-        .unwrap();
+    smtp.send(
+        "ann@example.com",
+        &["bo@example.com".to_owned()],
+        b"Subject: x\r\n\r\nx\r\n",
+    )
+    .await
+    .unwrap();
     script.await.unwrap().unwrap();
 }
 
@@ -280,7 +287,7 @@ async fn an_envelope_with_a_line_break_or_bracket_never_leaves() {
     ];
     for (from, to) in bad {
         let err = smtp
-            .send(from, &[to.to_owned()], b"x\r\n")
+            .send(from, &[to.to_owned()], b"Subject: x\r\n\r\nx\r\n")
             .await
             .unwrap_err();
         assert!(matches!(&err, Error::Invalid(_)), "{err}");
@@ -301,47 +308,6 @@ async fn an_envelope_with_a_line_break_or_bracket_never_leaves() {
     script.await.unwrap().unwrap();
 }
 
-async fn logged_in(
-    ehlo: &str,
-    steps: Vec<Step>,
-) -> (Smtp, tokio::task::JoinHandle<Result<(), String>>) {
-    let certs = certs();
-    let mut script = vec![
-        send("220 mx ready\n"),
-        expect("EHLO [127.0.0.1]"),
-        send(ehlo),
-        expect(&format!(
-            "AUTH PLAIN {}",
-            STANDARD.encode("\0ann@example.com\0pw")
-        )),
-        send("235 ok\n"),
-    ];
-    script.extend(steps);
-    let (server, script) = serve(&certs, Security::Tls, script).await;
-    let smtp = Smtp::connect(
-        &server,
-        &login(Secret::Password("pw".into())),
-        &certs.trusted,
-    )
-    .await
-    .unwrap();
-    (smtp, script)
-}
-
-/// MAIL, RCPT and DATA with the server agreeing.
-fn transaction(mail: &str, rcpt: &str, data: &str) -> Vec<Step> {
-    vec![
-        expect(mail),
-        send("250 ok\n"),
-        expect(rcpt),
-        send("250 ok\n"),
-        expect("DATA"),
-        send("354 go\n"),
-        Step::Data(data.to_owned()),
-        send("250 queued\n"),
-    ]
-}
-
 #[tokio::test]
 async fn a_quoted_local_part_is_a_mailbox() {
     let from = r#""ann \"a\" lee"@example.com"#;
@@ -351,11 +317,13 @@ async fn a_quoted_local_part_is_a_mailbox() {
         transaction(
             &format!("MAIL FROM:<{from}>"),
             &format!("RCPT TO:<{to}>"),
-            "x",
+            "Subject: x\n\nx",
         ),
     )
     .await;
-    smtp.send(from, &[to.to_owned()], b"x\r\n").await.unwrap();
+    smtp.send(from, &[to.to_owned()], b"Subject: x\r\n\r\nx\r\n")
+        .await
+        .unwrap();
     script.await.unwrap().unwrap();
 }
 
@@ -377,82 +345,5 @@ async fn a_dot_opening_the_first_line_is_stuffed() {
     )
     .await
     .unwrap();
-    script.await.unwrap().unwrap();
-}
-
-#[tokio::test]
-async fn a_utf8_header_needs_smtputf8() {
-    let message = "Subject: 您好\r\n\r\nhi\r\n";
-    let (mut smtp, script) = logged_in(
-        "250-mx\n250-SMTPUTF8\n250 AUTH PLAIN\n",
-        transaction(
-            "MAIL FROM:<ann@example.com> SMTPUTF8",
-            "RCPT TO:<bo@example.com>",
-            "Subject: 您好\n\nhi",
-        ),
-    )
-    .await;
-    let to = ["bo@example.com".to_owned()];
-    smtp.send("ann@example.com", &to, message.as_bytes())
-        .await
-        .unwrap();
-    script.await.unwrap().unwrap();
-
-    let (mut smtp, script) = logged_in("250-mx\n250 AUTH PLAIN\n", vec![]).await;
-    let err = smtp
-        .send("ann@example.com", &to, message.as_bytes())
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(&err, Error::Invalid(text) if text.contains("headers")),
-        "{err}"
-    );
-    script.await.unwrap().unwrap();
-
-    let (mut smtp, script) = logged_in(
-        "250-mx\n250 AUTH PLAIN\n",
-        transaction(
-            "MAIL FROM:<ann@example.com>",
-            "RCPT TO:<bo@example.com>",
-            "Subject: hi\n\n您好",
-        ),
-    )
-    .await;
-    smtp.send(
-        "ann@example.com",
-        &to,
-        "Subject: hi\r\n\r\n您好\r\n".as_bytes(),
-    )
-    .await
-    .unwrap();
-    script.await.unwrap().unwrap();
-}
-
-#[tokio::test]
-async fn a_utf8_address_needs_smtputf8() {
-    let to = "用户@例子.广告";
-    let (mut smtp, script) = logged_in(
-        "250-mx\n250-SMTPUTF8\n250 AUTH PLAIN\n",
-        transaction(
-            "MAIL FROM:<ann@example.com> SMTPUTF8",
-            &format!("RCPT TO:<{to}>"),
-            "x",
-        ),
-    )
-    .await;
-    smtp.send("ann@example.com", &[to.to_owned()], b"x\r\n")
-        .await
-        .unwrap();
-    script.await.unwrap().unwrap();
-
-    let (mut smtp, script) = logged_in("250-mx\n250 AUTH PLAIN\n", vec![]).await;
-    let err = smtp
-        .send("ann@example.com", &[to.to_owned()], b"x\r\n")
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(&err, Error::Invalid(text) if text.contains("non-ASCII")),
-        "{err}"
-    );
     script.await.unwrap().unwrap();
 }

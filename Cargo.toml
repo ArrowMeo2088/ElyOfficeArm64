@@ -58,6 +58,8 @@ security-framework = "3.7"
 objc2-pdf-kit = { version = "0.3", default-features = false, features = ["PDFDocument", "PDFPage", "objc2-app-kit"] }
 imap-proto = "0.17"
 nom = "8"
+mail-builder = { version = "1.0", default-features = false }
+mail-parser = { version = "0.11", features = ["full_encoding"] }
 mail-send = { version = "0.6", default-features = false, features = ["ring", "tls12"] }
 rcgen = "0.14"
 rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }

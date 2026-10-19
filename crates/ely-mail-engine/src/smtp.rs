@@ -22,6 +22,8 @@ pub struct Smtp {
     client: SmtpClient<Stream>,
     /// The server takes UTF-8 addresses (SMTPUTF8).
     utf8: bool,
+    /// The server takes 8-bit bodies (8BITMIME).
+    eight: bool,
 }
 
 impl Smtp {
@@ -69,7 +71,12 @@ impl Smtp {
         }
         log::info!("mail: SMTP login on {}", server.host);
         let utf8 = hello.has_capability(smtp_proto::EXT_SMTP_UTF8);
-        Ok(Self { client, utf8 })
+        let eight = hello.has_capability(smtp_proto::EXT_8BIT_MIME);
+        Ok(Self {
+            client,
+            utf8,
+            eight,
+        })
     }
 
     /// Hands one message to the server for these recipients.
@@ -81,12 +88,21 @@ impl Smtp {
             mailbox(email)?;
         }
         let data = data(message)?;
+        let headers = crate::mime::utf8_headers(message)?;
         let mut params = Parameters::new();
-        let header = message
+        let body = message
             .windows(4)
             .position(|end| end == b"\r\n\r\n")
-            .map_or(message, |at| &message[..at]);
-        if !from.is_ascii() || to.iter().any(|to| !to.is_ascii()) || !header.is_ascii() {
+            .map_or(&[][..], |at| &message[at..]);
+        if !body.is_ascii() {
+            if !self.eight {
+                return Err(Error::Invalid(
+                    "the server does not take 8-bit message bodies".into(),
+                ));
+            }
+            params.add(("BODY", "8BITMIME"));
+        }
+        if !from.is_ascii() || to.iter().any(|to| !to.is_ascii()) || headers {
             if !self.utf8 {
                 return Err(Error::Invalid(
                     "the server does not take non-ASCII addresses or headers".into(),
@@ -185,7 +201,7 @@ fn data(message: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// RFC 5321 §4.1.2 Mailbox, with RFC 6531 UTF-8.
-fn mailbox(email: &str) -> Result<()> {
+pub(crate) fn mailbox(email: &str) -> Result<()> {
     let readable = email.rsplit_once('@').is_some_and(|(local, domain)| {
         let local = match local
             .strip_prefix('"')

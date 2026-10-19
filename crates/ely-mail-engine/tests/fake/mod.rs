@@ -1,6 +1,8 @@
 //! A scripted mail server over real TLS, for protocol tests.
 #![allow(dead_code)]
 
+pub mod smtp;
+
 use std::sync::Arc;
 
 use ely_mail_engine::{Login, Secret, Security, Server, TlsConnector};
