@@ -1,12 +1,19 @@
 // Answers /release.json with the newest release and downloads.
 const REPO = "https://api.github.com/repos/ELY-Open-Source/ElyOffice";
+// The old home keeps the downloads made before the move.
+const GITEA = "https://git.zacharyzhang.com/api/v1/repos/ZacharyZhang-NY/ElyOffice";
 const PAGE = 100;
+const GITEA_PAGE = 50;
+// A slow Gitea must not hold up the page.
+const GITEA_WAIT = 5000;
 
 type Cached = RequestInit & { cf: { cacheTtl: number; cacheEverything: boolean } };
 type Asset = { name: string; download_count: number };
 type Release = { tag_name: string; assets: Asset[] };
 // A token lifts GitHub's limit for the shared egress addresses: `wrangler secret put GITHUB_TOKEN`.
 type Env = { GITHUB_TOKEN?: string };
+
+const cf = { cacheTtl: 300, cacheEverything: true };
 
 async function read<T>(env: Env, path: string): Promise<T> {
   const headers: Record<string, string> = {
@@ -15,9 +22,20 @@ async function read<T>(env: Env, path: string): Promise<T> {
     "x-github-api-version": "2022-11-28",
   };
   if (env.GITHUB_TOKEN) headers.authorization = `Bearer ${env.GITHUB_TOKEN}`;
-  const init: Cached = { headers, cf: { cacheTtl: 300, cacheEverything: true } };
+  const init: Cached = { headers, cf };
   const res = await fetch(`${REPO}${path}`, init);
   if (!res.ok) throw new Error(`GitHub answered ${res.status} for ${path}`);
+  return (await res.json()) as T;
+}
+
+async function readGitea<T>(path: string): Promise<T> {
+  const init: Cached = {
+    headers: { accept: "application/json", "user-agent": "ely-office-site" },
+    cf,
+    signal: AbortSignal.timeout(GITEA_WAIT),
+  };
+  const res = await fetch(`${GITEA}${path}`, init);
+  if (!res.ok) throw new Error(`Gitea answered ${res.status} for ${path}`);
   return (await res.json()) as T;
 }
 
@@ -28,26 +46,50 @@ async function version(env: Env): Promise<string> {
   return tag.slice(1);
 }
 
-/** Downloads of every release; update manifests are checks, not downloads. */
+/** Downloads of `releases`; update manifests are checks, not downloads. */
+function counted(releases: Release[]): number {
+  let total = 0;
+  for (const { assets } of releases) {
+    for (const a of assets) {
+      if (!Number.isInteger(a.download_count)) throw new Error(`${a.name} has no download count`);
+      if (!a.name.endsWith(".json")) total += a.download_count;
+    }
+  }
+  return total;
+}
+
+/** Downloads of every GitHub release. */
 async function downloads(env: Env): Promise<number> {
   let total = 0;
   for (let page = 1; ; page++) {
     const releases = await read<Release[]>(env, `/releases?per_page=${PAGE}&page=${page}`);
-    for (const { assets } of releases) {
-      for (const a of assets) {
-        if (!Number.isInteger(a.download_count)) throw new Error(`${a.name} has no download count`);
-        if (!a.name.endsWith(".json")) total += a.download_count;
-      }
-    }
+    total += counted(releases);
     if (releases.length < PAGE) return total;
+  }
+}
+
+/** Downloads of every Gitea release; 0 when Gitea is down, slow or odd. */
+async function giteaDownloads(): Promise<number> {
+  try {
+    let total = 0;
+    for (let page = 1; ; page++) {
+      const releases = await readGitea<Release[]>(`/releases?limit=${GITEA_PAGE}&page=${page}`);
+      if (!Array.isArray(releases)) throw new Error("Gitea listed no releases");
+      total += counted(releases);
+      if (releases.length < GITEA_PAGE) return total;
+    }
+  } catch (e) {
+    // The page shows GitHub's count alone.
+    console.warn(`no Gitea downloads: ${e}`);
+    return 0;
   }
 }
 
 export default {
   async fetch(_request: Request, env: Env): Promise<Response> {
     try {
-      const [v, n] = await Promise.all([version(env), downloads(env)]);
-      return Response.json({ version: v, downloads: n }, { headers: { "cache-control": "public, max-age=300" } });
+      const [v, n, old] = await Promise.all([version(env), downloads(env), giteaDownloads()]);
+      return Response.json({ version: v, downloads: n + old }, { headers: { "cache-control": "public, max-age=300" } });
     } catch (e) {
       return new Response(String(e), { status: 502 });
     }
