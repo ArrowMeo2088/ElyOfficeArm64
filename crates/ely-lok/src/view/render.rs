@@ -46,7 +46,9 @@ impl Render for LokView {
         let focus = self.focus.clone();
         let colors = &cx.theme().colors;
         let paper = super::paper();
-        let (selection_color, caret_color) = (colors.selection, colors.focus);
+        // Opaque overlays hide glyphs already painted in the tiles.
+        let selection_color = colors.selection.alpha(colors.selection.a.min(0.3));
+        let caret_color = colors.focus;
         let canvas_color = colors.sunken;
         let caret_width = cx.theme().caret_width().to_pixels(window.rem_size());
         self.handle_size = cx.theme().handle_hit().to_pixels(window.rem_size());
