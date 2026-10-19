@@ -1,5 +1,5 @@
-// Gitea redirects this to the newest release.
-export const RELEASES = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice/releases/latest";
+// GitHub redirects this to the newest release.
+export const RELEASES = "https://github.com/ELY-Open-Source/ElyOffice/releases/latest";
 
 export type Release = { version: string; downloads: number };
 

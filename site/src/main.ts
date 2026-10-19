@@ -11,7 +11,7 @@ import { said, speak, word, type Lang } from "./text.ts";
 import { RELEASES, latest } from "./release.ts";
 import { iconLink } from "./icons.ts";
 
-const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
+const REPO = "https://github.com/ELY-Open-Source/ElyOffice";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("index.html has no #app");
@@ -19,7 +19,7 @@ if (!app) throw new Error("index.html has no #app");
 const hero = document.createElement("header");
 const title = document.createElement("h1");
 title.textContent = "Ely Office";
-const source = iconLink("gitea", "source", REPO);
+const source = iconLink("github", "source", REPO);
 const download = iconLink("download", "get", RELEASES);
 const links = document.createElement("div");
 links.className = "links";
@@ -40,7 +40,7 @@ const count = said("p", "count");
 count.hidden = true;
 const get = said("a", "get");
 get.href = RELEASES;
-footer.append(version, count, said("p", "platforms"), said("p", "needs"), said("p", "unsigned"), get);
+footer.append(version, count, said("p", "platforms"), said("p", "needs"), get);
 
 const toggle = said("button", "other");
 toggle.className = "lang";

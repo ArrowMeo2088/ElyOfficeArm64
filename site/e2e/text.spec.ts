@@ -1,7 +1,7 @@
 import { DOWNLOADS, expect, test, VERSION, type Page } from "./fixtures.ts";
 import { TEXT, word, type Key, type Lang } from "../src/text.ts";
 
-const REPO = "https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice";
+const REPO = "https://github.com/ELY-Open-Source/ElyOffice";
 const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
 const RELEASES = `${REPO}/releases/latest`;
 
@@ -114,10 +114,10 @@ test.describe("English locale", () => {
   });
 
   test("a failed version read shows as an error", async ({ page }) => {
-    await page.route("**/release.json", (r) => r.fulfill({ status: 502, body: "Gitea answered 500" }));
+    await page.route("**/release.json", (r) => r.fulfill({ status: 502, body: "GitHub answered 500" }));
     await page.goto("/");
     await expect.poll(() => errors.length).toBe(1);
-    expect(errors[0]).toContain("Gitea answered 500");
+    expect(errors[0]).toContain("GitHub answered 500");
     await expect(page.locator("#download h2")).toHaveText("Ely Office");
     for (const c of await page.locator("[data-t=count]").all()) await expect(c).toBeHidden();
     errors = [];
@@ -171,23 +171,6 @@ test("the hero links share one baseline in either language", async ({ browser })
     );
     expect(lines).toHaveLength(2);
     expect(Math.abs(lines[0] - lines[1]), locale).toBeLessThan(0.5);
-    await page.close();
-  }
-});
-
-test("the download area tells how to open an unnotarized app", async ({ browser }) => {
-  for (const [locale, words] of [
-    ["en-US", ["System Settings", "Privacy & Security", "Open Anyway"]],
-    ["zh-CN", ["系统设置", "隐私与安全性", "仍要打开"]],
-  ] as const) {
-    const page = await browser.newPage({ locale, reducedMotion: "reduce" });
-    await page.goto("/");
-    const steps = page.locator("#download [data-t=unsigned]");
-    await expect(steps).toBeVisible();
-    for (const word of words) await expect(steps).toContainText(word);
-    await page.locator(".lang").click();
-    await expect(steps).toBeVisible();
-    await expect(steps).not.toContainText(words[0]);
     await page.close();
   }
 });
