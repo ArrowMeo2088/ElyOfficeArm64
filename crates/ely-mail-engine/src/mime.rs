@@ -4,12 +4,13 @@ use mail_builder::{
     mime::MimePart,
 };
 use mail_parser::{Address, HeaderValue, MessageParser};
+use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result, smtp::mailbox};
 
 mod walk;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Mailbox {
     pub name: Option<String>,
     pub email: String,

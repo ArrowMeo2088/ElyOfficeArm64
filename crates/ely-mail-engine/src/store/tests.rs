@@ -1,0 +1,96 @@
+use std::fs;
+
+use rusqlite::Connection;
+
+use super::{BACKUPS, DB, open, schema::STEPS};
+use crate::Error;
+
+const ADD: &str = "ALTER TABLE accounts ADD COLUMN nick TEXT";
+const BROKEN: &str = "ALTER TABLE nowhere ADD COLUMN nick TEXT";
+
+fn version(path: &std::path::Path) -> i64 {
+    Connection::open(path)
+        .unwrap()
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap()
+}
+
+fn backups(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    match fs::read_dir(dir.join(BACKUPS)) {
+        Ok(entries) => entries.map(|entry| entry.unwrap().path()).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+#[test]
+fn a_new_store_is_at_the_last_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = open(dir.path(), STEPS).unwrap();
+    assert_eq!(store.read_only(), None);
+    assert_eq!(version(&dir.path().join(DB)), STEPS.len() as i64);
+    assert!(backups(dir.path()).is_empty());
+}
+
+#[test]
+fn an_upgrade_backs_up_first() {
+    let dir = tempfile::tempdir().unwrap();
+    open(dir.path(), &[STEPS[0]])
+        .unwrap()
+        .add_account("ann@example.com")
+        .unwrap();
+    let store = open(dir.path(), &[STEPS[0], ADD]).unwrap();
+    assert_eq!(store.read_only(), None);
+    assert_eq!(version(&dir.path().join(DB)), 2);
+    let [backup] = backups(dir.path()).try_into().unwrap();
+    assert_eq!(version(&backup), 1);
+    let accounts: i64 = Connection::open(&backup)
+        .unwrap()
+        .query_row("SELECT count(*) FROM accounts", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(accounts, 1);
+}
+
+#[test]
+fn a_failed_upgrade_keeps_the_data_and_refuses_writes() {
+    let dir = tempfile::tempdir().unwrap();
+    open(dir.path(), &[STEPS[0]])
+        .unwrap()
+        .add_account("ann@example.com")
+        .unwrap();
+    let store = open(dir.path(), &[STEPS[0], ADD, BROKEN]).unwrap();
+    let reason = store.read_only().unwrap();
+    assert!(reason.contains("v1 to v3"), "{reason}");
+    assert_eq!(store.accounts().unwrap()[0].1, "ann@example.com");
+    let err = store.add_account("bo@example.com").unwrap_err();
+    assert!(matches!(err, Error::ReadOnly(_)), "{err}");
+    drop(store);
+    assert_eq!(version(&dir.path().join(DB)), 1);
+    assert_eq!(backups(dir.path()).len(), 1);
+    let partial = Connection::open(dir.path().join(DB))
+        .unwrap()
+        .prepare("SELECT nick FROM accounts")
+        .map(drop);
+    assert!(partial.is_err(), "the first step was not rolled back");
+}
+
+#[test]
+fn a_newer_schema_is_read_only() {
+    let dir = tempfile::tempdir().unwrap();
+    drop(open(dir.path(), &[STEPS[0], ADD]).unwrap());
+    let store = open(dir.path(), &[STEPS[0]]).unwrap();
+    let reason = store.read_only().unwrap();
+    assert!(reason.contains("newer"), "{reason}");
+    assert!(store.accounts().unwrap().is_empty());
+}
+
+#[test]
+fn no_backup_means_no_upgrade() {
+    let dir = tempfile::tempdir().unwrap();
+    drop(open(dir.path(), &[STEPS[0]]).unwrap());
+    fs::write(dir.path().join(BACKUPS), b"a file in the way").unwrap();
+    let store = open(dir.path(), &[STEPS[0], ADD]).unwrap();
+    let reason = store.read_only().unwrap();
+    assert!(reason.contains("no backup"), "{reason}");
+    drop(store);
+    assert_eq!(version(&dir.path().join(DB)), 1);
+}

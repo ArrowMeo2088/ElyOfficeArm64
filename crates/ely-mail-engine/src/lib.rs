@@ -6,6 +6,7 @@ mod mime;
 mod net;
 mod pop;
 mod smtp;
+mod store;
 mod wire;
 
 pub use error::{Error, Result};
@@ -14,4 +15,5 @@ pub use mime::{Built, Draft, Mail, Mailbox, Part, build, read};
 pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
+pub use store::{AccountId, Fetched, Key, MailboxId, MessageId, Sizes, Store, Stored};
 pub use tokio_rustls::TlsConnector;

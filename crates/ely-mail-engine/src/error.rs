@@ -21,6 +21,10 @@ pub enum Error {
     Invalid(String),
     /// A message that cannot be read or written.
     Mime(String),
+    /// The local store failed: database, disk or damage.
+    Store(String),
+    /// The store refuses writes; the reason says why.
+    ReadOnly(String),
 }
 
 impl fmt::Display for Error {
@@ -34,8 +38,22 @@ impl fmt::Display for Error {
             Self::Timeout(step) => write!(f, "no answer while {step}"),
             Self::Invalid(text) => write!(f, "cannot be sent: {text}"),
             Self::Mime(text) => write!(f, "unreadable message: {text}"),
+            Self::Store(text) => write!(f, "local store failed: {text}"),
+            Self::ReadOnly(text) => write!(f, "local store is read-only: {text}"),
         }
     }
 }
 
 impl std::error::Error for Error {}
+
+impl From<rusqlite::Error> for Error {
+    fn from(err: rusqlite::Error) -> Self {
+        Self::Store(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Store(format!("a stored field: {err}"))
+    }
+}
