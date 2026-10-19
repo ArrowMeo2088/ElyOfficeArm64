@@ -5,7 +5,8 @@ on:
     tags: ['v*']
 jobs:
   macos:
-    runs-on: macos-arm64
+    # A GUI-session agent: daemons see no login keychain.
+    runs-on: macos-signing
     timeout-minutes: 720
     steps:
       - name: Build, package and upload for macOS
