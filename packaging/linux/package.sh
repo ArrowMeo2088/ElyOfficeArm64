@@ -192,7 +192,7 @@ release: 1
 maintainer: ZacharyZhang
 vendor: ZacharyZhang
 description: $name, part of Ely Office
-homepage: https://git.zacharyzhang.com/ZacharyZhang-NY/ElyOffice
+homepage: https://github.com/ELY-Open-Source/ElyOffice
 license: AGPL-3.0-or-later
 contents:
   - src: $appdir/usr
