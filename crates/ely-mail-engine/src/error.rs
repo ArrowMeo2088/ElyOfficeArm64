@@ -25,6 +25,14 @@ pub enum Error {
     Store(String),
     /// The store refuses writes; the reason says why.
     ReadOnly(String),
+    /// The system credential store failed.
+    Vault(String),
+    /// This build has no client ID for the provider.
+    Unavailable(&'static str),
+    /// Sign-in did not finish; the reason says why.
+    SignIn(String),
+    /// The provider revoked the refresh token.
+    SignInAgain(String),
 }
 
 impl fmt::Display for Error {
@@ -40,6 +48,10 @@ impl fmt::Display for Error {
             Self::Mime(text) => write!(f, "unreadable message: {text}"),
             Self::Store(text) => write!(f, "local store failed: {text}"),
             Self::ReadOnly(text) => write!(f, "local store is read-only: {text}"),
+            Self::Vault(text) => write!(f, "credential store failed: {text}"),
+            Self::Unavailable(name) => write!(f, "{name} sign-in is not in this build"),
+            Self::SignIn(text) => write!(f, "sign-in failed: {text}"),
+            Self::SignInAgain(text) => write!(f, "sign in again: {text}"),
         }
     }
 }

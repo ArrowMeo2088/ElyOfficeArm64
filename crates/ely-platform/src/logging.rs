@@ -7,7 +7,8 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use env_logger::{Builder, Env, Target};
+use env_logger::{Builder, Env, Logger, Target};
+use log::{Level, Log, Metadata, Record};
 
 use crate::{AppId, data_dir};
 
@@ -25,6 +26,31 @@ impl Write for Tee {
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()?;
         io::stderr().flush()
+    }
+}
+
+/// The HTTP library logs raw bytes, tokens too.
+struct Private(Logger);
+
+fn wire(meta: &Metadata) -> bool {
+    let target = meta.target();
+    let http = target == "ureq" || target.starts_with("ureq::") || target.starts_with("ureq_proto");
+    http && meta.level() > Level::Info
+}
+
+impl Log for Private {
+    fn enabled(&self, meta: &Metadata) -> bool {
+        !wire(meta) && self.0.enabled(meta)
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            self.0.log(record);
+        }
+    }
+
+    fn flush(&self) {
+        self.0.flush();
     }
 }
 
@@ -66,10 +92,12 @@ pub fn init_in(app: AppId, dir: &Path) -> Result<()> {
         .append(true)
         .open(&path)
         .with_context(|| format!("cannot open {}", path.display()))?;
-    Builder::from_env(Env::new().filter_or("ELY_LOG", "info"))
+    let logger = Builder::from_env(Env::new().filter_or("ELY_LOG", "info"))
         .target(Target::Pipe(Box::new(Tee(file))))
-        .try_init()
-        .context("a logger is already set")?;
+        .build();
+    let level = logger.filter();
+    log::set_boxed_logger(Box::new(Private(logger))).context("a logger is already set")?;
+    log::set_max_level(level);
     LOG_PATH.set(path).expect("the logger was set once");
 
     let previous = panic::take_hook();

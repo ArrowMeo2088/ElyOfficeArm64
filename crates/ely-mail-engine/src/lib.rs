@@ -4,9 +4,11 @@ mod error;
 mod imap;
 mod mime;
 mod net;
+pub mod oauth;
 mod pop;
 mod smtp;
 mod store;
+mod vault;
 mod wire;
 
 pub use error::{Error, Result};
@@ -17,3 +19,4 @@ pub use pop::Pop;
 pub use smtp::Smtp;
 pub use store::{AccountId, Fetched, Key, MailboxId, MessageId, Sizes, Store, Stored};
 pub use tokio_rustls::TlsConnector;
+pub use vault::{Backend, Kept, Keyring, Vault};
