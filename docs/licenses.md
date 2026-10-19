@@ -32,5 +32,5 @@ Ely Office 的自有代码以 AGPL-3.0-or-later 发布，全文在仓库根的 `
 ## 未尽之处
 
 - LibreOffice 的整份源码（数 GB）不随发行，只给钉住的上游提交与我们的补丁；内核构建时下载的外部库（`external/tarballs`）是否需随包提供源码，待法律审查。
-- 第二批的 MailCore 2 与 ElyAgent 依赖随第二批补上。
+- ElyAgent 的依赖随第二批补上；ElyMail 的 crate 由 `rust-crates.txt` 收集。
 - Windows 与 Linux 的打包脚本未在本机运行，其许可收集未验证。

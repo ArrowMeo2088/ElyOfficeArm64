@@ -36,7 +36,7 @@ fetch() { # name url rev [sparse paths...]
   echo "fetch $name $rev"
 }
 
-fetch Ely-GPUI-Components https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components.git 5a53c08c844210ea80c6a92aec708e2de8ffa721
+fetch Ely-GPUI-Components https://git.zacharyzhang.com/ZacharyZhang-NY/Ely-GPUI-Components.git de961eb164c1c88797ea35f0860aba9d18c95e4f
 fetch zed https://github.com/zed-industries/zed.git 1a28cff4b409169bac058bca40dfbfeb7621d19b
 fetch libreoffice-core https://github.com/LibreOffice/core.git 8221e31b3ac356a1623c672912a3d2b492f7e3d1 \
   include/LibreOfficeKit libreofficekit desktop/source/lib desktop/inc \
@@ -45,9 +45,6 @@ fetch mupdf https://github.com/ArtifexSoftware/mupdf.git 8ad45e92f0935d3d87f1db3
 git -C "$ref/mupdf" submodule update --init --depth 1 --recursive
 fetch git https://github.com/git/git.git a018953688f1b10bddf91bff8747068f5f4746a4
 fetch tesseract https://github.com/tesseract-ocr/tesseract.git db0ec62f81b0737fbbe184d8fea40af5738f8eef
-fetch mailcore2 https://github.com/MailCore/mailcore2.git 1b48bab20b2492fa8ed3965abcbbe099d4ce9d92
-git -C "$ref/mailcore2" submodule update --init --depth 1 --recursive
-fetch libetpan https://github.com/dinhviethoa/libetpan.git 4d478625c4c43721191ae1bd7aed387a66c28ec0
 fetch marktext https://github.com/marktext/marktext.git b29cb5621e12cedb801c1cd886d9005159feaa2e
 fetch colamd https://github.com/marswaveai/ColaMD.git 5e0f3c3584bb771180afe1a4670efbaf28dee65b
 fetch magpie https://github.com/yetone/magpie.git e4c8316e3fa9d73683079df3f9142561265bc1bb
