@@ -22,7 +22,7 @@ Ely Office 提供八个桌面应用。用户可以写文档、计算表格、制
 | ElyTable | 电子表格编辑与计算 | LOK | XLSX、ODS、CSV |
 | ElyShow | 演示文稿编辑与放映 | LOK | PPTX、ODP |
 | ElyPDF | PDF 阅读、编辑、批注、表单和页面处理 | MuPDF；OCR 复用 Tesseract | PDF |
-| ElyMail | 邮件收发、本地存储和搜索 | Rust 的 async-imap、async-pop、mail-send、mail-parser、mail-builder，加本地同步与存储 | 邮件、附件、草稿 |
+| ElyMail | 邮件收发、本地存储和搜索 | Rust 的 mail-send、mail-parser、mail-builder（IMAP 与 POP3 由引擎自写），加本地同步与存储 | 邮件、附件、草稿 |
 | ElyTree | Git 图形化版本管理 | Git CLI | 本地 Git 仓库 |
 | ElyMark | 本地 Markdown 编辑 | Ely-GPUI-Components 的 Markdown 文档组件，markdown-rs 解析；参考 MarkText、ColaMD、Markion | Markdown 与本地附件 |
 | ElyAgent | 独立的 Agent 配置与会话管理 | 嵌入的 Kigi CLI Rust 代码 | 配置、会话记录、运行状态 |
@@ -375,7 +375,7 @@ XFA 动态表单、任意嵌入脚本执行、专业印前分色及 PDF 到 Offi
 
 ### 12.1 定位与后端
 
-提供多账号邮件客户端，不建设邮件托管服务。协议与 MIME 用 Rust crate（用户 2026-10-19 定，取代 MailCore 2）：async-imap 收 IMAP，async-pop 收 POP3，mail-send 发 SMTP，mail-parser 读 MIME，mail-builder 写 MIME。它们在应用进程的后台任务里运行，不另起工作进程。Ely 负责账号流程、本地存储、搜索、同步队列和界面。
+提供多账号邮件客户端，不建设邮件托管服务。协议与 MIME 用 Rust crate（用户 2026-10-19 定，取代 MailCore 2）：IMAP（imap-proto 解析）与 POP3 由 Ely 自写（async-imap 与 async-pop 有数处缺陷，C12.1 审查查出），mail-send 发 SMTP，mail-parser 读 MIME，mail-builder 写 MIME。它们在应用进程的后台任务里运行，不另起工作进程。Ely 负责账号流程、本地存储、搜索、同步队列和界面。
 
 默认布局为账号与文件夹、邮件列表、阅读区。写信可在独立窗口打开。HTML 正文与写信不用 CEF 与 Electron（用户 2026-10-19 定）：正文以 html5ever 解析，净化后按块的子集由 GPUI 绘制（段落、标题、列表、引用、表格、图片、链接、粗斜体与颜色），脚本、定位、浮动与样式表之外的版式不画，不当作完整页面渲染；写信用组件库的 Markdown 文档组件，发出纯文本与由 markdown-rs 生成的 HTML 两部分。
 
