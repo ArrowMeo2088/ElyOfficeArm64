@@ -3,14 +3,13 @@
 use std::io;
 
 use ely_gpui_component::documents::{
-    MarkdownBlock, MarkdownReader, alert, is_toc, markdown_options,
+    MarkdownBlock, MarkdownReader, alert, is_toc, markdown_tree,
 };
 use markdown::mdast::Node;
 
 /// `text` as plain text, a blank line between blocks.
 pub fn plain(text: &str) -> io::Result<String> {
-    let tree = markdown::to_mdast(text, &markdown_options())
-        .map_err(|error| io::Error::other(error.to_string()))?;
+    let tree = markdown_tree(text);
     let reader = MarkdownReader::joined(text, &tree);
     let mut blocks = Vec::new();
     // Alerts and `[toc]` live only at the root.
@@ -75,7 +74,15 @@ fn block(reader: &MarkdownReader, node: &Node, blocks: &mut Vec<String>) {
                 block(reader, child, blocks);
             }
         }
-        Node::Paragraph(_) | Node::Heading(_) => blocks.push(words(reader, node)),
+        Node::Paragraph(_) => {
+            let mut read = Vec::new();
+            reader.block(node, &mut read);
+            match read.as_slice() {
+                [MarkdownBlock::Math(tex)] => blocks.push(tex.clone()),
+                _ => blocks.push(words(reader, node)),
+            }
+        }
+        Node::Heading(_) => blocks.push(words(reader, node)),
         Node::Html(_) => {
             let mut read = Vec::new();
             reader.block(node, &mut read);

@@ -10,7 +10,7 @@ mod tests;
 
 use std::{io, path::Path};
 
-use ely_gpui_component::documents::markdown_options;
+use ely_gpui_component::documents::markdown_tree;
 
 pub use files::{Format, Target, write};
 pub use pictures::{Pictures, picture_file};
@@ -43,8 +43,7 @@ pub fn body(text: &str, beside: Option<&Path>, pictures: &Pictures) -> io::Resul
 
 /// `text`'s body; `placed` keeps what it copied.
 fn page_of(text: &str, placed: &mut pictures::Placed) -> io::Result<Page> {
-    let tree = markdown::to_mdast(text, &markdown_options())
-        .map_err(|error| io::Error::other(error.to_string()))?;
+    let tree = markdown_tree(text);
     let mut page = Page::default();
     html::write(&tree, text, placed, &mut page)?;
     log::info!(

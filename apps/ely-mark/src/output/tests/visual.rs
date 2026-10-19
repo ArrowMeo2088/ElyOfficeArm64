@@ -1,7 +1,7 @@
 //! Exports read the file as the visual mode does (R4.4).
 
 use super::{Pictures, page, plain};
-use crate::output::{Page, html::write, markdown_options, pictures::Placed};
+use crate::output::{Page, html::write, markdown_tree, pictures::Placed};
 
 fn html(text: &str) -> String {
     page(text, None, &Pictures::Inline).html
@@ -160,7 +160,7 @@ fn notes_under_deep_marks_write_in_linear_time() {
             "<b>".repeat(count),
             "x[^n] ".repeat(count)
         );
-        let tree = markdown::to_mdast(&source, &markdown_options()).expect("parsed");
+        let tree = markdown_tree(&source);
         let mut placed = Placed::new(None, &Pictures::Inline);
         let start = std::time::Instant::now();
         write(&tree, &source, &mut placed, &mut Page::default()).expect("written");
@@ -236,4 +236,18 @@ fn a_soft_break_joins_in_exports_as_typora_exports_it() {
     let page = html("你好\n测试  \nend\n");
     assert!(page.contains("<p>你好 测试<br>end</p>"), "{page}");
     assert_eq!(text("你好\n测试\n"), "你好 测试\n");
+}
+
+#[test]
+fn tex_delimiters_export_as_formulas() {
+    let source = r"a \(x^2\) b
+
+\[
+y+1
+\]
+";
+    let page = page(source, None, &Pictures::Inline);
+    assert_eq!(page.html.matches("<svg").count(), 2, "{}", page.html);
+    assert!(page.formulas.is_empty(), "{:?}", page.formulas);
+    assert_eq!(text(source), "a x^2 b\n\ny+1\n");
 }
