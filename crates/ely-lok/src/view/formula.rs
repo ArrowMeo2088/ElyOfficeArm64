@@ -11,6 +11,9 @@ use gpui::{
 
 use super::{LokView, input::Input};
 
+mod completion;
+pub(super) use completion::Completion;
+
 impl LokView {
     /// The sheet shown, which reference marks follow.
     pub fn set_part(&mut self, part: usize) {
@@ -48,7 +51,7 @@ impl LokView {
     /// Up and Down walk the offered functions.
     pub(super) fn walk(&mut self, keystroke: &Keystroke, cx: &mut Context<Self>) -> bool {
         let count = self.cell.functions.len();
-        if count == 0 || keystroke.modifiers != Modifiers::none() {
+        if count == 0 || self.completion.pending() || keystroke.modifiers != Modifiers::none() {
             return false;
         }
         self.picked = match keystroke.key.as_str() {
@@ -62,32 +65,42 @@ impl LokView {
 
     /// Takes the chosen function, in order with typing.
     pub(super) fn complete(&mut self) -> bool {
+        if self.completion.pending() {
+            return false;
+        }
         let Some(item) = self.offered().into_iter().nth(self.picked) else {
             return false;
         };
-        log::info!("lok: completes {}", item.label);
-        self.send(Input::Complete(item.label.to_string()));
-        self.cell.functions.clear();
+        self.complete_function(&item.label)
+    }
+
+    fn complete_function(&mut self, name: &str) -> bool {
+        if self.completion.pending() || !self.cell.functions.iter().any(|item| item.name == name) {
+            return false;
+        }
+        log::info!("lok: completes {name}");
+        self.send(Input::Complete(name.to_string()));
+        self.completion.queued(self.sent);
         self.picked = 0;
         true
     }
 
     /// The offered functions, else the call's usage, under the cell.
     pub(super) fn hints(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if self.completion.pending() {
+            return None;
+        }
         let cell = self.screen_rect(self.cell.cursor?);
         let hint = if self.cell.functions.is_empty() {
             SignatureHelp::new("lok-view-usage", [usage(&self.cell.usage)?]).into_any_element()
         } else {
             let this = cx.entity();
             let offered = self.offered();
-            let labels: Vec<_> = offered.iter().map(|item| item.label.clone()).collect();
             CompletionMenu::new("lok-view-functions", offered)
                 .selected(self.picked)
                 .on_pick(move |item, _, cx| {
-                    let at = labels.iter().position(|label| *label == item.label);
                     this.update(cx, |view, cx| {
-                        view.picked = at.expect("a picked item is offered");
-                        view.complete();
+                        view.complete_function(&item.label);
                         cx.notify();
                     })
                 })

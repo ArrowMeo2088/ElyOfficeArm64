@@ -58,15 +58,26 @@ fn validation_help_and_arrow_do_not_select_the_cells_behind_them() {
     let window = cx.add_window(|_, _| Grid(book.clone()));
     let mut shown = VisualTestContext::from_window(window.into(), &cx);
     frames(&mut shown);
-    let (view, help, arrow) = shown.update(|_, app| {
+    let (view, help, arrow, handle) = shown.update(|_, app| {
         let view = book.read(app).active_tab().expect("a tab").view.clone();
         let read = view.read(app);
         let (x, y, w, h) = read.cell().cursor.expect("the cell cursor");
         let help = read.origin() + read.place((x, y + h)) + point(px(8.0), px(8.0));
         let arrow = read.origin() + read.place((x + w, y + h / 2)) + point(px(8.0), px(0.0));
-        (view.clone(), help, arrow)
+        let handle = read.origin() + read.place((x + w, y + h)) - point(px(1.0), px(1.0));
+        (view.clone(), help, arrow, handle)
     });
     let sent = shown.update(|_, app| view.read(app).sent());
+    shown.simulate_mouse_down(handle, MouseButton::Left, Modifiers::none());
+    assert!(
+        shown.update(|_, app| matches!(book.read(app).drag, Some(crate::grid::Drag::Fill { .. })))
+    );
+    shown.simulate_mouse_move(help, MouseButton::Left, Modifiers::none());
+    shown.simulate_mouse_up(help, MouseButton::Left, Modifiers::none());
+    assert!(
+        shown.update(|_, app| book.read(app).drag.is_none()),
+        "releasing over help must end the drag"
+    );
     shown.simulate_click(help, Modifiers::none());
     assert_eq!(
         shown.update(|_, app| view.read(app).sent()),

@@ -313,10 +313,14 @@ impl LokView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let completing = self.completion.pending();
         if self.walk(&event.keystroke, cx)
             || self.turn_key(&event.keystroke)
             || self.key_down(&event.keystroke)
         {
+            if !completing && self.completion.pending() {
+                cx.notify();
+            }
             cx.stop_propagation();
         }
     }
@@ -431,8 +435,10 @@ impl LokView {
         self.send(Input::Paste);
     }
 
-    pub(super) fn on_next_field(&mut self, _: &NextField, _: &mut Window, _: &mut Context<Self>) {
-        if !self.complete() {
+    pub(super) fn on_next_field(&mut self, _: &NextField, _: &mut Window, cx: &mut Context<Self>) {
+        if self.complete() {
+            cx.notify();
+        } else {
             self.key_down(&Keystroke::parse("tab").expect("a keystroke"));
         }
     }

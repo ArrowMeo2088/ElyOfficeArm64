@@ -107,6 +107,7 @@ impl LokView {
                     }
                     self.edited += u64::from(edits);
                     let (outcome, now) = outcome;
+                    self.completion.landed(seq, if outcome.is_ok() { now } else { None });
                     if edits {
                         self.clock.landed(now);
                     }

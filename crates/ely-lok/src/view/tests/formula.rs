@@ -43,12 +43,20 @@ fn enter_completes_the_selected_function_without_leaving_the_cell() {
         .address
         .is_empty()));
     let address = window.update(|_, app| view.read(app).cell.address.clone());
-    view.update(window, |view, _| view.commit(None, "=look"));
+    view.update(window, |view, _| view.commit(None, "=lo"));
     assert!(settle(window, |app| {
         let functions = &view.read(app).cell.functions;
-        functions.len() == 1 && functions[0].name == "LOOKUP"
+        functions.iter().any(|item| item.name == "LOOKUP")
+            && functions.iter().any(|item| item.name == "LOG")
     }));
-    window.simulate_keystrokes("enter");
+    // Keep two valid offers to exercise keyboard selection.
+    view.update(window, |view, cx| {
+        view.cell
+            .functions
+            .retain(|item| item.name == "LOG" || item.name == "LOOKUP");
+        cx.notify();
+    });
+    window.simulate_keystrokes("down enter");
     assert!(
         settle(window, |app| {
             let view = view.read(app);
@@ -104,16 +112,18 @@ fn accepting_a_candidate_consumes_it_before_the_worker_answers() {
         .any(|item| item.name == "LOOKUP")));
     let held = worker.lock().expect("the worker lock");
     cx.update(|app| {
-        view.update(app, |view, _| {
+        view.update(app, |view, cx| {
+            let old = Events {
+                revision: view.doc.rev,
+                cell: view.cell.clone(),
+                ..Events::default()
+            };
             let before = view.sent();
             assert!(view.key_down(&Keystroke::parse("enter").expect("Enter")));
-            assert!(
-                view.cell.functions.is_empty(),
-                "accepted candidates cannot be reused"
-            );
+            view.apply_batch(old, None, cx);
             assert!(
                 !view.complete(),
-                "a second acceptance must not queue another completion"
+                "an old event must not reoffer an accepted candidate"
             );
             assert_eq!(view.sent(), before + 1);
             assert!(view.key_down(&Keystroke::parse("enter").expect("Enter")));
@@ -186,6 +196,17 @@ fn clicking_a_function_does_not_send_mouse_input_to_the_sheet() {
         assert!(
             !view.dragging,
             "the candidate press never starts a sheet drag"
+        );
+    });
+    // Change candidates without repainting the already pressed row.
+    view.update(window, |view, _| {
+        view.cell.functions.insert(
+            0,
+            crate::Function {
+                name: "LOG".into(),
+                signature: String::new(),
+                description: String::new(),
+            },
         );
     });
     window.simulate_mouse_up(on, gpui::MouseButton::Left, Default::default());
