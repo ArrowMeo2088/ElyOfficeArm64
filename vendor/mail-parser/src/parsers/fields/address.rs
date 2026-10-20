@@ -31,6 +31,11 @@ pub struct AddressParser<'x> {
     state: AddressState,
     state_stack: Vec<AddressState>,
 
+    // Where the open quote's text starts in `name_tokens`.
+    quote_start: usize,
+    // Quote closed here; a following `@` means local part.
+    quoted: Option<usize>,
+
     addresses: Vec<Addr<'x>>,
     group_name: Option<Cow<'x, str>>,
     group_comment: Option<Cow<'x, str>>,
@@ -227,6 +232,9 @@ impl<'x> MessageStream<'x> {
             state: AddressState::Name,
             state_stack: Vec::with_capacity(5),
 
+            quote_start: 0,
+            quoted: None,
+
             addresses: Vec::new(),
             group_name: None,
             group_comment: None,
@@ -234,6 +242,9 @@ impl<'x> MessageStream<'x> {
         };
 
         while let Some(ch) = self.next() {
+            if !matches!(ch, b' ' | b'\t' | b'\r' | b'\n' | b'@') {
+                parser.quoted = None;
+            }
             match ch {
                 b'\n' => {
                     parser.add_token(self);
@@ -253,7 +264,10 @@ impl<'x> MessageStream<'x> {
                         break;
                     }
                 }
-                b'\\' if parser.state != AddressState::Name && !parser.is_escaped => {
+                b'\\'
+                    if !matches!(parser.state, AddressState::Name | AddressState::Address)
+                        && !parser.is_escaped =>
+                {
                     if parser.token_start > 0 {
                         if parser.state == AddressState::Quote {
                             parser.token_end = self.offset() - 1;
@@ -285,16 +299,26 @@ impl<'x> MessageStream<'x> {
                         parser.state_stack.push(AddressState::Name);
                         parser.state = AddressState::Quote;
                         parser.add_token(self);
+                        parser.quote_start = parser.name_tokens.len();
                         continue;
                     }
                     AddressState::Quote => {
                         parser.add_token(self);
                         parser.state = parser.state_stack.pop().unwrap();
+                        if parser.state == AddressState::Name {
+                            parser.quoted = Some(parser.quote_start);
+                        }
                         continue;
                     }
                     _ => (),
                 },
                 b'@' if parser.state == AddressState::Name => {
+                    if let Some(start) = parser.quoted.take()
+                        && parser.token_start == 0
+                    {
+                        let local: String = parser.name_tokens.drain(start..).collect();
+                        parser.mail_tokens.push(quote_local(&local).into());
+                    }
                     parser.is_token_email = true;
                 }
                 b'=' if parser.is_token_start && !parser.is_escaped && self.peek_char(b'?') => {
@@ -384,6 +408,20 @@ impl<'x> MessageStream<'x> {
             HeaderValue::Empty
         }
     }
+}
+
+// A local part quoted again, as RFC 5322 writes it.
+fn quote_local(local: &str) -> String {
+    let mut quoted = String::with_capacity(local.len() + 2);
+    quoted.push('"');
+    for ch in local.chars() {
+        if matches!(ch, '"' | '\\') {
+            quoted.push('\\');
+        }
+        quoted.push(ch);
+    }
+    quoted.push('"');
+    quoted
 }
 
 fn concat_tokens<'x>(tokens: &mut Vec<Cow<'x, str>>) -> Cow<'x, str> {
