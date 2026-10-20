@@ -16,6 +16,7 @@ use tokio::runtime::Runtime;
 use crate::{
     adding::Adding,
     boxes::{Listing, Open, Unread},
+    identity::Editing,
     reading::Reading,
     removing::Removing,
     side::Side,
@@ -44,7 +45,7 @@ pub struct Mail {
     pub read_only: Option<String>,
     pub vault: Arc<Vault>,
     pub tls: Result<TlsConnector, String>,
-    runtime: Arc<Runtime>,
+    pub(crate) runtime: Arc<Runtime>,
     /// None until read.
     pub accounts: Option<Result<Vec<(AccountId, Account)>, String>>,
     /// Remove acts on its account.
@@ -55,6 +56,8 @@ pub struct Mail {
     pub unread: Unread,
     pub adding: Option<Adding>,
     pub removing: Option<Removing>,
+    /// The open account's sender name and signature.
+    pub identity: Option<Editing>,
     pub syncs: Syncs,
     /// Numbers every sync, even across forgotten accounts.
     pub runs: u64,
@@ -83,6 +86,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         mail.root = root.downgrade();
         window.focus(&mail.focus, cx);
     });
+    crate::writing::guard_leaving(window, cx);
     root
 }
 
@@ -121,6 +125,7 @@ impl Mail {
             unread: Unread::new(),
             adding: None,
             removing: None,
+            identity: None,
             syncs: Syncs::new(),
             runs: 0,
             paused: false,

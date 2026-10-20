@@ -4,8 +4,10 @@
 mod add_view;
 mod adding;
 mod boxes;
+mod compose;
 mod controls;
 mod flow;
+mod identity;
 mod kinds;
 mod letter;
 mod mail;
@@ -18,6 +20,7 @@ mod removing;
 mod side;
 mod syncing;
 mod view;
+mod writing;
 
 #[cfg(test)]
 mod tests;

@@ -149,7 +149,7 @@ fn watch_stalls(cx: &mut App) {
 }
 
 /// A window of `app`, `size` large, with Ely's title bar.
-pub(crate) fn window_options(app: AppId, size: gpui::Size<gpui::Pixels>, cx: &App) -> WindowOptions {
+pub fn window_options(app: AppId, size: gpui::Size<gpui::Pixels>, cx: &App) -> WindowOptions {
     WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size, cx))),
         titlebar: Some(TitlebarOptions {

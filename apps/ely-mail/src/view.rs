@@ -55,7 +55,7 @@ impl Mail {
             .on_click(|_, window, cx| window.dispatch_action(Box::new(menu::AddAccount), cx))
     }
 
-    fn body(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn body(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let error = |key: &str, detail: &str, cx: &App| {
             ErrorView::new("mail-error", IconName::TriangleAlert, text(cx, key, &[]))
                 .detail(detail.to_owned())
@@ -109,6 +109,7 @@ impl Mail {
             .children(self.paused_banner(cx))
             .children(failed)
             .child(details)
+            .children(self.identity_editor(id, window, cx))
             .child(self.sync_buttons(id, cx))
             .children(self.offline_switches(id, protocol, cx))
             .child(div().child(remove));
@@ -241,7 +242,7 @@ pub fn protocol_name(protocol: Protocol) -> &'static str {
 }
 
 impl Render for Mail {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let left = (!self.accounts().is_empty()).then(|| self.side.clone().into());
         let read_only = self.read_only.as_ref().map(|reason| {
             Banner::new(
@@ -253,7 +254,7 @@ impl Render for Mail {
         let shell = Shell::new(AppId::Mail.name(), &self.focus)
             .left(left)
             .children(read_only)
-            .child(self.body(cx));
+            .child(self.body(window, cx));
         div()
             .size_full()
             .key_context(menu::CONTEXT)
@@ -263,6 +264,7 @@ impl Render for Mail {
             )
             .on_action(cx.listener(|mail, _: &menu::RemoveAccount, _, cx| mail.ask_remove(cx)))
             .on_action(cx.listener(|mail, _: &menu::SyncAll, _, cx| mail.sync_all(cx)))
+            .on_action(cx.listener(|mail, _: &menu::NewMessage, _, cx| mail.write_new(cx)))
             .child(shell)
             .children(self.add_dialog(cx))
             .children(self.remove_dialog(cx))

@@ -101,6 +101,23 @@ impl Account {
         Checked { incoming, outgoing }
     }
 
+    /// Hands one built message to the outgoing server.
+    pub async fn send(
+        &self,
+        secret: Secret,
+        envelope: &[String],
+        message: &[u8],
+        tls: &TlsConnector,
+    ) -> Result<()> {
+        let mut smtp = Smtp::connect(&self.outgoing, &self.login(secret), tls).await?;
+        smtp.send(&self.address, envelope, message).await?;
+        // Accepted already; a failed logout changes nothing.
+        if let Err(err) = smtp.quit().await {
+            log::warn!("mail: SMTP logout after sending failed: {err}");
+        }
+        Ok(())
+    }
+
     async fn check_incoming(&self, login: &Login, tls: &TlsConnector) -> Result<()> {
         match self.protocol {
             Protocol::Imap => {

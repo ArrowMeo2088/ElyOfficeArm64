@@ -109,6 +109,14 @@ impl Store {
         .collect()
     }
 
+    pub fn account_of(&self, mailbox: MailboxId) -> Result<AccountId> {
+        Ok(AccountId(self.conn.query_row(
+            "SELECT account FROM mailboxes WHERE id = ?1",
+            [mailbox.0],
+            |row| row.get(0),
+        )?))
+    }
+
     /// Whether the mailbox's mail comes down whole.
     pub fn offline(&self, mailbox: MailboxId) -> Result<bool> {
         Ok(self.conn.query_row(

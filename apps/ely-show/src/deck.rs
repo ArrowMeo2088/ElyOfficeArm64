@@ -152,7 +152,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         opening.update(cx, |deck, cx| deck.open_file(path, cx))
     });
     let closing = deck.clone();
-    window.on_window_should_close(cx, move |window, cx| {
+    ely_gpui_component::shell::guard_close(window, cx, move |window, cx| {
         closing.update(cx, |deck, cx| deck.should_close(window, cx))
     });
     root

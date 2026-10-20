@@ -296,7 +296,7 @@ pub(crate) fn open_in(
         opening.update(cx, |desk, cx| desk.open_path(path, cx))
     });
     let closing = desk.clone();
-    window.on_window_should_close(cx, move |window, cx| {
+    ely_gpui_component::shell::guard_close(window, cx, move |window, cx| {
         closing.update(cx, |desk, cx| {
             desk.leave(cx);
             desk.should_close(window, cx)

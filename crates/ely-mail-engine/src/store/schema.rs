@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -152,4 +152,13 @@ INSERT OR IGNORE INTO links (message, id)
     SELECT m.id, j.value FROM messages m, json_each(m.in_reply_to) j WHERE j.value <> '';
 INSERT OR IGNORE INTO links (message, id)
     SELECT m.id, j.value FROM messages m, json_each(m.refs) j WHERE j.value <> '';
+";
+
+/// Each account's sender name and signature (C12.12).
+const V8: &str = "
+CREATE TABLE identities (
+    account INTEGER PRIMARY KEY REFERENCES accounts ON DELETE CASCADE,
+    name TEXT,
+    signature TEXT NOT NULL
+);
 ";

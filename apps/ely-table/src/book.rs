@@ -170,7 +170,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         opening.update(cx, |book, cx| book.open_asked(path, cx))
     });
     let closing = book.clone();
-    window.on_window_should_close(cx, move |window, cx| {
+    ely_gpui_component::shell::guard_close(window, cx, move |window, cx| {
         closing.update(cx, |book, cx| book.should_close(window, cx))
     });
     root

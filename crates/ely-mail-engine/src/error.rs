@@ -17,6 +17,8 @@ pub enum Error {
     Protocol(String),
     /// The server did not answer in time.
     Timeout(&'static str),
+    /// The message went out; its acceptance is unknown.
+    Unsure(String),
     /// An address or login the protocol cannot carry.
     Invalid(String),
     /// A message that cannot be read or written.
@@ -48,6 +50,7 @@ impl fmt::Display for Error {
             Self::Server(text) => write!(f, "server refused: {text}"),
             Self::Protocol(text) => write!(f, "unreadable reply: {text}"),
             Self::Timeout(step) => write!(f, "no answer while {step}"),
+            Self::Unsure(text) => write!(f, "the server may have accepted it: {text}"),
             Self::Invalid(text) => write!(f, "cannot be sent: {text}"),
             Self::Mime(text) => write!(f, "unreadable message: {text}"),
             Self::Store(text) => write!(f, "local store failed: {text}"),

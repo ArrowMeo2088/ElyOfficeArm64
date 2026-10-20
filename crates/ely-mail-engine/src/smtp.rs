@@ -110,7 +110,7 @@ impl Smtp {
             }
             params.add("SMTPUTF8");
         }
-        let sent = within("sending", async {
+        let handed = within("sending", async {
             self.client.mail_from(from, &params).await?;
             for to in to {
                 self.client.rcpt_to(to, &Parameters::new()).await?;
@@ -118,20 +118,34 @@ impl Smtp {
             self.client.cmd(b"DATA\r\n").await?.assert_code(354)?;
             self.client.stream.write_all(&data).await?;
             self.client.stream.flush().await?;
-            self.client.read().await?.assert_positive_completion()
+            Ok::<_, SendError>(())
         })
         .await?;
-        if let Err(SendError::UnexpectedReply(reply)) = sent {
-            // A refusal leaves the transaction open.
-            let words = format!("{} {}", reply.code(), reply.message());
-            return Err(match within("resetting", self.client.rset()).await? {
-                Ok(()) => Error::Server(words),
-                Err(err) => Error::Server(format!("{words}; RSET failed: {}", failed(err))),
-            });
+        match handed {
+            Err(SendError::UnexpectedReply(reply)) => return Err(self.refused(reply).await),
+            other => other.map_err(failed)?,
         }
-        sent.map_err(failed)?;
+        // The message is out; a lost answer leaves it unknown.
+        let answer = match within("waiting for the server to accept", self.client.read()).await {
+            Ok(Ok(answer)) => answer,
+            Ok(Err(err)) => return Err(Error::Unsure(failed(err).to_string())),
+            Err(err) => return Err(Error::Unsure(err.to_string())),
+        };
+        if let Err(SendError::UnexpectedReply(reply)) = answer.assert_positive_completion() {
+            return Err(self.refused(reply).await);
+        }
         log::info!("mail: SMTP accepted a message for {} recipients", to.len());
         Ok(())
+    }
+
+    /// A refusal leaves the transaction open.
+    async fn refused(&mut self, reply: smtp_proto::Response<String>) -> Error {
+        let words = format!("{} {}", reply.code(), reply.message());
+        match within("resetting", self.client.rset()).await {
+            Ok(Ok(())) => Error::Server(words),
+            Ok(Err(err)) => Error::Server(format!("{words}; RSET failed: {}", failed(err))),
+            Err(err) => Error::Server(format!("{words}; RSET failed: {err}")),
+        }
     }
 
     pub async fn quit(self) -> Result<()> {

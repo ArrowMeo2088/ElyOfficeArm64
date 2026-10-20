@@ -35,6 +35,8 @@ pub struct Part {
 pub struct Mail {
     pub subject: Option<String>,
     pub from: Vec<Mailbox>,
+    /// Where answers go instead of From.
+    pub reply_to: Vec<Mailbox>,
     pub to: Vec<Mailbox>,
     pub cc: Vec<Mailbox>,
     /// Seconds since the Unix epoch.
@@ -102,6 +104,7 @@ pub fn read(raw: &[u8]) -> Result<Mail> {
     Ok(Mail {
         subject: message.subject().map(str::to_owned),
         from: mailboxes(message.from().into_iter()),
+        reply_to: mailboxes(message.reply_to().into_iter()),
         to: mailboxes(message.all_to()),
         cc: mailboxes(message.all_cc()),
         date: message.date().map(|date| date.to_timestamp()),
@@ -184,11 +187,9 @@ fn body(draft: &Draft) -> Result<MimePart<'_>> {
 }
 
 fn attachment(part: &Part) -> Result<MimePart<'_>> {
-    let name = part
-        .name
-        .as_deref()
-        .ok_or_else(|| Error::Invalid("an attachment needs a file name".into()))?;
-    line("a file name", name)?;
+    if let Some(name) = &part.name {
+        line("a file name", name)?;
+    }
     line("a content type", &part.content_type)?;
     let mut kind = ContentType::new(part.content_type.as_str());
     for (key, value) in &part.params {
@@ -206,8 +207,12 @@ fn attachment(part: &Part) -> Result<MimePart<'_>> {
         MimePart::new(kind, body).transfer_encoding(encoding)
     } else {
         MimePart::new(kind, part.bytes.as_slice())
-    }
-    .attachment(name);
+    };
+    attachment = match &part.name {
+        Some(name) => attachment.attachment(name.as_str()),
+        // RFC 2183 §2.3: a name is optional.
+        None => attachment.header("Content-Disposition", ContentType::new("attachment")),
+    };
     if let Some(id) = &part.content_id {
         line("a content ID", id)?;
         attachment = attachment.cid(id.as_str());

@@ -13,6 +13,7 @@ use crate::{Error, Result};
 mod accounts;
 mod aside;
 mod folders;
+mod identity;
 mod listing;
 mod messages;
 mod schema;
@@ -24,6 +25,7 @@ mod trusted;
 
 pub use accounts::Cached;
 pub use folders::{Held, LocalFolder, Synced};
+pub use identity::Identity;
 pub use listing::{Filter, Scope, Summary};
 pub use messages::{Fetched, Key, Stored};
 

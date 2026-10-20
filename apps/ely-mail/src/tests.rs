@@ -23,10 +23,12 @@ use crate::{
 
 mod controls;
 mod flows;
+mod leaving;
 mod panes;
 mod reading;
 mod syncs;
 mod threads;
+mod writing;
 
 /// A credential store that keeps or refuses.
 #[derive(Clone, Default)]

@@ -19,13 +19,14 @@ jiff = "0.2"
 anyhow = "1"
 directories = "6"
 dunce = "1"
-ely-gpui-component = { git = "https://github.com/ELY-Open-Source/Ely-GPUI-Components", rev = "d05d8f0a638f8d013df84ff33601d10228d1e446" }
+ely-gpui-component = { git = "https://github.com/ELY-Open-Source/Ely-GPUI-Components", rev = "500e86e7fa3bf90d4793daf34de4cb9806007f95" }
 env_logger = "0.11"
 gpui = { package = "gpui-pre", version = "=0.3.8", default-features = false, features = ["stacker"] }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.8", features = ["font-kit", "wayland", "x11"] }
 futures = "0.3"
 libc = "0.2"
 log = "0.4"
+markdown = "=1.0.0"
 metal = "0.33"
 notify = "8"
 quick-xml = "0.41"
@@ -84,3 +85,4 @@ all = { level = "warn", priority = -1 }
 [patch.crates-io]
 gpui-pre = { path = "vendor/gpui-pre" }
 gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
+mail-parser = { path = "vendor/mail-parser" }

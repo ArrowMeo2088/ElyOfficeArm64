@@ -1,6 +1,7 @@
 //! Mail protocols, sync and local storage for ElyMail.
 
 mod account;
+pub mod compose;
 mod error;
 pub mod fetch;
 mod html;
@@ -24,8 +25,8 @@ pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
 pub use store::{
-    AccountId, Cached, Fetched, Filter, Held, Key, LocalFolder, MailboxId, MessageId, Scope, Sizes,
-    Store, Stored, Summary, Synced,
+    AccountId, Cached, Fetched, Filter, Held, Identity, Key, LocalFolder, MailboxId, MessageId,
+    Scope, Sizes, Store, Stored, Summary, Synced,
 };
 pub use tokio_rustls::TlsConnector;
 pub use vault::{Backend, Kept, Keyring, Vault};

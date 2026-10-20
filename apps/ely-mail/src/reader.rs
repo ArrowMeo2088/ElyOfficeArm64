@@ -8,7 +8,7 @@ use ely_gpui_component::{
     mail::{Contact, MailThreadView, Message},
     primitives::{IconName, Severity},
 };
-use ely_mail_engine::Mailbox;
+use ely_mail_engine::{Mailbox, MessageId};
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
     Styled as _, div,
@@ -18,7 +18,23 @@ use crate::{
     letter::Body,
     mail::{Mail, text},
     reading::{Each, Open},
+    writing::How,
 };
+
+/// Opens a message answering the pressed one.
+fn answering(
+    how: How,
+    cx: &mut Context<Mail>,
+) -> impl Fn(&SharedString, &mut gpui::Window, &mut gpui::App) + 'static {
+    let this = cx.weak_entity();
+    move |key, _, cx| {
+        let Ok(id) = key.parse() else {
+            return log::error!("mail: a message key is not a number");
+        };
+        this.update(cx, |mail, cx| mail.answer(MessageId(id), how, cx))
+            .ok();
+    }
+}
 
 fn contact(mailbox: &Mailbox) -> Contact {
     let name = match &mailbox.name {
@@ -56,7 +72,11 @@ impl Mail {
             Some(subject) => subject.into(),
             None => text(cx, "mail.no_subject", &[]),
         };
-        let mut view = MailThreadView::new("mail-thread", subject).picked(shown.id.0.to_string());
+        let mut view = MailThreadView::new("mail-thread", subject)
+            .picked(shown.id.0.to_string())
+            .on_reply(answering(How::Reply, cx))
+            .on_reply_all(answering(How::ReplyAll, cx))
+            .on_forward(answering(How::Forward, cx));
         for each in &thread.letters {
             view = view.message(message(each, cx), self.letter(each, cx));
         }

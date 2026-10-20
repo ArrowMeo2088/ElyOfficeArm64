@@ -107,6 +107,9 @@ impl Mail {
         log::info!("mail: open {}", open.key());
         if open != self.open {
             self.open = open;
+            if let Open::Account(id) = open {
+                self.read_identity(id, cx);
+            }
             self.listing.show(None);
             self.listing.pick(Vec::new());
             self.read_letter(cx);
