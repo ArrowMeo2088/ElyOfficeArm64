@@ -7,6 +7,7 @@ use std::{
 use crate::ffi::{Document, Lok};
 use crate::ipc::{self, Pack, Unpack, tag};
 
+mod complete;
 mod events;
 #[cfg(unix)]
 mod fatal;
@@ -264,13 +265,7 @@ fn answer(lok: &Lok, tag: u8, id: u64, payload: &[u8]) {
             .and_then(|id| with_doc(id, |doc| doc.selection_text()))
             .and_then(|text| text)
             .map(|text| Pack::new().str(&text).bytes()),
-        tag::COMPLETE_FUNCTION => unpack
-            .u64()
-            .and_then(|id| {
-                let name = unpack.str()?;
-                with_doc(id, |doc| doc.complete_function(&name)).and_then(|done| done)
-            })
-            .map(|()| Vec::new()),
+        tag::COMPLETE_FUNCTION => complete::complete(unpack),
         tag::SET_AUTHOR => unpack
             .str()
             .and_then(|name| lok.set_option("author", &name))

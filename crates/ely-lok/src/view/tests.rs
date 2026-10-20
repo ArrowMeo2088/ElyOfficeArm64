@@ -4,6 +4,7 @@ mod borders;
 mod clip;
 mod commands;
 mod fit;
+mod formula;
 mod input;
 mod large;
 mod show_borders;

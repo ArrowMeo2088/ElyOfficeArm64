@@ -45,8 +45,11 @@ pub(super) enum Input {
     Paste,
     /// Values or formulas alone: `paste.values` or `paste.formulas`.
     PasteOnly(&'static str),
-    /// A function the kernel offered, taken.
-    Complete(String),
+    /// A function the kernel offers then, else Enter or Tab.
+    Complete {
+        name: Option<String>,
+        key: Option<(u32, i32)>,
+    },
     /// The kernel's color scheme; not an edit.
     Theme(&'static str),
     /// Commands in order, from one read.
@@ -72,6 +75,8 @@ pub(super) enum Input {
 pub(super) enum Back {
     Copied(String),
     Shown(usize),
+    /// Whether a function was taken.
+    Completed(bool),
 }
 
 impl Input {
@@ -92,7 +97,7 @@ impl Input {
             | Input::Paste
             | Input::PasteOnly(_)
             | Input::Drag { .. }
-            | Input::Complete(_) => true,
+            | Input::Complete { .. } => true,
         }
     }
 }
@@ -201,7 +206,10 @@ fn apply(worker: &mut Worker, doc: &Doc, input: Input) -> io::Result<Option<Back
         Input::Drag { from, to } => worker.drag_graphic(doc, from, to),
         Input::Visible(area, scale) => doc.visible_area(worker, area, scale),
         Input::Part(part) => doc.show_sheet(worker, part),
-        Input::Complete(name) => doc.complete_function(worker, &name),
+        Input::Complete { name, key } => {
+            let taken = doc.complete_function(worker, name.as_deref(), key)?;
+            return Ok(Some(Back::Completed(taken)));
+        }
         Input::Theme(scheme) => worker.run(doc, "view.theme", &[scheme]),
         Input::Text { commit, text } => worker.post_text(doc, commit, &text),
         Input::Copy { cut } => {
@@ -270,6 +278,10 @@ impl LokView {
 
     /// Posts a non-text key; text waits for the IME.
     pub(super) fn key_down(&mut self, keystroke: &Keystroke) -> bool {
+        if keystroke.key == "enter" && keystroke.modifiers == Modifiers::none() {
+            self.complete_or_press(keystroke);
+            return true;
+        }
         let Some((char_code, key_code)) = vcl_key(keystroke) else {
             return false;
         };
@@ -307,10 +319,14 @@ impl LokView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let completing = self.completion.pending();
         if self.walk(&event.keystroke, cx)
             || self.turn_key(&event.keystroke)
             || self.key_down(&event.keystroke)
         {
+            if !completing && self.completion.pending() {
+                cx.notify();
+            }
             cx.stop_propagation();
         }
     }
@@ -425,10 +441,14 @@ impl LokView {
         self.send(Input::Paste);
     }
 
-    pub(super) fn on_next_field(&mut self, _: &NextField, _: &mut Window, _: &mut Context<Self>) {
-        if !self.complete() {
-            self.key_down(&Keystroke::parse("tab").expect("a keystroke"));
-        }
+    pub(super) fn on_next_field(&mut self, _: &NextField, _: &mut Window, cx: &mut Context<Self>) {
+        self.next_field();
+        cx.notify();
+    }
+
+    /// Tab takes the offered function, else moves on.
+    pub(super) fn next_field(&mut self) {
+        self.complete_or_press(&Keystroke::parse("tab").expect("a keystroke"));
     }
 
     pub(super) fn on_previous_field(

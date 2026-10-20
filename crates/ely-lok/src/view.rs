@@ -123,6 +123,7 @@ pub struct LokView {
     pointer: gpui::CursorStyle,
     selection: Vec<Rect>,
     cell: crate::Cell,
+    completion: formula::Completion,
     /// Whether the kernel was told Ely's scheme.
     lit: bool,
     /// The zoom follows the viewport so a page fits.
@@ -218,6 +219,7 @@ impl LokView {
             pointer: gpui::CursorStyle::Arrow,
             selection: Vec::new(),
             cell: crate::Cell::default(),
+            completion: formula::Completion::default(),
             lit: false,
             fit: false,
             turning: None,
@@ -392,6 +394,7 @@ impl LokView {
             self.picked = 0;
         }
         self.cell = batch.cell;
+        self.completion.reported(batch.revision);
         self.graphic = batch.graphic;
         self.read_borders(batch.table, batch.revision);
         self.review = batch.review;

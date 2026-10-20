@@ -107,6 +107,9 @@ impl LokView {
                     }
                     self.edited += u64::from(edits);
                     let (outcome, now) = outcome;
+                    // A plain key took nothing; the menu may return.
+                    let taken = matches!(outcome, Ok(Some(Back::Completed(true))));
+                    self.completion.landed(seq, if taken { now } else { None });
                     if edits {
                         self.clock.landed(now);
                     }
@@ -118,7 +121,7 @@ impl LokView {
                             self.part = part;
                             self.invalidate(cx);
                         }
-                        Ok(Some(Back::Shown(_))) => {}
+                        Ok(Some(Back::Shown(_) | Back::Completed(_))) => {}
                         Ok(None) => {}
                         Err(error) => {
                             log::error!("lok: input failed ({:?})", error.kind());
