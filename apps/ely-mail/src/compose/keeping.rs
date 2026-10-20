@@ -98,7 +98,7 @@ impl Compose {
         if self.shelf.discarded {
             return self.settle(cx);
         }
-        if self.shelf.busy {
+        if self.shelf.busy || self.sending {
             self.shelf.queued.get_or_insert(Step::Keep);
             return;
         }
@@ -196,7 +196,10 @@ impl Compose {
     }
 
     /// Keeping stops when the store holds it all.
-    fn next(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn next(&mut self, cx: &mut Context<Self>) {
+        if self.to_queue.is_some() {
+            return self.queue_now(cx);
+        }
         match self.shelf.queued.take() {
             Some(Step::Drop) => self.drop_draft(cx),
             Some(Step::Keep) | None => self.keep(cx),
@@ -205,6 +208,9 @@ impl Compose {
 
     /// No retry; an asked drop still goes.
     fn after_failing(&mut self, cx: &mut Context<Self>) {
+        if self.to_queue.is_some() {
+            return self.queue_now(cx);
+        }
         match self.shelf.queued.take() {
             Some(Step::Drop) => self.drop_draft(cx),
             Some(Step::Keep) | None => cx.notify(),
@@ -322,6 +328,16 @@ impl Compose {
     }
 
     /// Sent: the draft goes; then closes, or keeps later edits.
+    pub(crate) fn shelf_busy(&self) -> bool {
+        self.shelf.busy
+    }
+
+    /// The queue took the draft; none is kept now.
+    pub(super) fn handed_over(&mut self) {
+        self.shelf.id = None;
+        self.shelf.kept = None;
+    }
+
     pub(super) fn sent_off(&mut self, closes: bool, cx: &mut Context<Self>) {
         if closes {
             self.shelf.discarded = true;
@@ -332,7 +348,7 @@ impl Compose {
         self.drop_draft(cx);
     }
 
-    fn unsent(&self, cx: &App) -> Unsent {
+    pub(super) fn unsent(&self, cx: &App) -> Unsent {
         Unsent {
             to: list(&self.written.to),
             cc: list(&self.written.cc),

@@ -43,8 +43,14 @@ impl Render for Side {
             text(cx, "mail.boxes.drafts", &[]),
             IconName::File,
         );
+        let outbox = Mailbox::new(
+            Open::Outbox.key(),
+            text(cx, "mail.boxes.outbox", &[]),
+            IconName::Send,
+        )
+        .unread(mail.pending as u32);
         let mut list = MailboxList::new("mail-boxes")
-            .section(text(cx, "mail.boxes.unified", &[]), [inboxes, drafts]);
+            .section(text(cx, "mail.boxes.unified", &[]), [inboxes, drafts, outbox]);
         for (id, account) in mail.accounts() {
             let folders = mail.syncs.get(id).map_or(&[][..], |each| &each.folders);
             let mut sorted: Vec<&LocalFolder> = folders.iter().collect();
@@ -81,7 +87,7 @@ impl Render for Side {
 impl Mail {
     /// The box a side key names, if still here.
     fn opened(&self, key: &SharedString) -> Option<Open> {
-        for open in [Open::Inboxes, Open::Drafts] {
+        for open in [Open::Inboxes, Open::Drafts, Open::Outbox] {
             if *key == open.key() {
                 return Some(open);
             }

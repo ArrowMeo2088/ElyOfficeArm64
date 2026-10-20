@@ -10,7 +10,7 @@ use gpui::{App, Context, SharedString, WeakEntity, WindowHandle};
 use crate::{
     compose::{Compose, Reopened},
     mail::{Mail, text},
-    writing::{Opening, Outgoing, Purpose, prepare, senders},
+    writing::{Opening, Outgoing, prepare, senders},
 };
 
 /// The next server copy asked while one goes.
@@ -168,9 +168,9 @@ impl Mail {
         };
         let vault = self.vault.clone();
         let work = async move {
-            let (_, bytes) = prepare(&out, Purpose::Draft)?;
+            let built = prepare(&out)?;
             let secret = sync::secret(&account, &vault).await?;
-            drafts::put(&account, secret, &tls, &mailbox, &bytes, old.as_ref()).await
+            drafts::put(&account, secret, &tls, &mailbox, &built.bytes, old.as_ref()).await
         };
         self.on_runtime(cx, work, move |mail, done, cx| {
             let placed = match done.and_then(|done| done.map_err(|err| err.to_string())) {
@@ -220,7 +220,7 @@ impl Mail {
     }
 
     /// Removes a server copy no draft names now.
-    fn take_copy(&mut self, left: Left, cx: &mut Context<Self>) {
+    pub(crate) fn take_copy(&mut self, left: Left, cx: &mut Context<Self>) {
         let (account, tls) = match self.reach(left.account) {
             Ok(reach) => reach,
             Err(error) => return self.failed("mail.drafts.server_stale", &error, cx),
@@ -286,7 +286,7 @@ impl Mail {
     }
 
     /// The account and TLS a server step needs.
-    fn reach(&self, id: AccountId) -> Result<(Account, TlsConnector), String> {
+    pub fn reach(&self, id: AccountId) -> Result<(Account, TlsConnector), String> {
         let account = self
             .accounts()
             .iter()

@@ -185,7 +185,7 @@ fn a_draft_reopens_as_it_was_and_once() {
 }
 
 /// Holds whatever connects, until told to let go.
-fn silent_server() -> (u16, std::sync::mpsc::Sender<()>) {
+pub(super) fn silent_server() -> (u16, std::sync::mpsc::Sender<()>) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     listener.set_nonblocking(true).unwrap();
@@ -297,26 +297,6 @@ fn a_file_unread_while_closing_keeps_the_window() {
     });
     assert!(shut, "kept already, it closes");
     assert_eq!(kept(&mail, cx)[0].unsent.words, "see below");
-}
-
-#[test]
-fn a_sent_message_leaves_no_draft() {
-    let dir = tempfile::tempdir().unwrap();
-    seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
-    let mut cx = TestAppContext::single();
-    let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
-    let compose = new_message(&mail, cx);
-    write(compose, "Sent soon", cx);
-    with(compose, cx, |compose, _, cx| {
-        compose.edited(draft(&["ann@example.com"], "Hi"), cx)
-    });
-    pause(&mail, cx, 1);
-    with(compose, cx, |compose, _, cx| {
-        compose.begin_sending(cx);
-        compose.sent(Ok(()), cx);
-    });
-    settle(cx, |app| compose.read(app).is_err());
-    assert!(kept(&mail, cx).is_empty());
 }
 
 #[test]

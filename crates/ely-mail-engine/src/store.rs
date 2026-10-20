@@ -17,6 +17,7 @@ mod folders;
 mod identity;
 mod listing;
 mod messages;
+mod outbox;
 mod schema;
 mod search;
 #[cfg(test)]
@@ -30,6 +31,7 @@ pub use folders::{Held, LocalFolder, Synced};
 pub use identity::Identity;
 pub use listing::{Filter, Scope, Summary};
 pub use messages::{Fetched, Key, Stored};
+pub use outbox::{Filed, Filing, Going, Handed, Landing, Letter, OutboxId, Queued};
 
 const DB: &str = "mail.db";
 const CONTENT: &str = "content";

@@ -1,4 +1,4 @@
-//! A draft's copy in the server's Drafts folder (C12.13).
+//! Copies placed on the server: drafts, sent mail (C12.13, C12.14).
 
 use imap_proto::{Response, ResponseCode, rfc4315::UidSetMember};
 
@@ -9,14 +9,39 @@ impl Imap {
     /// Places `message` as a draft; RFC 4315 says where.
     pub async fn put_draft(&mut self, mailbox: &str, message: &[u8]) -> Result<Remote> {
         self.needs_uidplus().await?;
+        let placed = self
+            .append(mailbox, "(\\Draft \\Seen)", message, "saving the draft")
+            .await?;
+        let (uidvalidity, uid) =
+            placed.ok_or_else(|| Error::Protocol("the saved draft came without its UID".into()))?;
+        log::info!("mail: a draft was placed on the server");
+        Ok(Remote {
+            mailbox: mailbox.to_owned(),
+            uidvalidity,
+            uid,
+        })
+    }
+
+    /// Files a sent message, read already.
+    pub async fn put_sent(&mut self, mailbox: &str, message: &[u8]) -> Result<()> {
+        self.append(mailbox, "(\\Seen)", message, "saving the sent copy")
+            .await?;
+        log::info!("mail: a sent copy was placed on the server");
+        Ok(())
+    }
+
+    /// RFC 3501 APPEND; UIDPLUS adds where it went.
+    async fn append(
+        &mut self,
+        mailbox: &str,
+        flags: &str,
+        message: &[u8],
+        step: &'static str,
+    ) -> Result<Option<(u32, u32)>> {
         let mut placed = None;
-        let args = [
-            Arg::Text(mailbox),
-            Arg::Atom("(\\Draft \\Seen)"),
-            Arg::Bytes(message),
-        ];
+        let args = [Arg::Text(mailbox), Arg::Atom(flags), Arg::Bytes(message)];
         within(
-            "saving the draft",
+            step,
             self.conn.run("APPEND", &args, |response, _| {
                 if let Response::Done { outcome, .. } = response
                     && let Some(ResponseCode::AppendUid(validity, uids)) = &outcome.code
@@ -28,14 +53,7 @@ impl Imap {
         )
         .await??
         .map_err(Error::Server)?;
-        let (uidvalidity, uid) =
-            placed.ok_or_else(|| Error::Protocol("the saved draft came without its UID".into()))?;
-        log::info!("mail: a draft was placed on the server");
-        Ok(Remote {
-            mailbox: mailbox.to_owned(),
-            uidvalidity,
-            uid,
-        })
+        Ok(placed)
     }
 
     /// Removes that copy; false when renumbered, so unknown.

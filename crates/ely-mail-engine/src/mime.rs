@@ -172,6 +172,31 @@ pub fn build(draft: &Draft) -> Result<Built> {
     Ok(Built { message_id, bytes })
 }
 
+/// The sent form: the top header block loses Bcc.
+pub fn without_bcc(raw: &[u8]) -> Result<Vec<u8>> {
+    let end = raw
+        .windows(4)
+        .position(|end| end == b"\r\n\r\n")
+        .ok_or_else(|| Error::Mime("the message has no header end".into()))?;
+    let (head, body) = raw.split_at(end + 2);
+    let mut out = Vec::with_capacity(raw.len());
+    let mut dropping = false;
+    for line in head.split_inclusive(|byte| *byte == b'\n') {
+        // RFC 5322 §2.2.3: a fold starts with a space.
+        if !line.starts_with(b" ") && !line.starts_with(b"\t") {
+            let mut name = line.split(|byte| *byte == b':');
+            dropping = name
+                .next()
+                .is_some_and(|it| it.eq_ignore_ascii_case(b"Bcc"));
+        }
+        if !dropping {
+            out.extend_from_slice(line);
+        }
+    }
+    out.extend_from_slice(body);
+    Ok(out)
+}
+
 /// Mixed of the alternative bodies and the attachments.
 fn body(draft: &Draft) -> Result<MimePart<'_>> {
     let text = MimePart::new("text/plain", draft.text.as_str());

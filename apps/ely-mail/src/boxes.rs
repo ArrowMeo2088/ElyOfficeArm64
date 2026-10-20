@@ -9,6 +9,7 @@ use gpui::{Context, SharedString};
 use crate::{
     draft_list,
     mail::{Mail, text},
+    outbox_list,
 };
 
 pub type Unread = HashMap<MailboxId, u32>;
@@ -19,6 +20,8 @@ pub enum Open {
     Inboxes,
     /// Drafts kept here, of every account.
     Drafts,
+    /// Messages handed over to send, of every account.
+    Outbox,
     Mailbox(AccountId, MailboxId),
     /// The account's settings and sync.
     Account(AccountId),
@@ -29,6 +32,7 @@ impl Open {
         match self {
             Open::Inboxes => "inboxes".into(),
             Open::Drafts => "drafts".into(),
+            Open::Outbox => "outbox".into(),
             Open::Mailbox(_, mailbox) => format!("box-{}", mailbox.0).into(),
             Open::Account(id) => format!("account-{}", id.0).into(),
         }
@@ -36,7 +40,7 @@ impl Open {
 
     pub fn account(self) -> Option<AccountId> {
         match self {
-            Open::Inboxes | Open::Drafts => None,
+            Open::Inboxes | Open::Drafts | Open::Outbox => None,
             Open::Mailbox(id, _) | Open::Account(id) => Some(id),
         }
     }
@@ -45,7 +49,7 @@ impl Open {
         match self {
             Open::Inboxes => Some(Scope::Inboxes),
             Open::Mailbox(_, mailbox) => Some(Scope::Mailbox(mailbox)),
-            Open::Drafts | Open::Account(_) => None,
+            Open::Drafts | Open::Outbox | Open::Account(_) => None,
         }
     }
 }
@@ -116,6 +120,7 @@ impl Mail {
             if let Open::Account(id) = open {
                 self.read_identity(id, cx);
                 self.read_drafts_up(id, cx);
+                self.read_sent_copy(id, cx);
             }
             self.listing.show(None);
             self.listing.pick(Vec::new());
@@ -147,6 +152,7 @@ impl Mail {
             text(cx, "mail.no_sender", &[]),
             text(cx, "mail.no_subject", &[]),
         );
+        let names = none.clone();
         self.with_store(
             cx,
             move |store| {
@@ -164,21 +170,31 @@ impl Mail {
                     }
                     None => None,
                 };
-                Ok((rows, store.unread()?, kept))
+                let queued = match open {
+                    Open::Outbox => store.outbox()?,
+                    _ => Vec::new(),
+                };
+                Ok((rows, store.unread()?, kept, queued, store.pending()?))
             },
             move |mail, read_now, cx| {
                 if mail.listing.read != read {
                     return log::info!("mail: list read {read} ended after a newer one");
                 }
                 match read_now {
-                    Ok((rows, unread, kept)) => {
+                    Ok((rows, unread, kept, queued, pending)) => {
                         mail.unread = unread;
                         mail.shelved = kept;
+                        mail.pending = pending;
+                        let rows = match open {
+                            Open::Outbox => Some(index(outbox_list::rows(&queued, &names, cx))),
+                            _ => rows,
+                        };
+                        mail.queued = queued;
                         mail.listing.show(rows.map(Ok));
                     }
                     Err(error) => {
                         log::warn!("mail: list read {read} failed: {error}");
-                        let listed = scope.is_some() || open == Open::Drafts;
+                        let listed = scope.is_some() || matches!(open, Open::Drafts | Open::Outbox);
                         mail.listing.show(listed.then_some(Err(error)));
                     }
                 }

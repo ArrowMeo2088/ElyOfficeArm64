@@ -2,11 +2,11 @@
 
 use std::path::Path;
 
-use ely_gpui_component::{mail::Draft, primitives::Severity};
+use ely_gpui_component::mail::Draft;
 use ely_mail_engine::{
     Fetched, Identity, Key, Mailbox, MessageId, Role, Store,
     compose::{Earlier, attachment},
-    read,
+    read, without_bcc,
 };
 use gpui::{TestAppContext, VisualTestContext, WindowHandle};
 
@@ -14,7 +14,7 @@ use super::{Keys, account, settle, window};
 use crate::{
     boxes::Open,
     compose::Compose,
-    writing::{How, Outgoing, Purpose, prepare},
+    writing::{How, Outgoing, prepare},
 };
 
 pub(super) const NOTE: &str = "From: Ann <ann@example.com>\r\nTo: bo@example.com, Cy <cy@example.com>\r\n\
@@ -100,7 +100,7 @@ fn reply_all_starts_addressed_and_quoting_the_message() {
         let out = compose
             .outgoing(&draft(&["ann@example.com"], "Re: plan"), app)
             .unwrap();
-        prepare(&out, Purpose::Sending).unwrap().1
+        without_bcc(&prepare(&out).unwrap().bytes).unwrap()
     });
     let sent = read(&bytes).unwrap();
     assert_eq!(sent.in_reply_to, ["a@x"]);
@@ -171,9 +171,10 @@ fn a_message_is_built_with_its_hidden_copies_off_the_page() {
         references: Vec::new(),
         date: 1_704_099_600,
     };
-    let (envelope, bytes) = prepare(&out, Purpose::Sending).unwrap();
+    let built = prepare(&out).unwrap();
+    let bytes = without_bcc(&built.bytes).unwrap();
     assert_eq!(
-        envelope,
+        built.envelope,
         ["ann@example.com", "cy@example.com", "hidden@example.com"]
     );
     let raw = String::from_utf8_lossy(&bytes);
@@ -189,12 +190,12 @@ fn a_message_is_built_with_its_hidden_copies_off_the_page() {
         ..out
     };
     assert_eq!(
-        read(&prepare(&plain, Purpose::Sending).unwrap().1)
+        read(&without_bcc(&prepare(&plain).unwrap().bytes).unwrap())
             .unwrap()
             .html,
         None
     );
-    let (_, copy) = prepare(&plain, Purpose::Draft).unwrap();
+    let copy = prepare(&plain).unwrap().bytes;
     let copy = String::from_utf8_lossy(&copy);
     let head = &copy[..copy.find("\r\n\r\n").unwrap()];
     assert!(
@@ -238,39 +239,6 @@ fn words_written_are_kept_on_closing() {
 }
 
 #[test]
-fn a_send_that_cannot_reach_the_server_says_so_and_stays() {
-    let dir = tempfile::tempdir().unwrap();
-    seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
-    let keys = Keys::default();
-    keys.kept
-        .lock()
-        .unwrap()
-        .insert("account:bo@example.com".into(), "pw".into());
-    let mut cx = TestAppContext::single();
-    let (mail, cx) = window(&mut cx, dir.path(), keys);
-    cx.update(|_, app| mail.update(app, |mail, cx| mail.write_new(cx)));
-    let compose = opened(cx);
-    cx.update(|_, app| {
-        compose
-            .update(app, |compose, window, cx| {
-                compose.send(&draft(&["ann@example.com"], "Hi"), window, cx);
-                assert!(compose.sending);
-            })
-            .unwrap()
-    });
-    settle(cx, |app| {
-        compose.read(app).is_ok_and(|compose| !compose.sending)
-    });
-    cx.update(|_, app| {
-        let compose = compose.read(app).unwrap();
-        let (severity, words) = compose.problem.clone().unwrap();
-        assert_eq!(severity, Severity::Danger);
-        assert!(words.starts_with("Not sent:"), "{words}");
-    });
-    assert_eq!(composing(cx).len(), 1, "the window stays for another try");
-}
-
-#[test]
 fn a_saved_name_and_signature_sign_the_next_message() {
     let dir = tempfile::tempdir().unwrap();
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
@@ -302,7 +270,7 @@ fn a_saved_name_and_signature_sign_the_next_message() {
         let out = compose
             .outgoing(&draft(&["ann@example.com"], "Hi"), app)
             .unwrap();
-        let sent = read(&prepare(&out, Purpose::Sending).unwrap().1).unwrap();
+        let sent = read(&prepare(&out).unwrap().bytes).unwrap();
         assert_eq!(sent.from[0].name.as_deref(), Some("Bo Lee"));
         let text = sent.text.unwrap().replace("\r\n", "\n");
         assert!(text.ends_with("-- \nBo\nAtrium"), "{text:?}");

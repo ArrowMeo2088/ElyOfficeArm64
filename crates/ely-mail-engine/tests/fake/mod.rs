@@ -29,6 +29,8 @@ pub enum Step {
     /// SMTP DATA lines before the lone dot.
     Data(String),
     StartTls,
+    /// Ends the script, holding the connection open unanswered.
+    Hang,
 }
 
 pub fn send(text: &str) -> Step {
@@ -171,6 +173,13 @@ async fn run(io: Box<dyn Io>, acceptor: &TlsAcceptor, steps: Vec<Step>) -> Resul
                 let tcp = io.into_inner();
                 let tls = acceptor.accept(tcp).await.map_err(|e| e.to_string())?;
                 io = BufReader::new(Box::new(tls));
+            }
+            Step::Hang => {
+                tokio::spawn(async move {
+                    let _held = io;
+                    std::future::pending::<()>().await
+                });
+                return Ok(());
             }
         }
     }

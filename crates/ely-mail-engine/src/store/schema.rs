@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -186,5 +186,36 @@ CREATE TABLE draft_files (
     content_id TEXT,
     bytes BLOB NOT NULL,
     PRIMARY KEY (draft, place)
+) WITHOUT ROWID;
+";
+
+/// Messages handed to the queue, until done (C12.14).
+const V10: &str = "
+ALTER TABLE accounts ADD COLUMN sent_copy INTEGER;
+ALTER TABLE accounts ADD COLUMN smtp_limit INTEGER;
+CREATE TABLE outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account INTEGER NOT NULL REFERENCES accounts ON DELETE CASCADE,
+    state TEXT NOT NULL CHECK (state IN
+        ('queued', 'sending', 'accepted', 'failed', 'unsure', 'cancelled')),
+    filing TEXT CHECK (filing IN ('waiting', 'failed')),
+    message_id TEXT NOT NULL,
+    body TEXT NOT NULL,
+    envelope TEXT NOT NULL,
+    bytes BLOB NOT NULL,
+    queued INTEGER NOT NULL,
+    tried INTEGER,
+    error TEXT,
+    CHECK ((filing IS NULL) <> (state = 'accepted'))
+);
+CREATE TABLE outbox_files (
+    item INTEGER NOT NULL REFERENCES outbox ON DELETE CASCADE,
+    place INTEGER NOT NULL,
+    name TEXT,
+    content_type TEXT NOT NULL,
+    params TEXT NOT NULL,
+    content_id TEXT,
+    bytes BLOB NOT NULL,
+    PRIMARY KEY (item, place)
 ) WITHOUT ROWID;
 ";

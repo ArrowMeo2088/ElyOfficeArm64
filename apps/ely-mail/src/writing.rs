@@ -1,14 +1,13 @@
 //! Opening a message to write, and handing it over (C12.12).
 
 use ely_mail_engine::{
-    AccountId, Draft, Error, Identity, Mail as Message, Mailbox, MessageId, Part, Result, Store,
-    build,
+    AccountId, Draft, Error, Identity, Letter, Mail as Message, Mailbox, MessageId, Part, Result,
+    Store, build,
     compose::{self, Earlier, Start, Writing},
-    read, sync,
+    read,
 };
 use ely_platform::AppId;
-use gpui::{App, AppContext as _, Context, Window, px, size};
-use tokio::task::JoinHandle;
+use gpui::{App, AppContext as _, Context, WeakEntity, Window, px, size};
 
 use crate::{
     compose::{Compose, Reopened},
@@ -28,6 +27,8 @@ pub struct Sender {
     pub id: AccountId,
     pub address: String,
     pub identity: Identity,
+    /// The outgoing server's last stated size limit.
+    pub limit: Option<u64>,
 }
 
 /// What a new message starts from.
@@ -69,15 +70,8 @@ pub struct Outgoing {
     pub date: i64,
 }
 
-/// What the bytes are for: only a draft shows Bcc.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Purpose {
-    Sending,
-    Draft,
-}
-
-/// The envelope addresses and the message bytes.
-pub fn prepare(out: &Outgoing, purpose: Purpose) -> Result<(Vec<String>, Vec<u8>)> {
+/// Bcc stays in it until it is sent.
+pub fn prepare(out: &Outgoing) -> Result<Letter> {
     let bodies = compose::bodies(&Writing {
         words: &out.words,
         markdown: out.markdown,
@@ -88,10 +82,7 @@ pub fn prepare(out: &Outgoing, purpose: Purpose) -> Result<(Vec<String>, Vec<u8>
         from: out.from.clone(),
         to: out.to.clone(),
         cc: out.cc.clone(),
-        bcc: match purpose {
-            Purpose::Sending => Vec::new(),
-            Purpose::Draft => out.bcc.clone(),
-        },
+        bcc: out.bcc.clone(),
         subject: out.subject.clone(),
         text: bodies.text,
         html: bodies.html,
@@ -109,7 +100,11 @@ pub fn prepare(out: &Outgoing, purpose: Purpose) -> Result<(Vec<String>, Vec<u8>
             envelope.push(person.email.clone());
         }
     }
-    Ok((envelope, built.bytes))
+    Ok(Letter {
+        envelope,
+        message_id: built.message_id,
+        bytes: built.bytes,
+    })
 }
 
 pub fn senders(store: &Store) -> Result<Vec<Sender>> {
@@ -121,6 +116,7 @@ pub fn senders(store: &Store) -> Result<Vec<Sender>> {
                 id,
                 address: account.address,
                 identity: store.identity(id)?,
+                limit: store.smtp_limit(id)?,
             })
         })
         .collect()
@@ -179,17 +175,18 @@ fn answered(store: &Store, id: MessageId, how: How) -> Result<Opening> {
 }
 
 /// Quit and closing the main window ask each message first.
-pub fn guard_leaving(window: &mut Window, cx: &mut App) {
-    ely_ui::commands::route_quit(cx, |cx| {
-        if may_leave(cx) {
+pub fn guard_leaving(mail: WeakEntity<Mail>, window: &mut Window, cx: &mut App) {
+    let quitting = mail.clone();
+    ely_ui::commands::route_quit(cx, move |cx| {
+        if may_leave(&quitting, cx) {
             cx.quit();
         }
     });
-    ely_gpui_component::shell::guard_close(window, cx, |_, cx| may_leave(cx));
+    ely_gpui_component::shell::guard_close(window, cx, move |_, cx| may_leave(&mail, cx));
 }
 
-/// True when every message lets the app go.
-fn may_leave(cx: &mut App) -> bool {
+/// True when every message, then the Outbox, lets it go.
+fn may_leave(mail: &WeakEntity<Mail>, cx: &mut App) -> bool {
     for each in cx.windows() {
         let Some(compose) = each.downcast::<Compose>() else {
             continue;
@@ -204,7 +201,8 @@ fn may_leave(cx: &mut App) -> bool {
             Err(error) => log::warn!("mail: a closing message did not answer: {error}"),
         }
     }
-    true
+    mail.update(cx, |mail, cx| mail.may_quit(cx))
+        .unwrap_or(true)
 }
 
 impl Mail {
@@ -275,26 +273,5 @@ impl Mail {
             Ok(_) => log::info!("mail: a compose window opened"),
             Err(error) => self.failed("mail.write.unopened", &format!("{error:#}"), cx),
         }
-    }
-
-    /// Hands a built message to its account's server.
-    pub fn send_out(
-        &self,
-        from: AccountId,
-        envelope: Vec<String>,
-        bytes: Vec<u8>,
-    ) -> std::result::Result<JoinHandle<Result<()>>, String> {
-        let account = self
-            .accounts()
-            .iter()
-            .find(|(id, _)| *id == from)
-            .map(|(_, account)| account.clone())
-            .ok_or_else(|| "the account is no longer here".to_owned())?;
-        let tls = self.tls.clone()?;
-        let vault = self.vault.clone();
-        Ok(self.runtime.spawn(async move {
-            let secret = sync::secret(&account, &vault).await?;
-            account.send(secret, &envelope, &bytes, &tls).await
-        }))
     }
 }

@@ -28,7 +28,7 @@ pub async fn put(
             Err(err) => Some(err.to_string()),
         },
     };
-    leave(imap).await;
+    leave(imap);
     Ok(Placed { remote, left })
 }
 
@@ -41,20 +41,24 @@ pub async fn take(
 ) -> Result<bool> {
     let mut imap = connect(account, secret, tls).await?;
     let gone = imap.drop_draft(remote).await?;
-    leave(imap).await;
+    leave(imap);
     Ok(gone)
 }
 
-async fn connect(account: &Account, secret: Secret, tls: &TlsConnector) -> Result<Imap> {
+pub(crate) async fn connect(account: &Account, secret: Secret, tls: &TlsConnector) -> Result<Imap> {
     if account.protocol != Protocol::Imap {
-        return Err(Error::Invalid("a POP3 account has no drafts folder".into()));
+        return Err(Error::Invalid(
+            "a POP3 account has no server folders".into(),
+        ));
     }
     Imap::connect(&account.incoming, &account.login(secret), tls).await
 }
 
-/// Done already; a failed logout changes nothing.
-async fn leave(imap: Imap) {
-    if let Err(err) = imap.logout().await {
-        log::warn!("mail: IMAP logout after a draft failed: {err}");
-    }
+/// Done already: the logout neither waits nor counts.
+pub(crate) fn leave(imap: Imap) {
+    tokio::spawn(async move {
+        if let Err(err) = imap.logout().await {
+            log::warn!("mail: IMAP logout after placing a copy failed: {err}");
+        }
+    });
 }

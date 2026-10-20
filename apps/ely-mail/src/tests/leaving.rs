@@ -11,7 +11,7 @@ use super::{
 use crate::{
     compose::{Compose, file_name},
     mail::Mail,
-    writing::{How, Purpose, guard_leaving, prepare},
+    writing::{How, guard_leaving, prepare},
 };
 
 /// A message with a PDF here and one not downloaded.
@@ -72,7 +72,7 @@ fn quit_keeps_each_message_then_goes() {
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
     cx.update(|window, app| {
         ely_ui::commands::bind_quit(app);
-        guard_leaving(window, app);
+        guard_leaving(mail.downgrade(), window, app);
     });
     for count in 1..=2 {
         cx.update(|_, app| mail.update(app, |mail, cx| mail.write_new(cx)));
@@ -103,7 +103,7 @@ fn the_main_window_stays_while_a_message_is_sending() {
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
-    cx.update(guard_leaving);
+    cx.update(|window, app| guard_leaving(mail.downgrade(), window, app));
     cx.update(|_, app| mail.update(app, |mail, cx| mail.write_new(cx)));
     let compose = opened(cx);
     with(compose, cx, |compose, _, _| compose.sending = true);
@@ -188,7 +188,7 @@ fn a_file_without_a_name_is_forwarded() {
         );
         compose.outgoing(&draft(&["eve@example.com"], "Fwd: plan"), app)
     });
-    let (_, bytes) = prepare(&out.unwrap(), Purpose::Sending).unwrap();
+    let bytes = prepare(&out.unwrap()).unwrap().bytes;
     let sent = ely_mail_engine::read(&bytes).unwrap();
     assert_eq!(sent.attachments.len(), 1);
     assert_eq!(sent.attachments[0].name, None);
@@ -213,7 +213,7 @@ fn the_drawn_close_keeps_as_the_system_close_does() {
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
     let main = cx.update(|window, _| window.window_handle());
-    cx.update(guard_leaving);
+    cx.update(|window, app| guard_leaving(mail.downgrade(), window, app));
     cx.update(|_, app| mail.update(app, |mail, cx| mail.write_new(cx)));
     let compose = opened(cx);
     write(compose, "words", cx);
@@ -250,7 +250,7 @@ fn a_success_keeps_edits_made_while_sending_as_a_draft() {
         if late {
             write(compose, "before and late edit", cx);
         }
-        with(compose, cx, |compose, _, cx| compose.sent(Ok(()), cx));
+        with(compose, cx, |compose, _, cx| compose.queued(Ok(()), cx));
         if !late {
             gone(compose, cx);
             assert!(kept(&mail, cx).is_empty(), "as sent, nothing stays");
@@ -295,7 +295,7 @@ fn a_success_keeps_the_window_when_the_sender_or_format_changed() {
             there.run_until_parked();
             assert!(!cx.update(|_, app| compose.read(app).unwrap().markdown));
         }
-        with(compose, cx, |compose, _, cx| compose.sent(Ok(()), cx));
+        with(compose, cx, |compose, _, cx| compose.queued(Ok(()), cx));
         settle(cx, |app| drafts_in(&mail, app) == 1);
         let problem = cx.update(|_, app| compose.read(app).map(|it| it.problem.clone()));
         let severity = problem.ok().flatten().map(|(severity, _)| severity);

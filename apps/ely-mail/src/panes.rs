@@ -39,6 +39,7 @@ impl Mail {
             .pane(self.list_pane(cx))
             .pane(match self.open {
                 Open::Drafts => self.draft_pane(cx),
+                Open::Outbox => self.outbox_pane(cx),
                 _ => self.reader(cx),
             })
             .into_any_element()
@@ -90,7 +91,7 @@ impl Mail {
             .size_full()
             .flex()
             .flex_col()
-            .children((self.open != Open::Drafts).then(|| {
+            .children((!matches!(self.open, Open::Drafts | Open::Outbox)).then(|| {
                 div()
                     .debug_selector(|| "mail-filters".into())
                     .p_2()

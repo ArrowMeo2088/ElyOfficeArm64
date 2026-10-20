@@ -8,7 +8,9 @@ use std::{
 };
 
 use ely_gpui_component::primitives::Severity;
-use ely_mail_engine::{Account, AccountId, DraftId, Filter, Shelved, Store, TlsConnector, Vault};
+use ely_mail_engine::{
+    Account, AccountId, DraftId, Filter, Queued, Shelved, Store, TlsConnector, Vault,
+};
 use ely_platform::AppId;
 use ely_ui::Root;
 use gpui::{App, AppContext as _, Context, Entity, FocusHandle, SharedString, WeakEntity, Window};
@@ -19,6 +21,7 @@ use crate::{
     boxes::{Listing, Open, Unread},
     drafts::Waiting,
     identity::Editing,
+    outbox::Runner,
     reading::Reading,
     removing::Removing,
     side::Side,
@@ -79,6 +82,17 @@ pub struct Mail {
     pub deleting: Option<DraftId>,
     /// The open account's drafts go to its server.
     pub drafts_up: Option<(AccountId, bool)>,
+    /// The open account's Sent copy choice; None follows the provider.
+    pub sent_copy: Option<(AccountId, Option<bool>)>,
+    pub runner: Runner,
+    /// The messages listed, when Outbox is open.
+    pub queued: Vec<Queued>,
+    /// Outbox work a quit would leave undone.
+    pub pending: usize,
+    /// The quit question is showing.
+    pub quitting: bool,
+    /// Asked once, the quit goes on.
+    pub quit_anyway: bool,
     pub focus: FocusHandle,
     pub root: WeakEntity<Root>,
     pub side: Entity<Side>,
@@ -100,7 +114,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         mail.root = root.downgrade();
         window.focus(&mail.focus, cx);
     });
-    crate::writing::guard_leaving(window, cx);
+    crate::writing::guard_leaving(mail.downgrade(), window, cx);
     root
 }
 
@@ -114,7 +128,15 @@ impl Mail {
             .unwrap_or_else(|error| {
                 ely_platform::startup::fail(AppId::Mail, &format!("no mail runtime: {error}"))
             });
-        let read_only = match &parts.store {
+        // A send cut off last time is unknown now.
+        let store = parts.store.and_then(|store| match store.read_only() {
+            Some(_) => Ok(store),
+            None => match store.recover_outbox() {
+                Ok(_) => Ok(store),
+                Err(error) => Err(format!("the Outbox was not checked: {error}")),
+            },
+        });
+        let read_only = match &store {
             Ok(store) => store.read_only().map(str::to_owned),
             Err(error) => {
                 log::error!("mail: the store did not open: {error}");
@@ -126,7 +148,7 @@ impl Mail {
         }
         let this = cx.weak_entity();
         let mut mail = Mail {
-            store: parts.store.map(|store| Arc::new(Mutex::new(store))),
+            store: store.map(|store| Arc::new(Mutex::new(store))),
             read_only,
             vault: Arc::new(parts.vault),
             tls: parts.tls,
@@ -150,6 +172,12 @@ impl Mail {
             shelved: Vec::new(),
             deleting: None,
             drafts_up: None,
+            sent_copy: None,
+            runner: Runner::default(),
+            queued: Vec::new(),
+            pending: 0,
+            quitting: false,
+            quit_anyway: false,
             focus: cx.focus_handle(),
             root: WeakEntity::new_invalid(),
             side: cx.new(|_| Side::new(this)),

@@ -41,6 +41,8 @@ pub enum Error {
     Fetch(String),
     /// The server lacks an extension the step needs.
     Unsupported(&'static str),
+    /// Larger than the server takes, in bytes.
+    TooLarge { size: u64, limit: u64 },
 }
 
 impl fmt::Display for Error {
@@ -64,6 +66,9 @@ impl fmt::Display for Error {
             Self::SignInAgain(text) => write!(f, "sign in again: {text}"),
             Self::Fetch(text) => write!(f, "picture not fetched: {text}"),
             Self::Unsupported(name) => write!(f, "the server does not support {name}"),
+            Self::TooLarge { size, limit } => {
+                write!(f, "the message is {size} bytes; the server takes {limit}")
+            }
         }
     }
 }

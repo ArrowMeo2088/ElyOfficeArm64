@@ -10,6 +10,7 @@ use ely_gpui_component::{
     overlays::ConfirmDialog,
     primitives::Severity,
     theme::{ActiveTheme as _, Radius},
+    typography::format,
 };
 use ely_mail_engine::{AccountId, compose};
 use ely_ui::Shell;
@@ -21,7 +22,7 @@ use gpui::{
 use super::{Compose, file_name};
 use ely_mail_engine::compose::Earlier;
 
-use crate::mail::text;
+use crate::{mail::text, writing::Sender};
 
 impl Compose {
     fn sender_picker(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -74,6 +75,7 @@ impl Compose {
             notices
                 .push(Alert::new("mail-write-reading", Severity::Info, words).into_any_element());
         }
+        notices.extend(self.size_notice(cx));
         if self.headers_only {
             let words = text(cx, "mail.write.headers_only", &[]);
             notices
@@ -90,6 +92,51 @@ impl Compose {
             notices.push(quoted.into_any_element());
         }
         notices
+    }
+
+    /// Past the sender's known limit: it, the size, the limit.
+    pub fn over_limit(&self, cx: &App) -> Option<(&Sender, u64, u64)> {
+        let files: u64 = self
+            .files
+            .iter()
+            .map(|file| file.part.bytes.len() as u64)
+            .sum();
+        // Base64 grows files by a third.
+        let whole = files * 4 / 3 + self.document.read(cx).text(cx).len() as u64 * 2;
+        let sender = self.sender()?;
+        let limit = sender.limit?;
+        (whole > limit).then_some((sender, whole, limit))
+    }
+
+    /// The files' size; a warning past the server's limit.
+    fn size_notice(&self, cx: &App) -> Option<AnyElement> {
+        if self.files.is_empty() {
+            return None;
+        }
+        let size = |bytes| format::file_size(bytes, false);
+        let alert = match self.over_limit(cx) {
+            Some((sender, whole, limit)) => {
+                let (whole, limit) = (size(whole), size(limit));
+                let args = [
+                    ("size", whole.as_str()),
+                    ("address", sender.address.as_str()),
+                    ("limit", limit.as_str()),
+                ];
+                let words = text(cx, "mail.outbox.too_large", &args);
+                Alert::new("mail-write-size", Severity::Warning, words)
+            }
+            None => {
+                let files = self.files.iter().map(|file| file.part.bytes.len() as u64);
+                let words = text(
+                    cx,
+                    "mail.outbox.files_size",
+                    &[("size", &size(files.sum()))],
+                );
+                Alert::new("mail-write-size", Severity::Info, words)
+            }
+        };
+        let shown = div().debug_selector(|| "write-size".into()).child(alert);
+        Some(shown.into_any_element())
     }
 
     fn discard_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {

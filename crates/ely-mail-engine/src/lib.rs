@@ -12,6 +12,7 @@ mod net;
 pub mod oauth;
 pub mod page;
 mod pop;
+pub mod sent;
 mod smtp;
 mod store;
 pub mod sync;
@@ -21,13 +22,14 @@ mod wire;
 pub use account::{Account, Auth, Checked, Protocol};
 pub use error::{Error, Result};
 pub use imap::{Folder, Got, Imap, Opened, Role};
-pub use mime::{Built, Draft, Mail, Mailbox, Part, Shown, build, read};
+pub use mime::{Built, Draft, Mail, Mailbox, Part, Shown, build, read, without_bcc};
 pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
 pub use store::{
-    AccountId, Cached, DraftId, Fetched, Filter, Held, Identity, Key, Left, LocalFolder, MailboxId,
-    MessageId, Remote, Scope, Shelved, Sizes, Store, Stored, Stowed, Summary, Synced, Unsent,
+    AccountId, Cached, DraftId, Fetched, Filed, Filing, Filter, Going, Handed, Held, Identity, Key,
+    Landing, Left, Letter, LocalFolder, MailboxId, MessageId, OutboxId, Queued, Remote, Scope,
+    Shelved, Sizes, Store, Stored, Stowed, Summary, Synced, Unsent,
 };
 pub use tokio_rustls::TlsConnector;
 pub use vault::{Backend, Kept, Keyring, Vault};

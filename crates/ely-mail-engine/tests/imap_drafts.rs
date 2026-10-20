@@ -187,3 +187,60 @@ async fn pop_keeps_drafts_here() {
         .unwrap_err();
     assert!(matches!(err, Error::Invalid(_)), "{err}");
 }
+
+#[tokio::test]
+async fn a_sent_copy_is_filed_read_and_needs_no_uidplus() {
+    let mut steps = logged_in("IMAP4rev1");
+    steps.truncate(3);
+    steps.extend([
+        expect("{tag} APPEND \"Sent\" (\\Seen) {18}"),
+        send("+ go\n"),
+        expect("Subject: x"),
+        expect(""),
+        expect("hi"),
+        expect(""),
+        send("{tag} OK saved\n"),
+        expect("{tag} LOGOUT"),
+        send("* BYE\n{tag} OK bye\n"),
+    ]);
+    let certs = certs();
+    let (server, script) = serve(&certs, Security::Tls, steps).await;
+    let mut ann = account("ann@example.com");
+    ann.incoming = server;
+    let secret = Secret::Password("pw".into());
+    let done = ely_mail_engine::sent::file(&ann, secret, &certs.trusted, "Sent", MESSAGE).await;
+    done.unwrap();
+    script.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn a_filed_copy_is_told_without_waiting_for_the_logout() {
+    let mut steps = logged_in("IMAP4rev1");
+    steps.truncate(3);
+    steps.extend([
+        expect("{tag} APPEND \"Sent\" (\\Seen) {18}"),
+        send("+ go\n"),
+        expect("Subject: x"),
+        expect(""),
+        expect("hi"),
+        expect(""),
+        send("{tag} OK saved\n"),
+        expect("{tag} LOGOUT"),
+        Step::Hang,
+    ]);
+    let certs = certs();
+    let (server, script) = serve(&certs, Security::Tls, steps).await;
+    let mut ann = account("ann@example.com");
+    ann.incoming = server;
+    let secret = Secret::Password("pw".into());
+    let done = ely_mail_engine::sent::file(&ann, secret, &certs.trusted, "Sent", MESSAGE);
+    tokio::time::timeout(std::time::Duration::from_secs(5), done)
+        .await
+        .expect("told before the logout answers")
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), script)
+        .await
+        .expect("the server reached its last step")
+        .unwrap()
+        .unwrap();
+}

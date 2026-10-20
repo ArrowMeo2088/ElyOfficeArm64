@@ -6,6 +6,7 @@ mod data;
 mod doc;
 mod mail;
 mod mail_drafts;
+mod mail_outbox;
 mod mail_write;
 mod mark;
 mod mark_menus;
@@ -171,6 +172,7 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(mail::EN)
         .chain(mail_write::EN)
         .chain(mail_drafts::EN)
+        .chain(mail_outbox::EN)
         .chain(tools::EN)
         .chain(table::EN)
         .chain(calc::EN)
@@ -198,6 +200,7 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(mail::ZH_CN)
         .chain(mail_write::ZH_CN)
         .chain(mail_drafts::ZH_CN)
+        .chain(mail_outbox::ZH_CN)
         .chain(tools::ZH_CN)
         .chain(table::ZH_CN)
         .chain(calc::ZH_CN)

@@ -1,6 +1,6 @@
 //! Messages being written, kept until sent or thrown away (C12.13).
 
-use rusqlite::{OptionalExtension, Row, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
 use serde::{Deserialize, Serialize};
 
 use super::{AccountId, Store, now};
@@ -101,16 +101,10 @@ impl Store {
                 }
                 (id, left)
             }
-            None => {
-                tx.execute(
-                    "INSERT INTO drafts (account, saved, body) VALUES (?1, ?2, ?3)",
-                    params![account.0, saved, body],
-                )?;
-                (DraftId(tx.last_insert_rowid()), None)
-            }
+            None => (insert(&tx, account, saved, &body)?, None),
         };
         if let Some(files) = files {
-            put_files(&tx, id, files)?;
+            write_files(&tx, FILES, id.0, files)?;
         }
         tx.commit()?;
         log::info!("mail: draft {} kept", id.0);
@@ -134,27 +128,7 @@ impl Store {
     }
 
     pub fn draft_files(&self, id: DraftId) -> Result<Vec<Part>> {
-        let mut query = self.conn.prepare(
-            "SELECT name, content_type, params, content_id, bytes FROM draft_files
-             WHERE draft = ?1 ORDER BY place",
-        )?;
-        let rows = query.query_map([id.0], |row| {
-            let params: String = row.get(2)?;
-            Ok((row.get(0)?, row.get(1)?, params, row.get(3)?, row.get(4)?))
-        })?;
-        rows.map(|row| {
-            let (name, content_type, params, content_id, bytes) = row?;
-            let params = serde_json::from_str(&params)?;
-            Ok(Part {
-                name,
-                content_type,
-                params,
-                content_id,
-                bytes,
-                section: None,
-            })
-        })
-        .collect()
+        read_files(&self.conn, FILES, id.0)
     }
 
     /// Forgets it; gives the server copy still to remove.
@@ -235,15 +209,56 @@ fn clear_remote(tx: &Transaction, id: DraftId) -> Result<()> {
     Ok(())
 }
 
-fn put_files(tx: &Transaction, id: DraftId, files: &[Part]) -> Result<()> {
-    tx.execute("DELETE FROM draft_files WHERE draft = ?1", [id.0])?;
+/// Removes a draft that must be there; gives its copy.
+pub(super) fn take(tx: &Transaction, id: DraftId) -> Result<Option<Left>> {
+    let sql = format!("SELECT {COLUMNS} FROM drafts WHERE id = ?1");
+    let draft = tx
+        .query_row(&sql, [id.0], shelved)
+        .optional()?
+        .transpose()?
+        .ok_or_else(|| Error::Store(format!("draft {} is gone", id.0)))?;
+    tx.execute("DELETE FROM drafts WHERE id = ?1", [id.0])?;
+    let account = draft.account;
+    Ok(draft.remote.map(|remote| Left { account, remote }))
+}
+
+/// A new draft row.
+pub(super) fn insert(
+    tx: &Transaction,
+    account: AccountId,
+    saved: i64,
+    body: &str,
+) -> Result<DraftId> {
+    tx.execute(
+        "INSERT INTO drafts (account, saved, body) VALUES (?1, ?2, ?3)",
+        params![account.0, saved, body],
+    )?;
+    Ok(DraftId(tx.last_insert_rowid()))
+}
+
+/// The table, and the column naming the owner.
+pub(super) type Files = (&'static str, &'static str);
+
+pub(super) const FILES: Files = ("draft_files", "draft");
+
+/// Replaces the owner's files with `files`, in order.
+pub(super) fn write_files(
+    tx: &Transaction,
+    (table, owner): Files,
+    id: i64,
+    files: &[Part],
+) -> Result<()> {
+    tx.execute(&format!("DELETE FROM {table} WHERE {owner} = ?1"), [id])?;
+    let sql = format!(
+        "INSERT INTO {table} ({owner}, place, name, content_type, params, content_id, bytes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+    );
     for (place, part) in files.iter().enumerate() {
         let params = serde_json::to_string(&part.params)?;
         tx.execute(
-            "INSERT INTO draft_files (draft, place, name, content_type, params, content_id, bytes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            &sql,
             params![
-                id.0,
+                id,
                 place as i64,
                 part.name,
                 part.content_type,
@@ -254,6 +269,30 @@ fn put_files(tx: &Transaction, id: DraftId, files: &[Part]) -> Result<()> {
         )?;
     }
     Ok(())
+}
+
+pub(super) fn read_files(conn: &Connection, (table, owner): Files, id: i64) -> Result<Vec<Part>> {
+    let mut query = conn.prepare(&format!(
+        "SELECT name, content_type, params, content_id, bytes FROM {table}
+         WHERE {owner} = ?1 ORDER BY place"
+    ))?;
+    let rows = query.query_map([id], |row| {
+        let params: String = row.get(2)?;
+        Ok((row.get(0)?, row.get(1)?, params, row.get(3)?, row.get(4)?))
+    })?;
+    rows.map(|row| {
+        let (name, content_type, params, content_id, bytes) = row?;
+        let params = serde_json::from_str(&params)?;
+        Ok(Part {
+            name,
+            content_type,
+            params,
+            content_id,
+            bytes,
+            section: None,
+        })
+    })
+    .collect()
 }
 
 fn shelved(row: &Row) -> rusqlite::Result<Result<Shelved>> {

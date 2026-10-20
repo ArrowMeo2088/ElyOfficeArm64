@@ -8,7 +8,7 @@ use ely_gpui_component::{
     primitives::Severity,
 };
 use ely_mail_engine::{
-    AccountId, Error, Mailbox, Part,
+    AccountId, Mailbox, Part,
     compose::{self, Earlier},
 };
 use gpui::{
@@ -26,7 +26,7 @@ pub use keeping::Shelf;
 
 use crate::{
     mail::{Mail, text},
-    writing::{Opening, Outgoing, Purpose, Sender, prepare},
+    writing::{Opening, Outgoing, Sender},
 };
 
 /// An attached file and its key in the list.
@@ -62,6 +62,8 @@ pub struct Compose {
     written: Draft,
     /// What the send under way carries.
     in_flight: Option<Carried>,
+    /// Sent, waiting for a draft write to land.
+    to_queue: Option<Frozen>,
     pub sending: bool,
     pub problem: Option<(Severity, SharedString)>,
     pub discarding: bool,
@@ -141,6 +143,7 @@ impl Compose {
             },
             written: blank(),
             in_flight: None,
+            to_queue: None,
             sending: false,
             problem: None,
             discarding: false,
@@ -332,40 +335,48 @@ impl Compose {
         })
     }
 
-    pub fn send(&mut self, draft: &Draft, window: &mut Window, cx: &mut Context<Self>) {
+    /// Hands it to the Outbox; the queue sends it.
+    pub fn send(&mut self, draft: &Draft, _: &mut Window, cx: &mut Context<Self>) {
         if self.sending {
             return;
         }
         if self.reading > 0 {
             return log::info!("mail: send waits for {} files", self.reading);
         }
+        self.begin_sending(cx);
         let Some(out) = self.outgoing(draft, cx) else {
-            return log::error!("mail: the sender {} is not listed", self.from.0);
+            log::error!("mail: the sender {} is not listed", self.from.0);
+            return self.queued(Err("the sender is not listed".into()), cx);
         };
         log::info!(
-            "mail: sending to {} addresses",
+            "mail: queueing for {} addresses",
             draft.to.len() + draft.cc.len()
         );
-        self.begin_sending(cx);
-        let (from, mail) = (self.from, self.mail.clone());
-        let built = cx.background_spawn(async move { prepare(&out, Purpose::Sending) });
-        cx.spawn_in(window, async move |this, cx| {
-            let outcome = async {
-                let (envelope, bytes) = built.await.map_err(Sent::from)?;
-                let task = mail
-                    .update(cx, |mail, _| mail.send_out(from, envelope, bytes))
-                    .map_err(|_| Sent::Failed("the mail window is closed".into()))?
-                    .map_err(Sent::Failed)?;
-                match task.await {
-                    Ok(done) => done.map_err(Sent::from),
-                    Err(error) => Err(Sent::Failed(error.to_string())),
-                }
-            }
-            .await;
-            this.update(cx, |compose, cx| compose.sent(outcome, cx))
-                .ok();
-        })
-        .detach();
+        let mut unsent = self.unsent(cx);
+        unsent.to = out.to.iter().map(|to| to.email.clone()).collect();
+        unsent.cc = out.cc.iter().map(|cc| cc.email.clone()).collect();
+        unsent.bcc = out.bcc.iter().map(|bcc| bcc.email.clone()).collect();
+        unsent.subject = out.subject.clone();
+        let from = self.from;
+        self.to_queue = Some(Frozen { from, unsent, out });
+        self.queue_now(cx);
+    }
+
+    /// Queues once no draft write is under way.
+    fn queue_now(&mut self, cx: &mut Context<Self>) {
+        if self.shelf_busy() {
+            return log::info!("mail: send waits for its draft write");
+        }
+        let Some(Frozen { from, unsent, out }) = self.to_queue.take() else {
+            return log::error!("mail: queueing with nothing sent");
+        };
+        let (held, this) = (self.shelf.id, cx.weak_entity());
+        let asked = self.mail.update(cx, |mail, cx| {
+            mail.queue_message(from, held, unsent, out, this, cx)
+        });
+        if asked.is_err() {
+            self.queued(Err("the mail window is closed".into()), cx);
+        }
     }
 
     pub fn begin_sending(&mut self, cx: &mut Context<Self>) {
@@ -375,24 +386,22 @@ impl Compose {
         cx.notify();
     }
 
-    pub fn sent(&mut self, outcome: Result<(), Sent>, cx: &mut Context<Self>) {
+    /// In the Outbox, it closes; else it stays to retry.
+    pub fn queued(&mut self, done: Result<(), String>, cx: &mut Context<Self>) {
         self.sending = false;
         let carried = self.in_flight.take();
-        let (severity, key, error) = match outcome {
+        match done {
             Ok(()) => {
-                log::info!("mail: the server accepted a message");
-                let words = text(cx, "mail.write.sent", &[]);
-                self.mail
-                    .update(cx, |mail, cx| mail.toast(words, Severity::Success, cx))
-                    .ok();
-                return self.after_sending(carried, cx);
+                self.handed_over();
+                self.after_sending(carried, cx);
             }
-            Err(Sent::Unsure(error)) => (Severity::Warning, "mail.write.unsure", error),
-            Err(Sent::Failed(error)) => (Severity::Danger, "mail.write.failed", error),
-        };
-        log::warn!("mail: a message was not confirmed sent");
-        self.problem = Some((severity, text(cx, key, &[("error", &error)])));
-        cx.notify();
+            Err(error) => {
+                log::warn!("mail: a message was not queued");
+                let words = text(cx, "mail.outbox.unqueued", &[("error", &error)]);
+                self.problem = Some((Severity::Danger, words));
+                self.next(cx);
+            }
+        }
     }
 }
 
@@ -412,6 +421,13 @@ impl Compose {
         self.sent_off(false, cx);
         cx.notify();
     }
+}
+
+/// A send, fixed as it was pressed.
+struct Frozen {
+    from: AccountId,
+    unsent: ely_mail_engine::Unsent,
+    out: Outgoing,
 }
 
 /// What one send carried.
@@ -449,21 +465,5 @@ fn blank() -> Draft {
         cc: Vec::new(),
         bcc: Vec::new(),
         subject: SharedString::default(),
-    }
-}
-
-/// Why the server did not surely accept it.
-pub enum Sent {
-    /// It went out; whether it was taken is unknown.
-    Unsure(String),
-    Failed(String),
-}
-
-impl From<Error> for Sent {
-    fn from(error: Error) -> Self {
-        match error {
-            Error::Unsure(_) => Sent::Unsure(error.to_string()),
-            other => Sent::Failed(other.to_string()),
-        }
     }
 }

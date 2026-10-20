@@ -95,6 +95,8 @@ impl Mail {
     }
 
     pub fn sync_all(&mut self, cx: &mut Context<Self>) {
+        // Sending is the user's own; pausing leaves it.
+        self.run_outbox(true, cx);
         if self.paused {
             return log::info!("mail: sync is paused");
         }
