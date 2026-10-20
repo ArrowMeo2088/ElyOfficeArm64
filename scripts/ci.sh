@@ -93,7 +93,7 @@ for file in "$dist"/*; do
   fi
   names+=("$name")
 done
-# Each asset's id and name, a page of 100 at a time; Windows Python writes CRLF.
+# Asset ids and names, 100 per page; strip CRLF.
 have=
 for ((page = 1; ; page++)); do
   got=$(curl -fsS "${auth[@]}" "$api/releases/$id/assets?per_page=100&page=$page" |
@@ -101,7 +101,7 @@ for ((page = 1; ; page++)); do
   [ -n "$got" ] || break
   have+=$got$'\n'
 done
-# Rebuilt bytes replace a rerun's earlier upload; other platforms' files stay.
+# A rerun replaces its own uploads, keeps others'.
 cd "$dist"
 for name in "${names[@]}"; do
   for old in $(awk -F'\t' -v name="$name" '$2 == name { print $1 }' <<<"$have"); do

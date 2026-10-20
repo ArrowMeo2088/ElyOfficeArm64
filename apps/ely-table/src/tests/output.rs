@@ -113,15 +113,17 @@ fn exports_write_the_shown_sheet_as_text() {
     run(&mut cx, &book, "cell.goto", &["B1"]);
     run(&mut cx, &book, "cell.enter", &["a;b"]);
     let id = cx.update(|app| book.read(app).core.tabs[0].id);
+    // The kernel ends rows the system's way.
+    let end = if cfg!(windows) { "\r\n" } else { "\n" };
     for (format, name, text) in [
-        (Format::Csv, "out.csv", "3,a;b\n"),
-        (Format::Tsv, "out.tsv", "3\ta;b\n"),
+        (Format::Csv, "out.csv", "3,a;b"),
+        (Format::Tsv, "out.tsv", "3\ta;b"),
     ] {
         let path = dir.path().join(name);
         update(&mut cx, &book, |book, cx| book.export_to(id, path.clone(), format, cx));
         settle(&cx, |_| path.exists());
         quiet(&cx, &book);
-        assert_eq!(std::fs::read_to_string(&path).expect("reads"), text);
+        assert_eq!(std::fs::read_to_string(&path).expect("reads"), format!("{text}{end}"));
     }
     let pdf = dir.path().join("out.pdf");
     update(&mut cx, &book, |book, cx| book.export_to(id, pdf.clone(), Format::Pdf, cx));

@@ -43,11 +43,9 @@ pub(super) fn cells(cx: &mut TestAppContext, book: &Entity<Book>, range: &str) -
         worker
             .run(&tab.doc, "cell.goto", &[range])
             .expect("the range");
-        tab.doc
-            .selection_text(&mut worker)
-            .expect("the text")
-            .trim()
-            .to_string()
+        let text = tab.doc.selection_text(&mut worker).expect("the text");
+        // The Windows kernel ends rows with CRLF.
+        text.trim().lines().collect::<Vec<_>>().join("\n")
     })
 }
 

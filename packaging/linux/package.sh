@@ -18,7 +18,7 @@ row=$(awk -F'\t' -v slug="$slug" '$1 == slug { print $2 "\t" $3 }' "$root/packag
 }
 name=${row%%$'\t'*}
 categories=${row##*$'\t'}
-# Ely's own code is MIT; a bundled engine keeps its licence.
+# Ely is MIT; bundled engines keep their licences.
 case $slug in
   ely-doc | ely-table | ely-show) license="MIT AND MPL-2.0" ;;
   ely-pdf) license="MIT AND AGPL-3.0-or-later" ;;
