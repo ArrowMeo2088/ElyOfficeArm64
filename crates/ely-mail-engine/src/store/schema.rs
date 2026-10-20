@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -62,4 +62,65 @@ ALTER TABLE messages ADD COLUMN missing TEXT NOT NULL DEFAULT '[]';
 /// Folders kept whole (C12.8).
 const V3: &str = "
 ALTER TABLE mailboxes ADD COLUMN offline INTEGER NOT NULL DEFAULT 0;
+";
+
+/// Ids never reused (C12.9); foreign keys are off here.
+const V4: &str = "
+CREATE TABLE accounts_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    settings TEXT NOT NULL,
+    synced INTEGER
+);
+CREATE TABLE mailboxes_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account INTEGER NOT NULL REFERENCES accounts ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    role TEXT,
+    uidvalidity INTEGER,
+    offline INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (account, name)
+);
+CREATE TABLE messages_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mailbox INTEGER NOT NULL REFERENCES mailboxes ON DELETE CASCADE,
+    uidvalidity INTEGER,
+    uid INTEGER,
+    uidl TEXT,
+    message_id TEXT,
+    in_reply_to TEXT NOT NULL,
+    refs TEXT NOT NULL,
+    subject TEXT,
+    sender TEXT NOT NULL,
+    recipients TEXT NOT NULL,
+    copies TEXT NOT NULL,
+    date INTEGER,
+    attachments INTEGER,
+    content TEXT,
+    missing TEXT NOT NULL DEFAULT '[]',
+    CHECK ((uid IS NULL) = (uidvalidity IS NULL) AND (uid IS NULL) <> (uidl IS NULL))
+);
+INSERT INTO accounts_new (id, address, settings, synced)
+    SELECT id, address, settings, synced FROM accounts;
+INSERT INTO mailboxes_new (id, account, name, role, uidvalidity, offline)
+    SELECT id, account, name, role, uidvalidity, offline FROM mailboxes;
+INSERT INTO messages_new (id, mailbox, uidvalidity, uid, uidl, message_id, in_reply_to,
+        refs, subject, sender, recipients, copies, date, attachments, content, missing)
+    SELECT id, mailbox, uidvalidity, uid, uidl, message_id, in_reply_to,
+        refs, subject, sender, recipients, copies, date, attachments, content, missing
+    FROM messages;
+DROP TABLE messages;
+DROP TABLE mailboxes;
+DROP TABLE accounts;
+ALTER TABLE accounts_new RENAME TO accounts;
+ALTER TABLE mailboxes_new RENAME TO mailboxes;
+ALTER TABLE messages_new RENAME TO messages;
+CREATE UNIQUE INDEX messages_imap ON messages (mailbox, uidvalidity, uid)
+    WHERE uid IS NOT NULL;
+CREATE UNIQUE INDEX messages_pop ON messages (mailbox, uidl) WHERE uidl IS NOT NULL;
+CREATE INDEX messages_thread ON messages (message_id);
+CREATE INDEX messages_content ON messages (content);
+CREATE TRIGGER messages_gone AFTER DELETE ON messages BEGIN
+    DELETE FROM search WHERE rowid = old.id;
+END;
 ";

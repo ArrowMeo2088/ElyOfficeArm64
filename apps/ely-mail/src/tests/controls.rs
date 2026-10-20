@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use super::{Keys, account, settle, window};
-use crate::{mail::Mail, syncing::EVERY, view::imap_range};
+use crate::{boxes::Open, mail::Mail, syncing::EVERY, view::imap_range};
 
 /// An account on a server that never answers.
 fn silent(dir: &std::path::Path, port: u16) -> AccountId {
@@ -252,6 +252,7 @@ fn the_account_page_scrolls_to_its_last_folder() {
         .unwrap();
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
+    cx.update(|_, app| mail.update(app, |mail, cx| mail.open_box(Open::Account(ann), cx)));
     cx.simulate_resize(size(px(1100.), px(800.)));
     settle(cx, |app| {
         mail.read(app)
@@ -313,5 +314,25 @@ fn the_range_names_the_folders_kept_whole() {
             rows(&[folder(2, "Sent", false)]),
             ["Downloaded: Headers of all mail; text from the last 90 days; attachments when asked"]
         );
+    });
+}
+
+#[test]
+fn remove_needs_an_open_account() {
+    let dir = tempfile::tempdir().unwrap();
+    Store::open(dir.path())
+        .unwrap()
+        .add_account(&account("ann@example.com"))
+        .unwrap();
+    let mut cx = TestAppContext::single();
+    let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
+    settle(cx, |app| mail.read(app).accounts().len() == 1);
+    cx.update(|_, app| assert_eq!(mail.read(app).open, Open::Inboxes));
+    cx.update(|_, app| mail.update(app, |mail, cx| mail.ask_remove(cx)));
+    cx.run_until_parked();
+    cx.update(|_, app| {
+        let mail = mail.read(app);
+        assert!(mail.removing.is_none());
+        assert_eq!(mail.accounts().len(), 1);
     });
 }

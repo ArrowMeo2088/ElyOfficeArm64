@@ -16,7 +16,10 @@ pub struct Removing {
 impl Mail {
     /// Measures what goes, then asks.
     pub fn ask_remove(&mut self, cx: &mut Context<Self>) {
-        let Some(id) = self.picked else { return };
+        let Some(id) = self.open.account() else {
+            let words = text(cx, "mail.remove.none", &[]);
+            return self.toast(words, Severity::Info, cx);
+        };
         self.with_store(
             cx,
             move |store| store.cached(id),

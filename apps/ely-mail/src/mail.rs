@@ -7,13 +7,19 @@ use std::{
 };
 
 use ely_gpui_component::primitives::Severity;
-use ely_mail_engine::{Account, AccountId, Store, TlsConnector, Vault};
+use ely_mail_engine::{Account, AccountId, Filter, Store, TlsConnector, Vault};
 use ely_platform::AppId;
 use ely_ui::Root;
 use gpui::{App, AppContext as _, Context, Entity, FocusHandle, SharedString, WeakEntity, Window};
 use tokio::runtime::Runtime;
 
-use crate::{adding::Adding, removing::Removing, side::Side, syncing::Syncs};
+use crate::{
+    adding::Adding,
+    boxes::{Listing, Open, Unread},
+    removing::Removing,
+    side::Side,
+    syncing::Syncs,
+};
 
 /// What the engine runs on and keeps to.
 pub struct Parts {
@@ -40,7 +46,11 @@ pub struct Mail {
     runtime: Arc<Runtime>,
     /// None until read.
     pub accounts: Option<Result<Vec<(AccountId, Account)>, String>>,
-    pub picked: Option<AccountId>,
+    /// Remove acts on its account.
+    pub open: Open,
+    pub filter: Filter,
+    pub listing: Listing,
+    pub unread: Unread,
     pub adding: Option<Adding>,
     pub removing: Option<Removing>,
     pub syncs: Syncs,
@@ -102,7 +112,10 @@ impl Mail {
             tls: parts.tls,
             runtime: Arc::new(runtime),
             accounts: None,
-            picked: None,
+            open: Open::Inboxes,
+            filter: Filter::default(),
+            listing: Listing::default(),
+            unread: Unread::new(),
             adding: None,
             removing: None,
             syncs: Syncs::new(),
@@ -126,15 +139,15 @@ impl Mail {
                 let first = mail.accounts.is_none();
                 if let Ok(accounts) = &read {
                     let still = |id| accounts.iter().any(|(each, _)| *each == id);
-                    mail.picked = mail
-                        .picked
-                        .filter(|id| still(*id))
-                        .or_else(|| accounts.first().map(|(id, _)| *id));
+                    if mail.open.account().is_some_and(|id| !still(id)) {
+                        mail.open = Open::Inboxes;
+                    }
                 }
                 mail.accounts = Some(read);
                 if first {
                     mail.sync_all(cx);
                 }
+                mail.read_mail(cx);
             },
         );
     }
@@ -144,11 +157,6 @@ impl Mail {
             Some(Ok(accounts)) => accounts,
             _ => &[],
         }
-    }
-
-    pub fn pick(&mut self, id: AccountId, cx: &mut Context<Self>) {
-        self.picked = Some(id);
-        self.notify(cx);
     }
 
     /// Redraws the window and its account list.

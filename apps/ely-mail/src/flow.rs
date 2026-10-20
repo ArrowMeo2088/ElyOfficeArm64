@@ -251,7 +251,7 @@ impl Mail {
                 if let Some(Ok(accounts)) = &mut mail.accounts {
                     accounts.push((id, account));
                 }
-                mail.picked = Some(id);
+                mail.open_box(crate::boxes::Open::Account(id), cx);
                 mail.sync(id, cx);
                 if mail.awaiting(asked).is_some() {
                     mail.adding = None;

@@ -22,6 +22,9 @@ fn account(address: &str) -> Account {
     }
 }
 
+mod ids;
+mod listing;
+
 const ADD: &str = "ALTER TABLE accounts ADD COLUMN nick TEXT";
 const BROKEN: &str = "ALTER TABLE nowhere ADD COLUMN nick TEXT";
 
@@ -144,7 +147,10 @@ fn a_v1_store_gains_sync_and_keeps_its_mail() {
         .set_folders(ann, &[("INBOX", Some(Role::Inbox))])
         .unwrap();
     let [inbox] = store.folders(ann).unwrap().try_into().unwrap();
-    assert_eq!((inbox.name.as_str(), inbox.role), ("INBOX", Some(Role::Inbox)));
+    assert_eq!(
+        (inbox.name.as_str(), inbox.role),
+        ("INBOX", Some(Role::Inbox))
+    );
     assert!(!inbox.offline);
     let held = store.open_mailbox(inbox.id, 7).unwrap();
     assert_eq!(held.keys().copied().collect::<Vec<_>>(), [1]);
@@ -152,4 +158,22 @@ fn a_v1_store_gains_sync_and_keeps_its_mail() {
     store.set_synced(ann, 9).unwrap();
     assert_eq!(store.synced(ann).unwrap().at, Some(9));
     assert_eq!(store.synced(ann).unwrap().messages, 1);
+}
+
+#[test]
+fn an_upgrade_leaving_a_row_without_its_parent_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    let old = open(dir.path(), &[STEPS[0]]).unwrap();
+    old.conn
+        .execute_batch(
+            "PRAGMA foreign_keys = OFF;
+             INSERT INTO mailboxes (account, name) VALUES (99, 'INBOX');",
+        )
+        .unwrap();
+    drop(old);
+    let store = open(dir.path(), STEPS).unwrap();
+    let reason = store.read_only().unwrap();
+    assert!(reason.contains("missing rows"), "{reason}");
+    drop(store);
+    assert_eq!(version(&dir.path().join(DB)), 1);
 }

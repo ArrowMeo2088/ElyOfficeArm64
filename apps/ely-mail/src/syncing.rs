@@ -177,6 +177,7 @@ impl Mail {
                 (Ok((synced, folders)), Some(syncing)) => {
                     syncing.synced = Some(synced);
                     syncing.folders = folders;
+                    mail.read_mail(cx);
                 }
                 (Err(error), Some(_)) => mail.failed("mail.sync.unread", &error, cx),
                 (_, None) => {}

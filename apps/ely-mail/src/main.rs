@@ -3,11 +3,13 @@
 
 mod add_view;
 mod adding;
+mod boxes;
 mod controls;
 mod flow;
 mod kinds;
 mod mail;
 mod menu;
+mod panes;
 mod removing;
 mod side;
 mod syncing;

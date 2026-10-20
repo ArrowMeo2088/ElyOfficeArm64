@@ -4,7 +4,7 @@ use ely_mail_engine::{Auth, Error, Fetched, Key, Protocol, Security, Store, oaut
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
 use super::{Keys, account, adding, closed_port, passed, settle, step_words, type_in, window};
-use crate::{adding::Step, kinds::Kind, mail::Mail};
+use crate::{adding::Step, boxes::Open, kinds::Kind, mail::Mail};
 
 #[test]
 fn an_imap_form_says_what_is_missing() {
@@ -188,7 +188,7 @@ fn a_refused_keychain_keeps_the_account_and_says_why() {
     cx.update(|_, app| {
         let mail = mail.read(app);
         assert_eq!(mail.accounts().len(), 1);
-        assert_eq!(mail.picked, Some(mail.accounts()[0].0));
+        assert_eq!(mail.open, Open::Account(mail.accounts()[0].0));
         assert_eq!(
             mail.vault
                 .get("account:ann@example.com")
@@ -245,6 +245,7 @@ fn an_account_is_kept_and_removed_with_its_secret() {
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), keys.clone());
     cx.update(|_, app| assert_eq!(mail.read(app).accounts()[0].1, account("ann@example.com")));
+    open_first(&mail, cx);
     cx.update(|_, app| mail.update(app, |mail, cx| mail.ask_remove(cx)));
     settle(cx, |app| mail.read(app).removing.is_some());
     cx.update(|_, app| {
@@ -272,6 +273,7 @@ fn a_refused_secret_removal_keeps_the_account() {
     };
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), keys.clone());
+    open_first(&mail, cx);
     cx.update(|_, app| mail.update(app, |mail, cx| mail.ask_remove(cx)));
     settle(cx, |app| mail.read(app).removing.is_some());
     press_remove(&mail, cx);
@@ -320,6 +322,7 @@ still here
         .unwrap()
         .file_name();
     std::fs::create_dir(shard.join(format!(".{}.gone", name.to_str().unwrap()))).unwrap();
+    open_first(&mail, cx);
     cx.update(|_, app| mail.update(app, |mail, cx| mail.ask_remove(cx)));
     settle(cx, |app| mail.read(app).removing.is_some());
     press_remove(&mail, cx);
@@ -386,7 +389,7 @@ fn two_saves_in_flight_add_an_address_once() {
 }
 
 #[test]
-fn the_keyboard_picks_another_account() {
+fn the_keyboard_opens_another_accounts_settings() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).unwrap();
     store.add_account(&account("ann@example.com")).unwrap();
@@ -401,13 +404,13 @@ fn the_keyboard_picks_another_account() {
         cx.run_until_parked();
     }
     for _ in 0..8 {
-        cx.simulate_keystrokes("tab down");
+        cx.simulate_keystrokes("tab space");
         cx.run_until_parked();
-        if cx.update(|_, app| mail.read(app).picked) == Some(bo) {
+        if cx.update(|_, app| mail.read(app).open) == Open::Account(bo) {
             return;
         }
     }
-    panic!("no Tab stop let Down reach the second account");
+    panic!("no Tab stop let Space open the second account");
 }
 
 /// Through the dialog: back to its last stop, Remove.
@@ -421,6 +424,13 @@ fn press_remove(mail: &Entity<Mail>, cx: &mut VisualTestContext) {
         keystroke: gpui::Keystroke::parse("enter").unwrap(),
     });
     settle(cx, |app| mail.read(app).removing.is_none());
+}
+
+/// Opens the first account's page, as a user would.
+fn open_first(mail: &Entity<Mail>, cx: &mut VisualTestContext) {
+    settle(cx, |app| !mail.read(app).accounts().is_empty());
+    let first = cx.update(|_, app| mail.read(app).accounts()[0].0);
+    cx.update(|_, app| mail.update(app, |mail, cx| mail.open_box(Open::Account(first), cx)));
 }
 
 /// The save lands after a second dialog opened.

@@ -9,7 +9,7 @@ use ely_gpui_component::{
     primitives::{IconName, Severity},
     typography::format,
 };
-use ely_mail_engine::{Account, AccountId, Auth, LocalFolder, Protocol, Security, Server, sync};
+use ely_mail_engine::{AccountId, Auth, LocalFolder, Protocol, Security, Server, sync};
 use ely_platform::AppId;
 use ely_ui::Shell;
 use gpui::{
@@ -18,19 +18,10 @@ use gpui::{
 };
 
 use crate::{
+    boxes::Open,
     mail::{Mail, text},
     menu,
 };
-
-/// "IMAP · imap.example.com"
-pub fn protocol(account: &Account, cx: &App) -> SharedString {
-    let name = protocol_name(account.protocol);
-    text(
-        cx,
-        "mail.account.line",
-        &[("protocol", name), ("host", &account.incoming.host)],
-    )
-}
 
 fn server(server: &Server, cx: &App) -> SharedString {
     let security = match server.security {
@@ -78,10 +69,17 @@ impl Mail {
             Some(Err(detail)) => return error("mail.store.unread", detail, cx),
             Some(Ok(accounts)) => accounts,
         };
-        let Some((id, account)) = accounts.iter().find(|(id, _)| Some(*id) == self.picked) else {
+        if accounts.is_empty() {
             return EmptyState::new("mail-empty", IconName::Mail, text(cx, "mail.empty", &[]))
                 .action(self.add_button(cx))
                 .into_any_element();
+        }
+        let Open::Account(open) = self.open else {
+            return self.panes(cx);
+        };
+        let Some((id, account)) = accounts.iter().find(|(id, _)| *id == open) else {
+            log::error!("mail: account {} open but not listed", open.0);
+            return error("mail.store.unread", "", cx);
         };
         let label = |key: &str| text(cx, key, &[]);
         let incoming = format!(
@@ -272,7 +270,7 @@ impl Render for Mail {
 }
 
 /// Local time to the minute.
-fn local_time(at: i64) -> String {
+pub fn local_time(at: i64) -> String {
     match jiff::Timestamp::from_second(at) {
         Ok(at) => at
             .to_zoned(jiff::tz::TimeZone::system())

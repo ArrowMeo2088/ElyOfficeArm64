@@ -14,6 +14,7 @@ mod accounts;
 mod aside;
 mod folders;
 mod html;
+mod listing;
 mod messages;
 mod schema;
 mod search;
@@ -22,6 +23,7 @@ mod tests;
 
 pub use accounts::Cached;
 pub use folders::{Held, LocalFolder, Synced};
+pub use listing::{Filter, Scope, Summary};
 pub use messages::{Fetched, Key, Stored};
 
 const DB: &str = "mail.db";
@@ -175,13 +177,18 @@ fn upgrade(
     Ok(())
 }
 
-fn migrate(conn: &mut Connection, version: usize, steps: &[&str]) -> rusqlite::Result<()> {
+fn migrate(conn: &mut Connection, version: usize, steps: &[&str]) -> Result<()> {
+    // A rebuilt parent would cascade into its children.
+    conn.pragma_update(None, "foreign_keys", false)?;
     let tx = conn.transaction()?;
     for step in &steps[version..] {
         tx.execute_batch(step)?;
     }
+    if tx.prepare("PRAGMA foreign_key_check")?.exists([])? {
+        return Err(Error::Store("rows point at missing rows".into()));
+    }
     tx.pragma_update(None, "user_version", steps.len() as i64)?;
-    tx.commit()
+    Ok(tx.commit()?)
 }
 
 fn backup(conn: &Connection, dir: &Path, version: usize) -> Result<()> {
