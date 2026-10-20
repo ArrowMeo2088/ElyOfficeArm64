@@ -1,7 +1,7 @@
 //! Ids are never reused, so a stale one names nothing.
 
 use super::{STEPS, account, open};
-use crate::{Fetched, Key, Role, Store};
+use crate::{Fetched, Key, MessageId, Role, Store};
 
 const MAIL: &[u8] = b"From: a@example.com\r\nSubject: hi\r\n\r\nhi\r\n";
 
@@ -57,9 +57,15 @@ fn a_v3_store_keeps_its_ids_and_stops_reusing_them() {
         .try_into()
         .unwrap();
     old.open_mailbox(inbox, 1).unwrap();
-    let first = old
-        .put(inbox, &imap(1), &["\\Seen"], Fetched::Whole(MAIL))
+    // Today's writes name later columns; insert as SQL.
+    old.conn
+        .execute(
+            "INSERT INTO messages (mailbox, uidvalidity, uid, in_reply_to, refs, sender,
+                 recipients, copies, content) VALUES (?1, 1, 1, '[]', '[]', '[]', '[]', '[]', ?2)",
+            rusqlite::params![inbox.0, "a".repeat(64)],
+        )
         .unwrap();
+    let first = MessageId(old.conn.last_insert_rowid());
     drop(old);
     let mut store = open(dir.path(), STEPS).unwrap();
     assert_eq!(store.read_only(), None);
@@ -71,4 +77,39 @@ fn a_v3_store_keeps_its_ids_and_stops_reusing_them() {
         .put(inbox, &imap(2), &[], Fetched::Whole(MAIL))
         .unwrap();
     assert!(second.0 > first.0, "message {} came back", first.0);
+}
+
+#[test]
+fn a_flagged_headers_only_v5_message_upgrades_and_stays_writable() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut old = open(dir.path(), &STEPS[..5]).unwrap();
+    let ann = old.add_account(&account("ann@example.com")).unwrap();
+    let [inbox] = old
+        .set_folders(ann, &[("INBOX", Some(Role::Inbox))])
+        .unwrap()
+        .try_into()
+        .unwrap();
+    old.open_mailbox(inbox, 1).unwrap();
+    old.conn
+        .execute(
+            "INSERT INTO messages (mailbox, uidvalidity, uid, in_reply_to, refs, sender,
+                 recipients, copies) VALUES (?1, 1, 1, '[]', '[]', '[]', '[]', '[]')",
+            [inbox.0],
+        )
+        .unwrap();
+    let gone = old.conn.last_insert_rowid();
+    old.conn
+        .execute(
+            r"INSERT INTO flags (message, flag) VALUES (?1, '\Seen')",
+            [gone],
+        )
+        .unwrap();
+    drop(old);
+    let mut store = open(dir.path(), STEPS).unwrap();
+    assert_eq!(store.read_only(), None);
+    assert!(store.open_mailbox(inbox, 1).unwrap().is_empty());
+    let again = store
+        .put(inbox, &imap(1), &[], Fetched::Whole(MAIL))
+        .unwrap();
+    assert_eq!(store.find(inbox, &imap(1)).unwrap(), Some(again));
 }

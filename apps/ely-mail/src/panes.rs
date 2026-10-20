@@ -2,21 +2,15 @@
 
 use ely_gpui_component::{
     buttons::{ToggleGroup, ToggleItem},
-    data_display::DescriptionList,
-    feedback::{EmptyState, ErrorView},
+    feedback::ErrorView,
     layout::SplitPane,
     mail::MailList,
     primitives::IconName,
 };
 use ely_mail_engine::Filter;
-use gpui::{
-    AnyElement, Axis, Context, IntoElement, ParentElement as _, SharedString, Styled as _, div, px,
-};
+use gpui::{AnyElement, Axis, Context, IntoElement, ParentElement as _, Styled as _, div, px};
 
-use crate::{
-    mail::{Mail, text},
-    view::local_time,
-};
+use crate::mail::{Mail, text};
 
 type Filtered = fn(Filter) -> bool;
 
@@ -89,33 +83,6 @@ impl Mail {
             .flex_col()
             .child(div().p_2().child(toggles))
             .child(div().flex_1().min_h_0().child(list))
-            .into_any_element()
-    }
-
-    fn reader(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(row) = &self.listing.chosen else {
-            return EmptyState::new(
-                "mail-reader-empty",
-                IconName::Mail,
-                text(cx, "mail.reader.none", &[]),
-            )
-            .into_any_element();
-        };
-        let label = |key: &str| text(cx, key, &[]);
-        let date: SharedString = match row.at {
-            Some(at) => local_time(at.as_second()).into(),
-            None => label("mail.reader.no_date"),
-        };
-        let details = DescriptionList::new()
-            .text(label("mail.reader.from"), row.from.clone())
-            .text(label("mail.reader.date"), date);
-        div()
-            .p_6()
-            .flex()
-            .flex_col()
-            .gap_4()
-            .child(div().text_xl().child(row.subject.clone()))
-            .child(details)
             .into_any_element()
     }
 }

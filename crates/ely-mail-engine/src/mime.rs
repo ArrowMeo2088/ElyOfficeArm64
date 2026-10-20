@@ -26,6 +26,8 @@ pub struct Part {
     pub content_id: Option<String>,
     /// Transfer-decoded; a multipart keeps its headers.
     pub bytes: Vec<u8>,
+    /// Its IMAP part number, for a part as read.
+    pub section: Option<String>,
 }
 
 /// A message as read; bodies are the sender's own parts.
@@ -42,10 +44,19 @@ pub struct Mail {
     pub references: Vec<String>,
     pub text: Option<String>,
     pub html: Option<String>,
+    /// Bodies to read in order; one per alternative.
+    pub shown: Vec<Shown>,
     pub inline: Vec<Part>,
     pub attachments: Vec<Part>,
     /// The header block as it arrived.
     pub headers: String,
+}
+
+/// One body part, as the reader reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Shown {
+    Text(String),
+    Html(String),
 }
 
 /// A message to write; Bcc stays in the SMTP envelope.
@@ -99,6 +110,7 @@ pub fn read(raw: &[u8]) -> Result<Mail> {
         references: ids(message.references()),
         text: joined(shape.text),
         html: joined(shape.html),
+        shown: shape.shown,
         inline: shape.inline,
         attachments: shape.attachments,
         headers: String::from_utf8_lossy(&raw[..header_end.min(raw.len())]).into_owned(),

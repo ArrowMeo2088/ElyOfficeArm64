@@ -106,6 +106,7 @@ fn forwarded() -> Vec<u8> {
         params: Vec::new(),
         content_id: None,
         bytes: "Subject: 您好\r\n\r\nhi\r\n".as_bytes().to_vec(),
+        section: None,
     };
     let draft = Draft {
         from: Mailbox {

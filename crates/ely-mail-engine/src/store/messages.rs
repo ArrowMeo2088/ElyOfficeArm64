@@ -30,6 +30,15 @@ pub enum Fetched<'a> {
     Whole(&'a [u8]),
 }
 
+/// What a write keeps: a header block, or an original.
+enum Kept<'a> {
+    Head(&'a [u8]),
+    Body {
+        content: &'a str,
+        missing: &'a [String],
+    },
+}
+
 /// A message as indexed; the original is read apart.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stored {
@@ -89,14 +98,17 @@ impl Store {
             }
             (Fetched::Headers(bytes), None) => {
                 let mail = read(bytes)?;
-                return self.write(mailbox, key, flags, &mail, None, None);
+                return self.write(mailbox, key, flags, &mail, Kept::Head(bytes), None);
             }
             (Fetched::Text { bytes, missing }, _) => (bytes, missing),
             (Fetched::Whole(bytes), _) => (bytes, &[][..]),
         };
         let mail = read(bytes)?;
         let (content, made) = self.keep(bytes)?;
-        let body = Some((content.as_str(), missing));
+        let body = Kept::Body {
+            content: &content,
+            missing,
+        };
         let written = self.write(mailbox, key, flags, &mail, body, existing);
         if written.is_err() && made {
             let mut aside = Aside::new(&self.dir);
@@ -114,11 +126,13 @@ impl Store {
         key: &Key,
         flags: &[&str],
         mail: &Mail,
-        body: Option<(&str, &[String])>,
+        kept: Kept,
         existing: Option<MessageId>,
     ) -> Result<MessageId> {
-        let content = body.map(|(content, _)| content);
-        let missing = body.map_or(&[][..], |(_, missing)| missing);
+        let (content, missing, head) = match kept {
+            Kept::Head(head) => (None, &[][..], Some(head)),
+            Kept::Body { content, missing } => (Some(content), missing, None),
+        };
         let (uidvalidity, uid, uidl) = match key {
             Key::Imap { uidvalidity, uid } => (Some(*uidvalidity), Some(*uid), None),
             Key::Pop { uidl } => (None, None, Some(uidl.as_str())),
@@ -144,6 +158,7 @@ impl Store {
             &attachments,
             &content,
             &json[5],
+            &head,
         ];
         let tx = self.conn.transaction()?;
         let mut aside = Aside::new(&self.dir);
@@ -160,7 +175,8 @@ impl Store {
                     tx.execute(
                         "UPDATE messages SET message_id = ?1, in_reply_to = ?2, refs = ?3,
                          subject = ?4, sender = ?5, recipients = ?6, copies = ?7, date = ?8,
-                         attachments = ?9, content = ?10, missing = ?11 WHERE id = ?12",
+                         attachments = ?9, content = ?10, missing = ?11, head = ?12
+                         WHERE id = ?13",
                         values.as_slice(),
                     )?;
                     *id
@@ -169,9 +185,9 @@ impl Store {
                     values.extend::<[&dyn ToSql; 4]>([&mailbox.0, &uidvalidity, &uid, &uidl]);
                     tx.execute(
                         "INSERT INTO messages (message_id, in_reply_to, refs, subject, sender,
-                         recipients, copies, date, attachments, content, missing, mailbox,
+                         recipients, copies, date, attachments, content, missing, head, mailbox,
                          uidvalidity, uid, uidl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
-                         ?11, ?12, ?13, ?14, ?15)",
+                         ?11, ?12, ?13, ?14, ?15, ?16)",
                         values.as_slice(),
                     )?;
                     MessageId(tx.last_insert_rowid())
@@ -217,6 +233,18 @@ impl Store {
         self.content(id)?
             .map(|hash| load_at(&self.dir, &hash))
             .transpose()
+    }
+
+    /// The header block kept while the body is not.
+    pub fn head(&self, id: MessageId) -> Result<Vec<u8>> {
+        let head: Option<Vec<u8>> = self
+            .conn
+            .query_row("SELECT head FROM messages WHERE id = ?1", [id.0], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .ok_or_else(|| Error::Store(format!("no message {}", id.0)))?;
+        head.ok_or_else(|| Error::Store(format!("message {} kept no header block", id.0)))
     }
 
     pub fn remove(&mut self, id: MessageId) -> Result<()> {

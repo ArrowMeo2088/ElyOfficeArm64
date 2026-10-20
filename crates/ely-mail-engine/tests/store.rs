@@ -94,6 +94,7 @@ fn headers_first_then_the_whole_message() {
     assert_eq!(stored.subject.as_deref(), Some("Café report"));
     assert_eq!((stored.body, stored.attachments), (false, None));
     assert_eq!(store.original(id).unwrap(), None);
+    assert_eq!(store.head(id).unwrap(), headers(&raw));
     assert_eq!(found(dir.path(), "report"), [id.0]);
     assert!(found(dir.path(), "numbers").is_empty());
 
@@ -109,6 +110,8 @@ fn headers_first_then_the_whole_message() {
     );
     assert_eq!(store.get(id).unwrap().attachments, Some(1));
     assert_eq!(found(dir.path(), "numbers"), [id.0]);
+    let gone = store.head(id).unwrap_err().to_string();
+    assert!(gone.contains("kept no header block"), "{gone}");
 }
 
 #[test]

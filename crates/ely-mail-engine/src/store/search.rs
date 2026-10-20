@@ -1,6 +1,6 @@
 use rusqlite::{Transaction, params};
 
-use super::{MessageId, Store, html, messages::load_at};
+use super::{MessageId, Store, messages::load_at};
 use crate::{Mail, Mailbox, Result, read};
 
 /// Replaces the message's row in the full-text index.
@@ -113,7 +113,7 @@ fn contents(id: MessageId, mail: &Mail) -> (String, String) {
     let body = match (&mail.text, &mail.html) {
         (Some(text), _) => text.clone(),
         (None, Some(html)) => {
-            let (text, short) = html::text(html);
+            let (text, short) = crate::html::text(html);
             if short {
                 log::warn!(
                     "mail: message {} nests HTML too deep; its later text is not indexed",

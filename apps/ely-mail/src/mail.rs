@@ -16,6 +16,7 @@ use tokio::runtime::Runtime;
 use crate::{
     adding::Adding,
     boxes::{Listing, Open, Unread},
+    reading::Reading,
     removing::Removing,
     side::Side,
     syncing::Syncs,
@@ -50,6 +51,7 @@ pub struct Mail {
     pub open: Open,
     pub filter: Filter,
     pub listing: Listing,
+    pub reading: Reading,
     pub unread: Unread,
     pub adding: Option<Adding>,
     pub removing: Option<Removing>,
@@ -115,6 +117,7 @@ impl Mail {
             open: Open::Inboxes,
             filter: Filter::default(),
             listing: Listing::default(),
+            reading: Reading::default(),
             unread: Unread::new(),
             adding: None,
             removing: None,

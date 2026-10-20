@@ -13,13 +13,13 @@ use crate::{Error, Result};
 mod accounts;
 mod aside;
 mod folders;
-mod html;
 mod listing;
 mod messages;
 mod schema;
 mod search;
 #[cfg(test)]
 mod tests;
+mod trusted;
 
 pub use accounts::Cached;
 pub use folders::{Held, LocalFolder, Synced};

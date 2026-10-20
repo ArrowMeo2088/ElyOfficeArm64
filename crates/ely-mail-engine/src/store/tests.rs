@@ -136,10 +136,11 @@ fn a_v1_store_gains_sync_and_keeps_its_mail() {
     assert_eq!(store.read_only(), None);
     assert_eq!(version(&dir.path().join(DB)), STEPS.len() as i64);
     assert_eq!(backups(dir.path()).len(), 1);
+    // v6 drops the headers-only row; sync fetches it again.
     let synced = Synced {
         at: None,
-        messages: 2,
-        uncached: 1,
+        messages: 1,
+        uncached: 0,
         partial: 0,
     };
     assert_eq!(store.synced(ann).unwrap(), synced);

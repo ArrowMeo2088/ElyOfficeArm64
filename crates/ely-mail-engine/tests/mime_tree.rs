@@ -1,4 +1,4 @@
-use ely_mail_engine::{Draft, Mailbox, Part, build, read};
+use ely_mail_engine::{Draft, Mailbox, Part, Shown, build, read};
 
 /// Lines joined with CRLF, as servers send them.
 fn crlf(lines: &[&str]) -> Vec<u8> {
@@ -12,6 +12,15 @@ fn part(name: Option<&str>, kind: &str, id: Option<&str>, bytes: &[u8]) -> Part 
         params: Vec::new(),
         content_id: id.map(str::to_owned),
         bytes: bytes.to_vec(),
+        section: None,
+    }
+}
+
+/// The part as read at IMAP part `section`.
+fn at(section: &str, part: Part) -> Part {
+    Part {
+        section: Some(section.into()),
+        ..part
     }
 }
 
@@ -73,7 +82,7 @@ fn a_built_latin1_text_attachment_reads_back_as_built() {
         date: 0,
     };
     let back = read(&build(&draft).unwrap().bytes).unwrap();
-    assert_eq!(back.attachments, [latin1]);
+    assert_eq!(back.attachments, [at("2", latin1)]);
 }
 
 #[test]
@@ -102,7 +111,10 @@ fn a_related_root_named_by_start_can_come_after_its_image() {
     );
     assert_eq!(
         mail.inline,
-        [part(None, "image/png", Some("img@example.com"), b"\x89PNG")]
+        [at(
+            "1",
+            part(None, "image/png", Some("img@example.com"), b"\x89PNG")
+        )]
     );
     assert!(mail.attachments.is_empty());
 }
@@ -129,11 +141,14 @@ fn a_related_image_marked_attachment_is_still_a_cid_target() {
     .unwrap();
     assert_eq!(
         mail.inline,
-        [part(
-            Some("img.png"),
-            "image/png",
-            Some("img@example.com"),
-            b"\x89PNG"
+        [at(
+            "2",
+            part(
+                Some("img.png"),
+                "image/png",
+                Some("img@example.com"),
+                b"\x89PNG"
+            )
         )]
     );
     assert!(mail.attachments.is_empty());
@@ -195,7 +210,10 @@ fn alternatives_of_one_type_are_chosen_not_joined() {
     assert_eq!(mail.text.as_deref(), Some("Café"));
     assert_eq!(
         mail.attachments,
-        [part(None, "text/calendar", None, b"BEGIN:VCALENDAR")]
+        [at(
+            "3",
+            part(None, "text/calendar", None, b"BEGIN:VCALENDAR")
+        )]
     );
 }
 
@@ -210,4 +228,112 @@ fn a_digest_child_without_a_type_is_a_message() {
     assert_eq!(mail.attachments[0].content_type, "message/rfc822");
     let inner = read(&mail.attachments[0].bytes).unwrap();
     assert_eq!(inner.subject.as_deref(), Some("inner"));
+}
+
+#[test]
+fn parts_carry_the_numbers_imap_fetches_them_by() {
+    let lone = read(&crlf(&[
+        "Content-Type: application/pdf",
+        "Content-Disposition: attachment; filename=a.pdf",
+        "",
+        "%PDF",
+        "",
+    ]))
+    .unwrap();
+    assert_eq!(lone.attachments[0].section.as_deref(), Some("1"));
+    let whole = read(&crlf(&[
+        "Content-Type: multipart/mixed; boundary=w",
+        "Content-Disposition: attachment; filename=all.mime",
+        "",
+        "--w",
+        "Content-Type: text/plain",
+        "",
+        "inside",
+        "--w--",
+        "",
+    ]))
+    .unwrap();
+    assert_eq!(whole.attachments[0].section.as_deref(), Some("TEXT"));
+    let nested = read(&crlf(&[
+        "Content-Type: multipart/mixed; boundary=o",
+        "",
+        "--o",
+        "Content-Type: text/plain",
+        "",
+        "body",
+        "--o",
+        "Content-Type: multipart/mixed; boundary=i",
+        "",
+        "--i",
+        "Content-Type: text/plain",
+        "",
+        "more",
+        "--i",
+        "Content-Type: application/pdf",
+        "Content-Disposition: attachment; filename=deep.pdf",
+        "",
+        "%PDF",
+        "--i--",
+        "--o",
+        "Content-Type: message/rfc822",
+        "",
+        "Subject: old",
+        "",
+        "old body",
+        "--o--",
+        "",
+    ]))
+    .unwrap();
+    let sections: Vec<_> = (nested.attachments.iter())
+        .map(|part| part.section.as_deref())
+        .collect();
+    assert_eq!(sections, [Some("2.2"), Some("3")]);
+}
+
+#[test]
+fn mixed_bodies_read_in_order_and_alternatives_once() {
+    let mail = read(&crlf(&[
+        "Content-Type: multipart/mixed; boundary=m",
+        "",
+        "--m",
+        "Content-Type: text/plain",
+        "",
+        "Appointment is at 09:00",
+        "--m",
+        "Content-Type: text/html",
+        "",
+        "<p>Directions to the clinic</p>",
+        "--m",
+        "Content-Type: multipart/alternative; boundary=a",
+        "",
+        "--a",
+        "Content-Type: text/plain",
+        "",
+        "Bring your card",
+        "--a",
+        "Content-Type: text/html",
+        "",
+        "<p>Bring your card</p>",
+        "--a--",
+        "--m",
+        "Content-Type: multipart/alternative; boundary=t",
+        "",
+        "--t",
+        "Content-Type: text/plain",
+        "",
+        "Plain only",
+        "--t--",
+        "--m--",
+        "",
+    ]))
+    .unwrap();
+    assert_eq!(
+        mail.shown,
+        [
+            Shown::Text("Appointment is at 09:00".into()),
+            Shown::Html("<p>Directions to the clinic</p>".into()),
+            Shown::Html("<p>Bring your card</p>".into()),
+            Shown::Text("Plain only".into()),
+        ]
+    );
 }

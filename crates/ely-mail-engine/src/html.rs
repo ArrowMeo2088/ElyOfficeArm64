@@ -1,3 +1,5 @@
+//! A mail's HTML as a tree, never run.
+
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 
@@ -11,8 +13,8 @@ use html5ever::{
 const DEPTH: usize = 512;
 const CHUNK: usize = 4096;
 
-/// Visible HTML text, and whether it stopped short.
-pub(super) fn text(html: &str) -> (String, bool) {
+/// The parsed tree, and whether it stopped short.
+pub(crate) fn parse(html: &str) -> (Tree, bool) {
     let opts = ParseOpts {
         tree_builder: TreeBuilderOpts {
             // Mail never runs scripts.
@@ -37,24 +39,34 @@ pub(super) fn text(html: &str) -> (String, bool) {
         parser.process(StrTendril::from_slice(head));
         rest = tail;
     }
-    (parser.finish().text(), short)
+    (parser.finish(), short)
 }
 
-enum Data {
+/// Visible HTML text, and whether it stopped short.
+pub(crate) fn text(html: &str) -> (String, bool) {
+    let (tree, short) = parse(html);
+    (tree.text(), short)
+}
+
+pub(crate) enum Data {
     Document,
-    Element { name: QualName, point: bool },
+    Element {
+        name: QualName,
+        attrs: Vec<(LocalName, String)>,
+        point: bool,
+    },
     Text(String),
     Other,
 }
 
-struct Node {
+pub(crate) struct Node {
     parent: Option<usize>,
-    children: Vec<usize>,
-    data: Data,
+    pub children: Vec<usize>,
+    pub data: Data,
 }
 
-/// The tree html5ever's builder makes.
-struct Tree {
+/// The tree html5ever's builder makes; the document is 0.
+pub(crate) struct Tree {
     nodes: RefCell<Vec<Node>>,
     /// An element went past `DEPTH`.
     deep: Cell<bool>,
@@ -75,7 +87,7 @@ impl Default for Tree {
 }
 
 #[derive(Debug)]
-pub(super) struct Name(QualName);
+pub(crate) struct Name(QualName);
 
 impl ElemName for Name {
     fn ns(&self) -> &Namespace {
@@ -88,6 +100,10 @@ impl ElemName for Name {
 }
 
 impl Tree {
+    pub(crate) fn nodes(&self) -> std::cell::Ref<'_, Vec<Node>> {
+        self.nodes.borrow()
+    }
+
     fn add(&self, data: Data) -> usize {
         let mut nodes = self.nodes.borrow_mut();
         nodes.push(Node {
@@ -162,7 +178,7 @@ impl Tree {
 }
 
 /// Not drawn, per the HTML rendering rules.
-fn hidden(name: &LocalName) -> bool {
+pub(crate) fn hidden(name: &LocalName) -> bool {
     matches!(
         *name,
         local_name!("area")
@@ -206,9 +222,13 @@ impl TreeSink for Tree {
         }
     }
 
-    fn create_element(&self, name: QualName, _: Vec<Attribute>, flags: ElementFlags) -> usize {
+    fn create_element(&self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags) -> usize {
         let point = flags.mathml_annotation_xml_integration_point;
-        let node = self.add(Data::Element { name, point });
+        let attrs = attrs
+            .into_iter()
+            .map(|attr| (attr.name.local, attr.value.to_string()))
+            .collect();
+        let node = self.add(Data::Element { name, attrs, point });
         if flags.template {
             // Template contents stay out of the tree.
             self.add(Data::Other);
@@ -266,7 +286,16 @@ impl TreeSink for Tree {
         self.insert(parent, at, child);
     }
 
-    fn add_attrs_if_missing(&self, _target: &usize, _attrs: Vec<Attribute>) {}
+    fn add_attrs_if_missing(&self, target: &usize, added: Vec<Attribute>) {
+        let mut nodes = self.nodes.borrow_mut();
+        if let Data::Element { attrs, .. } = &mut nodes[*target].data {
+            for attr in added {
+                if !attrs.iter().any(|(name, _)| *name == attr.name.local) {
+                    attrs.push((attr.name.local, attr.value.to_string()));
+                }
+            }
+        }
+    }
 
     fn remove_from_parent(&self, target: &usize) {
         self.detach(*target);

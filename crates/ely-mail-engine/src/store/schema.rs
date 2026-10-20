@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -123,4 +123,17 @@ CREATE INDEX messages_content ON messages (content);
 CREATE TRIGGER messages_gone AFTER DELETE ON messages BEGIN
     DELETE FROM search WHERE rowid = old.id;
 END;
+";
+
+/// Senders whose remote pictures load (C12.10).
+const V5: &str = "
+CREATE TABLE trusted (address TEXT PRIMARY KEY COLLATE NOCASE) WITHOUT ROWID;
+";
+
+/// Headers-only messages keep their header block (C12.10).
+const V6: &str = "
+ALTER TABLE messages ADD COLUMN head BLOB;
+-- Sync fetches these again, with their headers.
+DELETE FROM flags WHERE message IN (SELECT id FROM messages WHERE content IS NULL);
+DELETE FROM messages WHERE content IS NULL;
 ";

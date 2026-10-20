@@ -35,6 +35,8 @@ pub enum Error {
     SignIn(String),
     /// The provider revoked the refresh token.
     SignInAgain(String),
+    /// A remote picture did not come.
+    Fetch(String),
 }
 
 impl fmt::Display for Error {
@@ -55,6 +57,7 @@ impl fmt::Display for Error {
             Self::Unavailable(name) => write!(f, "{name} sign-in is not in this build"),
             Self::SignIn(text) => write!(f, "sign-in failed: {text}"),
             Self::SignInAgain(text) => write!(f, "sign in again: {text}"),
+            Self::Fetch(text) => write!(f, "picture not fetched: {text}"),
         }
     }
 }

@@ -49,6 +49,7 @@ fn the_sample_reads_whole() {
             params: Vec::new(),
             content_id: Some("logo@example.com".into()),
             bytes: b"\x89PNG\r\n\x1a\n".to_vec(),
+            section: Some("1.2".into()),
         }]
     );
     assert_eq!(
@@ -59,6 +60,7 @@ fn the_sample_reads_whole() {
             params: Vec::new(),
             content_id: Some("att@example.com".into()),
             bytes: b"%PDF-1.4\n".to_vec(),
+            section: Some("2".into()),
         }]
     );
     assert!(
@@ -78,6 +80,7 @@ fn reply_to(mail: &Mail) -> Draft {
         params: Vec::new(),
         content_id: None,
         bytes: every_byte,
+        section: None,
     });
     Draft {
         from: mail.from[0].clone(),
@@ -114,7 +117,21 @@ fn a_reply_built_from_the_sample_reads_back_the_same() {
     );
     assert_eq!(back.in_reply_to, ["m1@example.com"]);
     assert_eq!(back.references, ["r1@example.com", "m0@example.com"]);
-    assert_eq!(back.attachments, draft.attachments);
+    let sections: Vec<_> = (back.attachments.iter())
+        .map(|part| part.section.as_deref())
+        .collect();
+    assert_eq!(sections, [Some("2"), Some("3")]);
+    let unnumbered = |parts: &[Part]| -> Vec<Part> {
+        let bare = |part: &Part| Part {
+            section: None,
+            ..part.clone()
+        };
+        parts.iter().map(bare).collect()
+    };
+    assert_eq!(
+        unnumbered(&back.attachments),
+        unnumbered(&draft.attachments)
+    );
     let bcc = |line: &str| line.to_ascii_lowercase().starts_with("bcc:");
     assert!(!back.headers.lines().any(bcc), "{}", back.headers);
     let again = build(&draft).unwrap();

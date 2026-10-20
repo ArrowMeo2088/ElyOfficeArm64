@@ -24,6 +24,7 @@ use crate::{
 mod controls;
 mod flows;
 mod panes;
+mod reading;
 mod syncs;
 
 /// A credential store that keeps or refuses.

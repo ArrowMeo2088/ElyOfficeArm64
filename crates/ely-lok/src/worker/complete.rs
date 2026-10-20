@@ -5,7 +5,7 @@ use std::io;
 use super::with_doc;
 use crate::ipc::{Pack, Unpack};
 
-/// Takes an offered function, else posts Enter or Tab; 1 if taken.
+/// Takes an offered function, else posts the key.
 pub(super) fn complete(unpack: &mut Unpack) -> io::Result<Vec<u8>> {
     let id = unpack.u64()?;
     let name = match unpack.u64()? {

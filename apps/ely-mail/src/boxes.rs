@@ -109,6 +109,7 @@ impl Mail {
             self.open = open;
             self.listing.show(None);
             self.listing.pick(Vec::new());
+            self.read_letter(cx);
         }
         self.read_mail(cx);
         self.notify(cx);
@@ -123,6 +124,7 @@ impl Mail {
 
     pub fn select(&mut self, keys: &[SharedString], cx: &mut Context<Self>) {
         self.listing.pick(keys.to_vec());
+        self.read_letter(cx);
         cx.notify();
     }
 
@@ -148,7 +150,7 @@ impl Mail {
                 };
                 Ok((rows, store.unread()?))
             },
-            move |mail, read_now, _| {
+            move |mail, read_now, cx| {
                 if mail.listing.read != read {
                     return log::info!("mail: list read {read} ended after a newer one");
                 }
@@ -164,6 +166,7 @@ impl Mail {
                 }
                 let keys = std::mem::take(&mut mail.listing.selected);
                 mail.listing.pick(keys);
+                mail.read_letter(cx);
             },
         );
     }

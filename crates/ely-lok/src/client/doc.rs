@@ -76,7 +76,7 @@ impl Doc {
         Unpack::new(&payload).str()
     }
 
-    /// Completes `name` if offered; a key takes any, else goes in (TABLE-03).
+    /// Completes `name` if still offered (TABLE-03).
     pub fn complete_function(
         &self,
         worker: &mut Worker,

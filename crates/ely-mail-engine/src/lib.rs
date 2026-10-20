@@ -2,10 +2,13 @@
 
 mod account;
 mod error;
+pub mod fetch;
+mod html;
 mod imap;
 mod mime;
 mod net;
 pub mod oauth;
+pub mod page;
 mod pop;
 mod smtp;
 mod store;
@@ -16,7 +19,7 @@ mod wire;
 pub use account::{Account, Auth, Checked, Protocol};
 pub use error::{Error, Result};
 pub use imap::{Folder, Got, Imap, Opened, Role};
-pub use mime::{Built, Draft, Mail, Mailbox, Part, build, read};
+pub use mime::{Built, Draft, Mail, Mailbox, Part, Shown, build, read};
 pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
