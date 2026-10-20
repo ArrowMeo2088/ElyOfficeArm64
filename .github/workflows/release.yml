@@ -16,8 +16,8 @@ jobs:
         shell: bash
         env:
           ELY_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The dev clone's engines: LibreOffice from scratch outlasts the runner.
-          ELY_SHARE: /Users/zacharyzhang/Documents/GitHub/ElyOfficeSuite
+          # Shared engines outside Documents, which macOS guards.
+          ELY_SHARE: /Users/zacharyzhang/ely-share
           ELY_PATH: /Users/zacharyzhang/.cargo/bin:/opt/homebrew/bin
           # Repository variables; both live in the runner's keychain.
           ELY_SIGN_IDENTITY: ${{ vars.ELY_SIGN_IDENTITY }}
