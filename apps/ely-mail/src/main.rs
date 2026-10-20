@@ -11,6 +11,7 @@ mod letter;
 mod mail;
 mod menu;
 mod panes;
+mod pictures;
 mod reader;
 mod reading;
 mod removing;

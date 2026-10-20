@@ -9,18 +9,18 @@ use std::{
 };
 
 use ely_gpui_component::documents::MarkdownBlock;
-use ely_mail_engine::{Fetched, Key, MailboxId, Role, Store};
-use gpui::{App, Entity, TestAppContext, VisualTestContext};
+use ely_mail_engine::{Fetched, Key, MailboxId, MessageId, Role, Store};
+use gpui::{App, Context, Entity, TestAppContext, VisualTestContext};
 
 use super::{Keys, account, settle, window};
 use crate::{
     letter::{self, Words},
     mail::Mail,
-    reading::{Open, Shown},
+    reading::{Each, Open},
 };
 
 /// Serves a PNG to every request; counts them.
-fn pictures() -> (String, Arc<AtomicUsize>) {
+pub(super) fn pictures() -> (String, Arc<AtomicUsize>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let served = Arc::new(AtomicUsize::new(0));
@@ -111,21 +111,39 @@ fn pick(mail: &Entity<Mail>, subject: &str, cx: &mut VisualTestContext) {
     settle(cx, |app| opened(mail, app).is_some());
 }
 
-fn opened<'a>(mail: &Entity<Mail>, app: &'a App) -> Option<&'a Open> {
-    match &mail.read(app).reading.shown {
-        Some(Shown {
-            letter: Some(Ok(open)),
-            ..
-        }) => Some(open),
-        Some(Shown {
-            letter: Some(Err(error)),
-            ..
-        }) => panic!("the letter failed: {error}"),
-        _ => None,
+pub(super) fn opened<'a>(mail: &Entity<Mail>, app: &'a App) -> Option<&'a Open> {
+    match &picked(mail, app)?.open {
+        Ok(open) => Some(open),
+        Err(error) => panic!("the letter failed: {error}"),
     }
 }
 
-fn picture_came(mail: &Entity<Mail>, url: &str, app: &App) -> bool {
+/// The picked letter, once its thread is read.
+pub(super) fn picked<'a>(mail: &Entity<Mail>, app: &'a App) -> Option<&'a Each> {
+    let shown = mail.read(app).reading.shown.as_ref()?;
+    match &shown.thread {
+        Some(Ok(thread)) => thread
+            .letters
+            .iter()
+            .find(|each| each.stored.id == shown.id),
+        Some(Err(error)) => panic!("the thread failed: {error}"),
+        None => None,
+    }
+}
+
+/// Runs `act` on the picked letter.
+pub(super) fn on_picked(
+    mail: &Entity<Mail>,
+    cx: &mut VisualTestContext,
+    act: impl FnOnce(&mut Mail, MessageId, &mut Context<Mail>),
+) {
+    cx.update(|_, app| {
+        let id = picked(mail, app).unwrap().stored.id;
+        mail.update(app, |mail, cx| act(mail, id, cx));
+    });
+}
+
+pub(super) fn picture_came(mail: &Entity<Mail>, url: &str, app: &App) -> bool {
     opened(mail, app).is_some_and(|open| matches!(open.pictures.get(url), Some(Ok(_))))
 }
 
@@ -166,17 +184,17 @@ fn allowed_pictures_come_and_a_trusted_sender_needs_no_asking() {
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
     pick(&mail, "first", cx);
-    cx.update(|_, app| mail.update(app, |mail, cx| mail.load_pictures(cx)));
+    on_picked(&mail, cx, Mail::load_pictures);
     settle(cx, |app| picture_came(&mail, &web, app));
     assert_eq!(served.load(Ordering::SeqCst), 1);
-    cx.update(|_, app| mail.update(app, |mail, cx| mail.trust_sender(true, cx)));
+    on_picked(&mail, cx, |mail, id, cx| mail.trust_sender(id, true, cx));
     settle(cx, |app| {
         opened(&mail, app).is_some_and(|open| open.trusted)
     });
     pick(&mail, "second", cx);
     settle(cx, |app| picture_came(&mail, &web, app));
     assert_eq!(served.load(Ordering::SeqCst), 2);
-    cx.update(|_, app| mail.update(app, |mail, cx| mail.trust_sender(false, cx)));
+    on_picked(&mail, cx, |mail, id, cx| mail.trust_sender(id, false, cx));
     settle(cx, |app| {
         opened(&mail, app).is_some_and(|open| !open.trusted)
     });
@@ -191,16 +209,16 @@ fn a_message_with_only_headers_says_so() {
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
     pick(&mail, "old", cx);
-    cx.update(|_, app| {
+    let id = cx.update(|_, app| {
+        let each = picked(&mail, app).unwrap();
         let open = opened(&mail, app).unwrap();
         assert!(open.body().is_none());
-        assert_eq!(open.sender(), Some("cy@example.com"));
+        assert_eq!(each.sender(), Some("cy@example.com"));
         assert!(open.letter.headers.contains("Subject: old"));
+        each.stored.id.0
     });
-    assert!(
-        cx.debug_bounds("mail-headers").is_some(),
-        "no header toggle"
-    );
+    let toggle = format!("mail-headers-{id}");
+    assert!(super::threads::seen(cx, toggle), "no header toggle");
 }
 
 #[test]
@@ -211,7 +229,7 @@ fn a_body_that_arrives_replaces_the_headers_shown() {
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
     pick(&mail, "first", cx);
-    cx.update(|_, app| mail.update(app, |mail, cx| mail.load_pictures(cx)));
+    on_picked(&mail, cx, Mail::load_pictures);
     settle(cx, |app| picture_came(&mail, &web, app));
     // Nothing changed: the pictures stay, none fetched again.
     cx.update(|_, app| mail.update(app, |mail, cx| mail.read_mail(cx)));
@@ -295,7 +313,7 @@ fn every_body_of_a_mixed_letter_shows() {
         unnamed: "unnamed".into(),
     };
     let kept = letter::Kept::Original(raw.to_vec());
-    let read = letter::letter(store.get(id).unwrap(), kept, &words).unwrap();
+    let read = letter::letter(&store.get(id).unwrap(), kept, &words).unwrap();
     let shown: Vec<String> = (read.body.unwrap().blocks.iter())
         .map(|block| match block {
             MarkdownBlock::Paragraph(line) => line.text.clone(),

@@ -104,6 +104,32 @@ pub fn read(shown: &[Shown], inline: &[Part]) -> Page {
     page
 }
 
+impl Page {
+    /// First `most` characters on one line; quotes only alone.
+    pub fn snippet(&self, most: usize) -> String {
+        let mut words = String::new();
+        snip(&self.blocks, false, &mut words);
+        if words.trim().is_empty() {
+            snip(&self.blocks, true, &mut words);
+        }
+        let line = words.split_whitespace().collect::<Vec<_>>().join(" ");
+        line.chars().take(most).collect()
+    }
+}
+
+fn snip(blocks: &[Block], quotes: bool, words: &mut String) {
+    for block in blocks {
+        match block {
+            Block::Text(inline) | Block::Heading(_, inline) => words.push_str(&inline.text),
+            Block::Code(text) => words.push_str(text),
+            Block::Quote(inner) if quotes => snip(inner, quotes, words),
+            Block::List { items, .. } => items.iter().for_each(|item| snip(item, quotes, words)),
+            Block::Quote(_) | Block::Rule | Block::Image(_) => {}
+        }
+        words.push(' ');
+    }
+}
+
 pub fn plain(text: &str) -> Page {
     Page {
         blocks: plain::blocks(text),

@@ -256,3 +256,18 @@ fn every_body_reads_in_order_with_pictures_once() {
     assert_eq!(page.remote, [map]);
     assert_eq!(page.trackers, 1);
 }
+
+#[test]
+fn a_snippet_is_the_first_unquoted_words_on_one_line() {
+    let page = page::html(
+        "<blockquote><p>older words</p></blockquote><h2>Plan</h2>\
+         <ul><li>one</li><li>two\n  three</li></ul><p>after</p>",
+        &[],
+    );
+    assert_eq!(page.snippet(80), "Plan one two three after");
+    assert_eq!(page.snippet(8), "Plan one");
+    let quoted = page::plain("> only\n> quoted words");
+    assert_eq!(quoted.snippet(80), "only quoted words");
+    assert_eq!(page::plain("").snippet(80), "");
+    assert_eq!(page::plain("日本語の本文").snippet(3), "日本語");
+}

@@ -42,6 +42,10 @@ pub(super) const EN: &[(&str, &str)] = &[
     ("mail.reader.distrust", "Stop"),
     ("mail.reader.headers.show", "Show original headers"),
     ("mail.reader.headers.hide", "Hide original headers"),
+    (
+        "mail.thread.older",
+        "{n} older messages in this conversation are not shown",
+    ),
     ("mail.picture.broken", "Not in the message"),
     ("mail.picture.waiting", "Not downloaded"),
     ("mail.picture.not_picture", "Not a picture"),
@@ -248,6 +252,7 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("mail.reader.distrust", "停止"),
     ("mail.reader.headers.show", "显示原始邮件头"),
     ("mail.reader.headers.hide", "隐藏原始邮件头"),
+    ("mail.thread.older", "此会话中更早的 {n} 封邮件未显示"),
     ("mail.picture.broken", "邮件里没有这张图"),
     ("mail.picture.waiting", "未下载"),
     ("mail.picture.not_picture", "不是图片"),

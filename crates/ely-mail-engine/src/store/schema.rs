@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -136,4 +136,20 @@ ALTER TABLE messages ADD COLUMN head BLOB;
 -- Sync fetches these again, with their headers.
 DELETE FROM flags WHERE message IN (SELECT id FROM messages WHERE content IS NULL);
 DELETE FROM messages WHERE content IS NULL;
+";
+
+/// Each message's own and named Message-IDs (C12.11).
+const V7: &str = "
+CREATE TABLE links (
+    message INTEGER NOT NULL REFERENCES messages ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    PRIMARY KEY (id, message)
+) WITHOUT ROWID;
+CREATE INDEX links_by_message ON links (message);
+INSERT OR IGNORE INTO links (message, id)
+    SELECT id, message_id FROM messages WHERE message_id <> '';
+INSERT OR IGNORE INTO links (message, id)
+    SELECT m.id, j.value FROM messages m, json_each(m.in_reply_to) j WHERE j.value <> '';
+INSERT OR IGNORE INTO links (message, id)
+    SELECT m.id, j.value FROM messages m, json_each(m.refs) j WHERE j.value <> '';
 ";

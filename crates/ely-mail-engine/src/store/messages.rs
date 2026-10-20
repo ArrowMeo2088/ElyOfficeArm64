@@ -3,7 +3,7 @@ use std::{fs, io::ErrorKind, path::Path};
 use rusqlite::{OptionalExtension, Row, ToSql, Transaction, params};
 use sha2::{Digest, Sha256};
 
-use super::{CONTENT, MailboxId, MessageId, Store, aside::Aside, disk, search};
+use super::{CONTENT, MailboxId, MessageId, Store, aside::Aside, disk, search, threads};
 use crate::{Error, Mail, Mailbox, Result, read};
 
 /// RFC 3501 §2.3.1.1: identity is mailbox, UIDVALIDITY and UID.
@@ -194,6 +194,7 @@ impl Store {
                 }
             };
             replace_flags(&tx, id, flags)?;
+            threads::link(&tx, id, mail)?;
             search::index(&tx, id, mail, content.is_some())?;
             if let Some(old) = old.filter(|old| Some(old.as_str()) != content) {
                 aside.drop_unused(&tx, &old)?;

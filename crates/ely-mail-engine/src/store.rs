@@ -19,6 +19,7 @@ mod schema;
 mod search;
 #[cfg(test)]
 mod tests;
+mod threads;
 mod trusted;
 
 pub use accounts::Cached;

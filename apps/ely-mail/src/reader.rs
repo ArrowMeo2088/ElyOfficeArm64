@@ -1,22 +1,23 @@
-//! The reading pane (C12.10).
+//! The reading pane: one conversation (C12.10, C12.11).
 
 use ely_gpui_component::{
     buttons::{Button, ButtonVariant},
     documents::{MarkdownBlock, MarkdownRenderer},
     feedback::{Alert, EmptyState, ErrorView},
     layout::ScrollArea,
-    mail::{Contact, MailReader, Message},
+    mail::{Contact, MailThreadView, Message},
     primitives::{IconName, Severity},
 };
 use ely_mail_engine::Mailbox;
 use gpui::{
-    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, Styled as _, div,
+    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
+    Styled as _, div,
 };
 
 use crate::{
     letter::Body,
     mail::{Mail, text},
-    reading::{Open, Shown},
+    reading::{Each, Open},
 };
 
 fn contact(mailbox: &Mailbox) -> Contact {
@@ -33,7 +34,7 @@ impl Mail {
             let none = text(cx, "mail.reader.none", &[]);
             return EmptyState::new("mail-reader-empty", IconName::Mail, none).into_any_element();
         };
-        let open = match &shown.letter {
+        let thread = match &shown.thread {
             None => {
                 let words = text(cx, "mail.reader.reading", &[]);
                 return EmptyState::new("mail-reader-reading", IconName::Mail, words)
@@ -45,133 +46,191 @@ impl Mail {
                     .detail(error.clone())
                     .into_any_element();
             }
-            Some(Ok(open)) => open,
+            Some(Ok(thread)) => thread,
         };
+        let picked = thread
+            .letters
+            .iter()
+            .find(|each| each.stored.id == shown.id);
+        let subject = match picked.and_then(|each| each.stored.subject.clone()) {
+            Some(subject) => subject.into(),
+            None => text(cx, "mail.no_subject", &[]),
+        };
+        let mut view = MailThreadView::new("mail-thread", subject).picked(shown.id.0.to_string());
+        for each in &thread.letters {
+            view = view.message(message(each, cx), self.letter(each, cx));
+        }
+        let older = (thread.older > 0).then(|| {
+            let count = thread.older.to_string();
+            let words = text(cx, "mail.thread.older", &[("n", &count)]);
+            let alert = Alert::new("mail-thread-older", Severity::Info, words);
+            div().debug_selector(|| "thread-older".into()).child(alert)
+        });
+        let column = div().p_6().flex().flex_col().gap_4();
         ScrollArea::new("mail-reader-scroll")
             .vertical()
             .size_full()
-            .child(div().p_6().child(self.letter(shown, open, cx)))
+            .child(column.children(older).child(view))
             .into_any_element()
     }
 
-    fn letter(&self, shown: &Shown, open: &Open, cx: &mut Context<Self>) -> AnyElement {
-        let letter = &open.letter;
-        let from = match &letter.from {
-            Some(from) => contact(from),
-            None => Contact::new(text(cx, "mail.no_sender", &[]), ""),
-        };
-        let key = shown.id.0.to_string();
-        let message = match letter.date.map(jiff::Timestamp::from_second) {
-            Some(Ok(at)) => Message::new(key, from, at),
-            Some(Err(error)) => {
-                log::warn!("mail: message {} date unshown: {error}", shown.id.0);
-                Message::undated(key, from)
+    /// One letter's words, notices and headers.
+    fn letter(&self, each: &Each, cx: &mut Context<Self>) -> AnyElement {
+        let id = each.stored.id;
+        let open = match &each.open {
+            Ok(open) => open,
+            Err(error) => {
+                let words = text(cx, "mail.reader.failed", &[]);
+                let key = format!("mail-letter-error-{}", id.0);
+                let view = ErrorView::new(SharedString::from(key), IconName::TriangleAlert, words)
+                    .detail(error.clone());
+                let named = format!("letter-error {}", id.0);
+                return div()
+                    .debug_selector(move || named)
+                    .child(view)
+                    .into_any_element();
             }
-            None => Message::undated(key, from),
         };
-        let mut message = message
-            .to(letter.to.iter().map(contact))
-            .cc(letter.cc.iter().map(contact));
-        for (name, size) in letter.body.iter().flat_map(|body| &body.files) {
-            message = match size {
-                Some(size) => message.file(name.clone(), *size),
-                None => message.file_waiting(name.clone()),
-            };
-        }
-        let subject = match &letter.subject {
-            Some(subject) => subject.clone().into(),
-            None => text(cx, "mail.no_subject", &[]),
-        };
-        let reader = MailReader::new("mail-reader", subject, message);
+        let letter = &open.letter;
+        let part = div().flex().flex_col().gap_3();
         let Some(body) = &letter.body else {
             let only = text(cx, "mail.reader.headers_only", &[]);
-            return reader
-                .child(Alert::new("mail-headers-only", Severity::Info, only))
-                .child(self.headers(shown, &letter.headers, cx))
+            let key = format!("mail-headers-only-{}", id.0);
+            return part
+                .child(Alert::new(SharedString::from(key), Severity::Info, only))
+                .child(self.headers(each, &letter.headers, cx))
                 .into_any_element();
         };
-        let drawn = MarkdownRenderer::blocks("mail-body", open.blocks.clone())
+        let drawn = MarkdownRenderer::blocks(format!("mail-body-{}", id.0), open.blocks.clone())
             .pictures(open.pictures.clone())
             .on_link(|url, _, cx| {
                 // The engine kept only web and mail links.
                 log::info!("mail: a link opens");
                 cx.open_url(url);
             });
-        reader
-            .children(self.pictures_notice(open, body, cx))
+        part.children(self.pictures_notice(each, open, body, cx))
             .children(body.short.then(|| {
                 let cut = text(cx, "mail.reader.short", &[]);
-                Alert::new("mail-short", Severity::Warning, cut)
+                Alert::new(
+                    SharedString::from(format!("mail-short-{}", id.0)),
+                    Severity::Warning,
+                    cut,
+                )
             }))
             .child(drawn)
-            .child(self.headers(shown, &letter.headers, cx))
+            .child(self.headers(each, &letter.headers, cx))
             .into_any_element()
     }
 
     /// What web pictures wait, and how to let them in.
-    fn pictures_notice(&self, open: &Open, body: &Body, cx: &mut Context<Self>) -> Option<Alert> {
-        let sender = open.sender().unwrap_or_default().to_owned();
+    fn pictures_notice(
+        &self,
+        each: &Each,
+        open: &Open,
+        body: &Body,
+        cx: &mut Context<Self>,
+    ) -> Option<Alert> {
+        let id = each.stored.id;
+        let named = |name: &str| SharedString::from(format!("mail-{name}-{}", id.0));
+        let sender = each.sender().unwrap_or_default().to_owned();
         let trackers = body.trackers.to_string();
         let kept =
             (body.trackers > 0).then(|| text(cx, "mail.reader.trackers", &[("n", &trackers)]));
         if open.trusted {
             let title = text(cx, "mail.reader.trusted", &[("sender", &sender)]);
             let this = cx.weak_entity();
-            let stop = Button::new("mail-distrust", text(cx, "mail.reader.distrust", &[]))
+            let stop = Button::new(named("distrust"), text(cx, "mail.reader.distrust", &[]))
                 .variant(ButtonVariant::Ghost)
                 .on_click(move |_, _, cx| {
-                    this.update(cx, |mail, cx| mail.trust_sender(false, cx))
+                    this.update(cx, |mail, cx| mail.trust_sender(id, false, cx))
                         .ok();
                 });
-            let alert = Alert::new("mail-trusted", Severity::Info, title).action(stop);
+            let alert = Alert::new(named("trusted"), Severity::Info, title).action(stop);
             return Some(kept.into_iter().fold(alert, Alert::body));
         }
         if body.remote.is_empty() || open.fetching {
-            return kept.map(|kept| Alert::new("mail-trackers", Severity::Info, kept));
+            return kept.map(|kept| Alert::new(named("trackers"), Severity::Info, kept));
         }
         let count = body.remote.len().to_string();
         let title = text(cx, "mail.reader.blocked", &[("n", &count)]);
         let this = cx.weak_entity();
-        let load = Button::new("mail-load-pictures", text(cx, "mail.reader.load", &[]))
+        let load = Button::new(named("load-pictures"), text(cx, "mail.reader.load", &[]))
             .variant(ButtonVariant::Primary)
             .on_click(move |_, _, cx| {
-                this.update(cx, |mail, cx| mail.load_pictures(cx)).ok();
+                this.update(cx, |mail, cx| mail.load_pictures(id, cx)).ok();
             });
-        let mut alert = Alert::new("mail-blocked", Severity::Info, title).action(load);
+        let mut alert = Alert::new(named("blocked"), Severity::Info, title).action(load);
         if !sender.is_empty() {
             let this = cx.weak_entity();
             let words = text(cx, "mail.reader.trust", &[("sender", &sender)]);
-            alert = alert.action(Button::new("mail-trust", words).on_click(move |_, _, cx| {
-                this.update(cx, |mail, cx| mail.trust_sender(true, cx)).ok();
-            }));
+            alert = alert.action(
+                Button::new(named("trust"), words).on_click(move |_, _, cx| {
+                    this.update(cx, |mail, cx| mail.trust_sender(id, true, cx))
+                        .ok();
+                }),
+            );
         }
         Some(kept.into_iter().fold(alert, Alert::body))
     }
 
     /// The header block as it came, on request.
-    fn headers(&self, shown: &Shown, headers: &str, cx: &mut Context<Self>) -> AnyElement {
-        let key = if shown.headers {
+    fn headers(&self, each: &Each, headers: &str, cx: &mut Context<Self>) -> AnyElement {
+        let id = each.stored.id;
+        let key = if each.headers {
             "mail.reader.headers.hide"
         } else {
             "mail.reader.headers.show"
         };
         let this = cx.weak_entity();
-        let toggle = Button::new("mail-headers", text(cx, key, &[]))
+        let name = format!("mail-headers-{}", id.0);
+        let toggle = Button::new(SharedString::from(name.clone()), text(cx, key, &[]))
             .variant(ButtonVariant::Ghost)
             .on_click(move |_, _, cx| {
-                this.update(cx, |mail, cx| mail.toggle_headers(cx)).ok();
+                this.update(cx, |mail, cx| mail.toggle_headers(id, cx)).ok();
             });
-        let toggle = div().debug_selector(|| "mail-headers".into()).child(toggle);
+        let toggle = div().debug_selector(move || name.clone()).child(toggle);
         let mut part = div().flex().flex_col().gap_2().child(toggle);
-        if shown.headers {
+        if each.headers {
             let code: std::rc::Rc<[MarkdownBlock]> = vec![MarkdownBlock::Code {
                 language: None,
                 text: headers.trim_end().to_owned(),
                 from: 0,
             }]
             .into();
-            part = part.child(MarkdownRenderer::blocks("mail-headers-text", code));
+            let name = format!("mail-headers-text-{}", id.0);
+            part = part.child(MarkdownRenderer::blocks(name, code));
         }
         part.into_any_element()
     }
+}
+
+/// Its sender, people, date, files and first words.
+fn message(each: &Each, cx: &mut Context<Mail>) -> Message {
+    let stored = &each.stored;
+    let from = match stored.from.first() {
+        Some(from) => contact(from),
+        None => Contact::new(text(cx, "mail.no_sender", &[]), ""),
+    };
+    let key = stored.id.0.to_string();
+    let message = match stored.date.map(jiff::Timestamp::from_second) {
+        Some(Ok(at)) => Message::new(key, from, at),
+        Some(Err(error)) => {
+            log::warn!("mail: message {} date unshown: {error}", stored.id.0);
+            Message::undated(key, from)
+        }
+        None => Message::undated(key, from),
+    };
+    let mut message = message
+        .to(stored.to.iter().map(contact))
+        .cc(stored.cc.iter().map(contact));
+    let Some(body) = each.open.as_ref().ok().and_then(Open::body) else {
+        return message;
+    };
+    for (name, size) in &body.files {
+        message = match size {
+            Some(size) => message.file(name.clone(), *size),
+            None => message.file_waiting(name.clone()),
+        };
+    }
+    message.snippet(body.snippet.clone())
 }

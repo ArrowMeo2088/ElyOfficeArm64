@@ -4,7 +4,7 @@ use ely_gpui_component::documents::{
     HeldPicture, Inline as Line, MarkdownBlock as Node, Pictures, Style as Mark,
 };
 use ely_mail_engine::{
-    Mailbox, Part, Stored,
+    Part, Stored,
     page::{self, Block, Inline, Source, Style},
 };
 use gpui::{ImageFormat, SharedString};
@@ -19,13 +19,11 @@ pub struct Words {
     pub unnamed: SharedString,
 }
 
+/// A folded letter shows this many characters.
+const SNIPPET: usize = 120;
+
 /// One message as read; built off the UI thread.
 pub struct Letter {
-    pub subject: Option<String>,
-    pub from: Option<Mailbox>,
-    pub to: Vec<Mailbox>,
-    pub cc: Vec<Mailbox>,
-    pub date: Option<i64>,
     /// The header block as it came.
     pub headers: String,
     /// None when only the headers are kept.
@@ -46,33 +44,28 @@ pub struct Body {
     pub remote: Vec<String>,
     pub trackers: usize,
     pub short: bool,
+    /// Its first words, for when it folds.
+    pub snippet: String,
     /// Names, and sizes once downloaded.
     pub files: Vec<(String, Option<u64>)>,
 }
 
-pub fn letter(stored: Stored, kept: Kept, words: &Words) -> Result<Letter, String> {
+pub fn letter(stored: &Stored, kept: Kept, words: &Words) -> Result<Letter, String> {
     let read = |bytes: &[u8]| ely_mail_engine::read(bytes).map_err(|err| err.to_string());
     let (body, headers) = match kept {
         Kept::Original(raw) => {
             let mail = read(&raw)?;
             let headers = mail.headers.clone();
-            (Some(body(&stored, mail, words)), headers)
+            (Some(body(stored, mail, words)), headers)
         }
         Kept::Head(head) => (None, read(&head)?.headers),
     };
-    Ok(Letter {
-        subject: stored.subject,
-        from: stored.from.into_iter().next(),
-        to: stored.to,
-        cc: stored.cc,
-        date: stored.date,
-        headers,
-        body,
-    })
+    Ok(Letter { headers, body })
 }
 
 fn body(stored: &Stored, mail: ely_mail_engine::Mail, words: &Words) -> Body {
     let read = page::read(&mail.shown, &mail.inline);
+    let snippet = read.snippet(SNIPPET);
     let mut held = Held {
         inline: &mail.inline,
         pictures: Pictures::new(),
@@ -99,6 +92,7 @@ fn body(stored: &Stored, mail: ely_mail_engine::Mail, words: &Words) -> Body {
         remote: read.remote,
         trackers: read.trackers,
         short: read.short,
+        snippet,
         files,
     }
 }

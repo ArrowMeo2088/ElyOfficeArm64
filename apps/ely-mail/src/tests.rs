@@ -26,6 +26,7 @@ mod flows;
 mod panes;
 mod reading;
 mod syncs;
+mod threads;
 
 /// A credential store that keeps or refuses.
 #[derive(Clone, Default)]

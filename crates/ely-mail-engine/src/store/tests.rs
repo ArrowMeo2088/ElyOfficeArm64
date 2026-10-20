@@ -24,6 +24,7 @@ fn account(address: &str) -> Account {
 
 mod ids;
 mod listing;
+mod threads;
 
 const ADD: &str = "ALTER TABLE accounts ADD COLUMN nick TEXT";
 const BROKEN: &str = "ALTER TABLE nowhere ADD COLUMN nick TEXT";
