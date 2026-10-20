@@ -23,6 +23,8 @@ pub enum Error {
     Mime(String),
     /// The local store failed: database, disk or damage.
     Store(String),
+    /// An account with this address is already kept.
+    Taken(String),
     /// The store refuses writes; the reason says why.
     ReadOnly(String),
     /// The system credential store failed.
@@ -47,6 +49,7 @@ impl fmt::Display for Error {
             Self::Invalid(text) => write!(f, "cannot be sent: {text}"),
             Self::Mime(text) => write!(f, "unreadable message: {text}"),
             Self::Store(text) => write!(f, "local store failed: {text}"),
+            Self::Taken(address) => write!(f, "{address} is already added"),
             Self::ReadOnly(text) => write!(f, "local store is read-only: {text}"),
             Self::Vault(text) => write!(f, "credential store failed: {text}"),
             Self::Unavailable(name) => write!(f, "{name} sign-in is not in this build"),

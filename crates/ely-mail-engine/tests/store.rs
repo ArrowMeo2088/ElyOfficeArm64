@@ -1,3 +1,5 @@
+mod fake;
+
 use std::path::Path;
 
 use ely_mail_engine::{Error, Fetched, Key, MailboxId, MessageId, Store};
@@ -23,7 +25,9 @@ fn headers(raw: &[u8]) -> &[u8] {
 
 fn inbox(dir: &Path) -> (Store, MailboxId) {
     let store = Store::open(dir).unwrap();
-    let account = store.add_account("ann@example.com").unwrap();
+    let account = store
+        .add_account(&fake::account("ann@example.com"))
+        .unwrap();
     let inbox = store.mailbox(account, "INBOX").unwrap();
     (store, inbox)
 }

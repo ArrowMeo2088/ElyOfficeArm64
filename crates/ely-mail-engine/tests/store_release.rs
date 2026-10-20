@@ -1,5 +1,7 @@
 #![cfg(windows)]
 
+mod fake;
+
 use std::{fs::File, os::windows::fs::OpenOptionsExt, path::Path};
 
 use ely_mail_engine::{Fetched, Key, MailboxId, Store};
@@ -10,7 +12,9 @@ const TWO: &[u8] = b"Subject: two\r\n\r\nsecond body\r\n";
 
 fn inbox(dir: &Path) -> (Store, MailboxId) {
     let store = Store::open(dir).unwrap();
-    let account = store.add_account("ann@example.com").unwrap();
+    let account = store
+        .add_account(&fake::account("ann@example.com"))
+        .unwrap();
     let inbox = store.mailbox(account, "INBOX").unwrap();
     (store, inbox)
 }

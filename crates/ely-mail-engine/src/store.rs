@@ -10,6 +10,8 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
 use crate::{Error, Result};
 
+mod accounts;
+mod aside;
 mod html;
 mod messages;
 mod schema;
@@ -17,6 +19,7 @@ mod search;
 #[cfg(test)]
 mod tests;
 
+pub use accounts::Cached;
 pub use messages::{Fetched, Key, Stored};
 
 const DB: &str = "mail.db";
@@ -61,21 +64,6 @@ impl Store {
             Some(reason) => Err(Error::ReadOnly(reason.clone())),
             None => Ok(()),
         }
-    }
-
-    pub fn add_account(&self, address: &str) -> Result<AccountId> {
-        self.writable()?;
-        self.conn
-            .execute("INSERT INTO accounts (address) VALUES (?1)", [address])?;
-        Ok(AccountId(self.conn.last_insert_rowid()))
-    }
-
-    pub fn accounts(&self) -> Result<Vec<(AccountId, String)>> {
-        let mut query = self
-            .conn
-            .prepare("SELECT id, address FROM accounts ORDER BY id")?;
-        let rows = query.query_map([], |row| Ok((AccountId(row.get(0)?), row.get(1)?)))?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     /// The mailbox by name, made on first use.
@@ -155,6 +143,7 @@ fn open(dir: &Path, steps: &[&str]) -> Result<Store> {
     }
     conn.pragma_update(None, "foreign_keys", true)?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
+    aside::recover(&conn, dir)?;
     log::info!("mail: store opened at schema v{target}");
     Ok(Store {
         conn,

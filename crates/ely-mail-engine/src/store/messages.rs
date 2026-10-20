@@ -1,9 +1,9 @@
 use std::{fs, io::ErrorKind, path::Path};
 
-use rusqlite::{Connection, OptionalExtension, Row, ToSql, Transaction, params};
+use rusqlite::{OptionalExtension, Row, ToSql, Transaction, params};
 use sha2::{Digest, Sha256};
 
-use super::{CONTENT, MailboxId, MessageId, Store, disk, search};
+use super::{CONTENT, MailboxId, MessageId, Store, aside::Aside, disk, search};
 use crate::{Error, Mail, Mailbox, Result, read};
 
 /// RFC 3501 §2.3.1.1: identity is mailbox, UIDVALIDITY and UID.
@@ -89,11 +89,12 @@ impl Store {
         let mail = read(bytes)?;
         let (content, made) = self.keep(bytes)?;
         let written = self.write(mailbox, key, flags, &mail, Some(&content), existing);
-        if written.is_err()
-            && made
-            && let Err(gone) = drop_unused(&self.conn, &self.dir, &content)
-        {
-            log::error!("mail: an unused original stays after a failed write: {gone}");
+        if written.is_err() && made {
+            let mut aside = Aside::new(&self.dir);
+            let gone = aside.drop_unused(&self.conn, &content);
+            if let Err(gone) = aside.settle(gone) {
+                log::error!("mail: an unused original stays after a failed write: {gone}");
+            }
         }
         written
     }
@@ -132,42 +133,46 @@ impl Store {
             &content,
         ];
         let tx = self.conn.transaction()?;
-        let mut old: Option<String> = None;
-        let id = match existing {
-            Some(id) => {
-                old = tx.query_row(
-                    "SELECT content FROM messages WHERE id = ?1",
-                    [id.0],
-                    |row| row.get(0),
-                )?;
-                values.push(&id.0);
-                tx.execute(
-                    "UPDATE messages SET message_id = ?1, in_reply_to = ?2, refs = ?3,
-                     subject = ?4, sender = ?5, recipients = ?6, copies = ?7, date = ?8,
-                     attachments = ?9, content = ?10 WHERE id = ?11",
-                    values.as_slice(),
-                )?;
-                id
+        let mut aside = Aside::new(&self.dir);
+        let done = (|| -> Result<MessageId> {
+            let mut old: Option<String> = None;
+            let id = match &existing {
+                Some(id) => {
+                    old = tx.query_row(
+                        "SELECT content FROM messages WHERE id = ?1",
+                        [id.0],
+                        |row| row.get(0),
+                    )?;
+                    values.push(&id.0);
+                    tx.execute(
+                        "UPDATE messages SET message_id = ?1, in_reply_to = ?2, refs = ?3,
+                         subject = ?4, sender = ?5, recipients = ?6, copies = ?7, date = ?8,
+                         attachments = ?9, content = ?10 WHERE id = ?11",
+                        values.as_slice(),
+                    )?;
+                    *id
+                }
+                None => {
+                    values.extend::<[&dyn ToSql; 4]>([&mailbox.0, &uidvalidity, &uid, &uidl]);
+                    tx.execute(
+                        "INSERT INTO messages (message_id, in_reply_to, refs, subject, sender,
+                         recipients, copies, date, attachments, content, mailbox, uidvalidity,
+                         uid, uidl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+                         ?13, ?14)",
+                        values.as_slice(),
+                    )?;
+                    MessageId(tx.last_insert_rowid())
+                }
+            };
+            replace_flags(&tx, id, flags)?;
+            search::index(&tx, id, mail, content.is_some())?;
+            if let Some(old) = old.filter(|old| Some(old.as_str()) != content) {
+                aside.drop_unused(&tx, &old)?;
             }
-            None => {
-                values.extend::<[&dyn ToSql; 4]>([&mailbox.0, &uidvalidity, &uid, &uidl]);
-                tx.execute(
-                    "INSERT INTO messages (message_id, in_reply_to, refs, subject, sender,
-                     recipients, copies, date, attachments, content, mailbox, uidvalidity,
-                     uid, uidl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                     ?13, ?14)",
-                    values.as_slice(),
-                )?;
-                MessageId(tx.last_insert_rowid())
-            }
-        };
-        replace_flags(&tx, id, flags)?;
-        search::index(&tx, id, mail, content.is_some())?;
-        if let Some(old) = old.filter(|old| Some(old.as_str()) != content) {
-            drop_unused(&tx, &self.dir, &old)?;
-        }
-        tx.commit()?;
-        Ok(id)
+            tx.commit()?;
+            Ok(id)
+        })();
+        aside.settle(done)
     }
 
     pub fn set_flags(&mut self, id: MessageId, flags: &[&str]) -> Result<()> {
@@ -205,12 +210,15 @@ impl Store {
         self.writable()?;
         let content = self.content(id)?;
         let tx = self.conn.transaction()?;
-        tx.execute("DELETE FROM messages WHERE id = ?1", [id.0])?;
-        if let Some(hash) = content {
-            drop_unused(&tx, &self.dir, &hash)?;
-        }
-        tx.commit()?;
-        Ok(())
+        let mut aside = Aside::new(&self.dir);
+        let done = (|| -> Result<()> {
+            tx.execute("DELETE FROM messages WHERE id = ?1", [id.0])?;
+            if let Some(hash) = content {
+                aside.drop_unused(&tx, &hash)?;
+            }
+            Ok(tx.commit()?)
+        })();
+        aside.settle(done)
     }
 
     fn content(&self, id: MessageId) -> Result<Option<String>> {
@@ -250,27 +258,6 @@ impl Store {
             });
         }
         Ok((hash, made))
-    }
-}
-
-/// Deletes the file once no row names it; runs before commit.
-fn drop_unused(conn: &Connection, dir: &Path, hash: &str) -> Result<()> {
-    let used: bool = conn.query_row(
-        "SELECT EXISTS (SELECT 1 FROM messages WHERE content = ?1)",
-        [hash],
-        |row| row.get(0),
-    )?;
-    if used {
-        return Ok(());
-    }
-    let path = dir.join(CONTENT).join(&hash[..2]).join(hash);
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(err) if err.kind() == ErrorKind::NotFound => {
-            log::warn!("mail: original {hash} was already gone");
-            Ok(())
-        }
-        Err(err) => Err(disk("deleting an original", err)),
     }
 }
 

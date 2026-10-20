@@ -3,7 +3,23 @@ use std::fs;
 use rusqlite::Connection;
 
 use super::{BACKUPS, DB, open, schema::STEPS};
-use crate::Error;
+use crate::{Account, Auth, Error, Protocol, Security, Server};
+
+fn account(address: &str) -> Account {
+    let server = Server {
+        host: "127.0.0.1".into(),
+        port: 993,
+        security: Security::Tls,
+    };
+    Account {
+        address: address.into(),
+        user: address.into(),
+        auth: Auth::Password,
+        protocol: Protocol::Imap,
+        incoming: server.clone(),
+        outgoing: server,
+    }
+}
 
 const ADD: &str = "ALTER TABLE accounts ADD COLUMN nick TEXT";
 const BROKEN: &str = "ALTER TABLE nowhere ADD COLUMN nick TEXT";
@@ -36,7 +52,7 @@ fn an_upgrade_backs_up_first() {
     let dir = tempfile::tempdir().unwrap();
     open(dir.path(), &[STEPS[0]])
         .unwrap()
-        .add_account("ann@example.com")
+        .add_account(&account("ann@example.com"))
         .unwrap();
     let store = open(dir.path(), &[STEPS[0], ADD]).unwrap();
     assert_eq!(store.read_only(), None);
@@ -55,13 +71,13 @@ fn a_failed_upgrade_keeps_the_data_and_refuses_writes() {
     let dir = tempfile::tempdir().unwrap();
     open(dir.path(), &[STEPS[0]])
         .unwrap()
-        .add_account("ann@example.com")
+        .add_account(&account("ann@example.com"))
         .unwrap();
     let store = open(dir.path(), &[STEPS[0], ADD, BROKEN]).unwrap();
     let reason = store.read_only().unwrap();
     assert!(reason.contains("v1 to v3"), "{reason}");
-    assert_eq!(store.accounts().unwrap()[0].1, "ann@example.com");
-    let err = store.add_account("bo@example.com").unwrap_err();
+    assert_eq!(store.accounts().unwrap()[0].1.address, "ann@example.com");
+    let err = store.add_account(&account("bo@example.com")).unwrap_err();
     assert!(matches!(err, Error::ReadOnly(_)), "{err}");
     drop(store);
     assert_eq!(version(&dir.path().join(DB)), 1);

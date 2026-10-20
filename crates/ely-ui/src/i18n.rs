@@ -4,6 +4,7 @@ mod analysis;
 mod calc;
 mod data;
 mod doc;
+mod mail;
 mod mark;
 mod mark_menus;
 mod motion;
@@ -165,6 +166,7 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(office::EN)
         .chain(doc::EN)
         .chain(refs::EN)
+        .chain(mail::EN)
         .chain(tools::EN)
         .chain(table::EN)
         .chain(calc::EN)
@@ -189,6 +191,7 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(office::ZH_CN)
         .chain(doc::ZH_CN)
         .chain(refs::ZH_CN)
+        .chain(mail::ZH_CN)
         .chain(tools::ZH_CN)
         .chain(table::ZH_CN)
         .chain(calc::ZH_CN)

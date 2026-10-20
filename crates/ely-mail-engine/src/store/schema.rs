@@ -4,7 +4,8 @@ pub(super) const STEPS: &[&str] = &[V1];
 const V1: &str = "
 CREATE TABLE accounts (
     id INTEGER PRIMARY KEY,
-    address TEXT NOT NULL UNIQUE
+    address TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    settings TEXT NOT NULL
 );
 CREATE TABLE mailboxes (
     id INTEGER PRIMARY KEY,

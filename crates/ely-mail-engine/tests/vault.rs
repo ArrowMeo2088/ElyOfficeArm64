@@ -67,9 +67,10 @@ fn a_refused_store_keeps_the_secret_for_this_session() {
     assert!(matches!(err, Error::Vault(text) if text.contains("locked")));
     let err = vault.remove("a").err().unwrap();
     assert!(matches!(err, Error::Vault(_)));
-    assert!(
-        vault.get("a").is_err(),
-        "the session copy is gone after remove"
+    assert_eq!(
+        vault.get("a").unwrap().as_deref(),
+        Some("pw"),
+        "a failed remove keeps the session copy"
     );
 }
 

@@ -5,7 +5,7 @@ pub mod smtp;
 
 use std::sync::Arc;
 
-use ely_mail_engine::{Login, Secret, Security, Server, TlsConnector};
+use ely_mail_engine::{Account, Auth, Login, Protocol, Secret, Security, Server, TlsConnector};
 use rcgen::{CertificateParams, KeyPair};
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
@@ -75,6 +75,23 @@ pub fn certs() -> Certs {
     Certs {
         acceptor: TlsAcceptor::from(Arc::new(server)),
         trusted: TlsConnector::from(Arc::new(client)),
+    }
+}
+
+/// An IMAP account on the test address.
+pub fn account(address: &str) -> Account {
+    let server = |port| Server {
+        host: "127.0.0.1".into(),
+        port,
+        security: Security::Tls,
+    };
+    Account {
+        address: address.into(),
+        user: address.into(),
+        auth: Auth::Password,
+        protocol: Protocol::Imap,
+        incoming: server(993),
+        outgoing: server(465),
     }
 }
 

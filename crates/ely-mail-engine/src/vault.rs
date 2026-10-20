@@ -93,11 +93,13 @@ impl Vault {
             .map_err(|reason| Error::Vault(format!("reading {name}: {reason}")))
     }
 
+    /// A refused delete keeps the session copy too.
     pub fn remove(&self, name: &str) -> Result<()> {
-        self.session().remove(name);
         self.backend
             .delete(name)
-            .map_err(|reason| Error::Vault(format!("deleting {name}: {reason}")))
+            .map_err(|reason| Error::Vault(format!("deleting {name}: {reason}")))?;
+        self.session().remove(name);
+        Ok(())
     }
 
     fn session(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {

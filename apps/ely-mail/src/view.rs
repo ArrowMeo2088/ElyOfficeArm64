@@ -1,0 +1,186 @@
+//! What the window draws.
+
+use ely_gpui_component::{
+    buttons::{Button, ButtonVariant},
+    data_display::DescriptionList,
+    feedback::{Banner, EmptyState, ErrorView},
+    overlays::ConfirmDialog,
+    primitives::{IconName, Severity},
+    typography::format,
+};
+use ely_mail_engine::{Account, Auth, Protocol, Security, Server};
+use ely_platform::AppId;
+use ely_ui::Shell;
+use gpui::{
+    AnyElement, App, Context, InteractiveElement as _, IntoElement, ParentElement as _, Render,
+    SharedString, Styled as _, Window, div,
+};
+
+use crate::{
+    mail::{Mail, text},
+    menu,
+};
+
+/// "IMAP · imap.example.com"
+pub fn protocol(account: &Account, cx: &App) -> SharedString {
+    let name = protocol_name(account.protocol);
+    text(
+        cx,
+        "mail.account.line",
+        &[("protocol", name), ("host", &account.incoming.host)],
+    )
+}
+
+fn server(server: &Server, cx: &App) -> SharedString {
+    let security = match server.security {
+        Security::Tls => "TLS",
+        Security::StartTls => "STARTTLS",
+    };
+    text(
+        cx,
+        "mail.account.server",
+        &[
+            ("host", &server.host),
+            ("port", &server.port.to_string()),
+            ("security", security),
+        ],
+    )
+}
+
+pub fn auth(auth: Auth, cx: &App) -> SharedString {
+    let key = match auth {
+        Auth::Password => "mail.auth.password",
+        Auth::Google => "mail.auth.google",
+        Auth::Microsoft => "mail.auth.microsoft",
+    };
+    text(cx, key, &[])
+}
+
+impl Mail {
+    fn add_button(&self, cx: &App) -> Button {
+        Button::new("mail-add", text(cx, "mail.add.open", &[]))
+            .variant(ButtonVariant::Primary)
+            .on_click(|_, window, cx| window.dispatch_action(Box::new(menu::AddAccount), cx))
+    }
+
+    fn body(&self, cx: &mut Context<Self>) -> AnyElement {
+        let error = |key: &str, detail: &str, cx: &App| {
+            ErrorView::new("mail-error", IconName::TriangleAlert, text(cx, key, &[]))
+                .detail(detail.to_owned())
+                .into_any_element()
+        };
+        if let Err(detail) = &self.store {
+            return error("mail.store.unopened", detail, cx);
+        }
+        let accounts = match &self.accounts {
+            None => return div().into_any_element(),
+            Some(Err(detail)) => return error("mail.store.unread", detail, cx),
+            Some(Ok(accounts)) => accounts,
+        };
+        let Some((_, account)) = accounts.iter().find(|(id, _)| Some(*id) == self.picked) else {
+            return EmptyState::new("mail-empty", IconName::Mail, text(cx, "mail.empty", &[]))
+                .action(self.add_button(cx))
+                .into_any_element();
+        };
+        let label = |key: &str| text(cx, key, &[]);
+        let incoming = format!(
+            "{} · {}",
+            protocol_name(account.protocol),
+            server(&account.incoming, cx)
+        );
+        let details = DescriptionList::new()
+            .text(label("mail.account.address"), account.address.clone())
+            .text(label("mail.account.user"), account.user.clone())
+            .text(label("mail.account.incoming"), incoming)
+            .text(
+                label("mail.account.outgoing"),
+                server(&account.outgoing, cx),
+            )
+            .text(label("mail.account.auth"), auth(account.auth, cx));
+        let remove = Button::new("mail-remove", label("mail.remove.open"))
+            .on_click(|_, window, cx| window.dispatch_action(Box::new(menu::RemoveAccount), cx));
+        div()
+            .p_6()
+            .flex()
+            .flex_col()
+            .gap_4()
+            .max_w_128()
+            .child(details)
+            .child(div().child(remove))
+            .into_any_element()
+    }
+
+    fn remove_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let removing = self.removing.as_ref()?;
+        let this = cx.weak_entity();
+        let dismiss = {
+            let this = this.clone();
+            move |_: &mut Window, cx: &mut App| {
+                this.update(cx, |mail, cx| {
+                    mail.removing = None;
+                    cx.notify();
+                })
+                .ok();
+            }
+        };
+        let size = format::file_size(removing.cached.bytes, false);
+        let count = removing.cached.messages;
+        let args = [
+            ("address", removing.address.as_str()),
+            ("n", &count.to_string()),
+            ("size", &size),
+        ];
+        let message = ely_ui::i18n::counted(cx, "mail.remove.message", count, &args);
+        let dialog = ConfirmDialog::new(
+            "mail-remove",
+            text(cx, "mail.remove.title", &args),
+            message,
+            dismiss,
+        )
+        .confirm(text(cx, "mail.remove.go", &[]))
+        .destructive()
+        .on_confirm({
+            let removing = removing.clone();
+            move |_, cx| {
+                let removing = removing.clone();
+                this.update(cx, |mail, cx| mail.remove(removing, cx)).ok();
+            }
+        });
+        Some(dialog.into_any_element())
+    }
+}
+
+pub fn protocol_name(protocol: Protocol) -> &'static str {
+    match protocol {
+        Protocol::Imap => "IMAP",
+        Protocol::Pop => "POP3",
+    }
+}
+
+impl Render for Mail {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let left = (!self.accounts().is_empty()).then(|| self.side.clone().into());
+        let read_only = self.read_only.as_ref().map(|reason| {
+            Banner::new(
+                "mail-read-only",
+                Severity::Warning,
+                text(cx, "mail.store.read_only", &[("error", reason)]),
+            )
+        });
+        let shell = Shell::new(AppId::Mail.name(), &self.focus)
+            .left(left)
+            .children(read_only)
+            .child(self.body(cx));
+        div()
+            .size_full()
+            .key_context(menu::CONTEXT)
+            .track_focus(&self.focus)
+            .on_action(
+                cx.listener(|mail, _: &menu::AddAccount, window, cx| mail.start_adding(window, cx)),
+            )
+            .on_action(cx.listener(|mail, _: &menu::RemoveAccount, _, cx| mail.ask_remove(cx)))
+            .child(shell)
+            .children(self.add_dialog(cx))
+            .children(self.remove_dialog(cx))
+    }
+}

@@ -2,6 +2,7 @@ use std::{future::Future, sync::Arc, time::Duration};
 
 use rustls::{ClientConfig, crypto::ring, pki_types::ServerName};
 use rustls_platform_verifier::BuilderVerifierExt;
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_rustls::{TlsConnector, client::TlsStream};
 
@@ -11,7 +12,7 @@ pub(crate) type Stream = TlsStream<TcpStream>;
 
 const WAIT: Duration = Duration::from_secs(60);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Server {
     pub host: String,
     pub port: u16,
@@ -19,7 +20,8 @@ pub struct Server {
 }
 
 /// No plaintext: every mode ends in TLS.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Security {
     Tls,
     StartTls,

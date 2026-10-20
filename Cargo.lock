@@ -2124,9 +2124,15 @@ dependencies = [
 name = "ely-mail"
 version = "0.1.8"
 dependencies = [
+ "ely-gpui-component",
+ "ely-mail-engine",
  "ely-platform",
  "ely-ui",
  "embed-resource",
+ "gpui-pre",
+ "log",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
