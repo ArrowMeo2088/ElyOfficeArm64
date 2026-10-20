@@ -40,7 +40,13 @@ impl Mail {
             .pane(match self.open {
                 Open::Drafts => self.draft_pane(cx),
                 Open::Outbox => self.outbox_pane(cx),
-                _ => self.reader(cx),
+                _ => div()
+                    .size_full()
+                    .flex()
+                    .flex_col()
+                    .children(self.actions(cx))
+                    .child(div().flex_1().min_h_0().child(self.reader(cx)))
+                    .into_any_element(),
             })
             .into_any_element()
     }
@@ -78,25 +84,35 @@ impl Mail {
             .detail(detail.clone())
             .into_any_element(),
             Some(Ok(mails)) => {
-                let this = cx.weak_entity();
-                MailList::new("mail-list", mails.clone())
+                let (this, starring) = (cx.weak_entity(), cx.weak_entity());
+                let list = MailList::new("mail-list", mails.clone())
                     .selected(self.listing.selected.clone())
                     .on_select(move |keys, _, cx| {
                         this.update(cx, |mail, cx| mail.select(keys, cx)).ok();
-                    })
-                    .into_any_element()
+                    });
+                // Drafts and the Outbox have no stars.
+                let starred = !matches!(self.open, Open::Drafts | Open::Outbox);
+                let list = match starred {
+                    true => list.on_star(move |key, on, _, cx| {
+                        starring.update(cx, |mail, cx| mail.star(key, on, cx)).ok();
+                    }),
+                    false => list,
+                };
+                list.into_any_element()
             }
         };
         div()
             .size_full()
             .flex()
             .flex_col()
-            .children((!matches!(self.open, Open::Drafts | Open::Outbox)).then(|| {
-                div()
-                    .debug_selector(|| "mail-filters".into())
-                    .p_2()
-                    .child(toggles)
-            }))
+            .children(
+                (!matches!(self.open, Open::Drafts | Open::Outbox)).then(|| {
+                    div()
+                        .debug_selector(|| "mail-filters".into())
+                        .p_2()
+                        .child(toggles)
+                }),
+            )
             .child(div().flex_1().min_h_0().child(list))
             .into_any_element()
     }

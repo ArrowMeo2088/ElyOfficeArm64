@@ -119,7 +119,8 @@ async fn a_first_sync_takes_headers_and_recent_bodies() {
             headers: 1,
             bodies: 1,
             removed: 0,
-            deleted: 0
+            deleted: 0,
+            pushed: Default::default(),
         }
     );
     let store = store.lock().unwrap();

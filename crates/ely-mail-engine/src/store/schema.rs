@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -218,4 +218,37 @@ CREATE TABLE outbox_files (
     bytes BLOB NOT NULL,
     PRIMARY KEY (item, place)
 ) WITHOUT ROWID;
+";
+
+/// Changes waiting for the server, and moves shown early (C12.15).
+const V11: &str = "
+ALTER TABLE messages ADD COLUMN moving INTEGER REFERENCES mailboxes ON DELETE SET NULL;
+ALTER TABLE messages ADD COLUMN erasing INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE changes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mailbox INTEGER NOT NULL REFERENCES mailboxes ON DELETE CASCADE,
+    uidvalidity INTEGER NOT NULL,
+    uid INTEGER NOT NULL,
+    version INTEGER NOT NULL,
+    seen INTEGER,
+    flagged INTEGER,
+    seen_was INTEGER,
+    flagged_was INTEGER,
+    target INTEGER REFERENCES mailboxes,
+    expunge INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (mailbox, uidvalidity, uid),
+    CHECK (NOT (expunge AND target IS NOT NULL))
+);
+CREATE TABLE pop_gone (
+    mailbox INTEGER NOT NULL REFERENCES mailboxes ON DELETE CASCADE,
+    uidl TEXT NOT NULL,
+    PRIMARY KEY (mailbox, uidl)
+) WITHOUT ROWID;
+CREATE TABLE dropped (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account INTEGER NOT NULL REFERENCES accounts ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('gone', 'renumbered', 'refused', 'unsupported', 'unplaced',
+        'vanished')),
+    words TEXT
+);
 ";

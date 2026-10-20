@@ -10,9 +10,11 @@ use crate::{
 
 mod conn;
 mod drafts;
+mod organize;
 mod parts;
 
 use conn::{Arg, Conn};
+pub use organize::Can;
 pub use parts::Node;
 
 /// A logged-in IMAP session over TLS.
@@ -263,11 +265,16 @@ impl Imap {
 
     /// UIDs of messages that arrived on or after `day` (`19-Jul-2026`).
     pub async fn since(&mut self, day: &str) -> Result<Vec<u32>> {
-        let mut uids = Vec::new();
         let args = [Arg::Atom("SINCE"), Arg::Atom(day)];
+        self.search(&args, "searching by date").await
+    }
+
+    /// UID SEARCH, sorted.
+    async fn search(&mut self, args: &[Arg<'_>], step: &'static str) -> Result<Vec<u32>> {
+        let mut uids = Vec::new();
         within(
-            "searching by date",
-            self.conn.run("UID SEARCH", &args, |response, _| {
+            step,
+            self.conn.run("UID SEARCH", args, |response, _| {
                 if let Response::MailboxData(MailboxDatum::Search(found)) = response {
                     uids.extend_from_slice(found);
                 }

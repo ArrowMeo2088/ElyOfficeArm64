@@ -14,6 +14,7 @@ mod kinds;
 mod letter;
 mod mail;
 mod menu;
+mod organize;
 mod outbox;
 mod outbox_list;
 mod panes;

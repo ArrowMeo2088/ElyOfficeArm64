@@ -20,7 +20,7 @@ pub(super) const EN: &[(&str, &str)] = &[
     ),
     (
         "mail.outbox.filing_later",
-        "Accepted by the server; its copy for Sent waits for the server: {error}.          It is tried again at the next sync.",
+        "Accepted by the server; its copy for Sent waits for the server: {error}. It is tried again at the next sync.",
     ),
     ("mail.outbox.failed", "Failed: {error}"),
     ("mail.outbox.unsure", "Outcome unknown: {error}"),
@@ -66,7 +66,7 @@ pub(super) const EN: &[(&str, &str)] = &[
     ),
     (
         "mail.outbox.unfiled_later",
-        "Sent, but the server for its Sent copy was not reached: {error}.          The copy is tried again at the next sync; the message is not sent again.",
+        "Sent, but the server for its Sent copy was not reached: {error}. The copy is tried again at the next sync; the message is not sent again.",
     ),
     (
         "mail.outbox.no_sent_folder",

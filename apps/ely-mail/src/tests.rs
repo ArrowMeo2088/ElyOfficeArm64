@@ -25,6 +25,7 @@ mod controls;
 mod drafts;
 mod flows;
 mod leaving;
+mod organize;
 mod outbox;
 mod panes;
 mod reading;

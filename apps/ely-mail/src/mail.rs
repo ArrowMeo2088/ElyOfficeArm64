@@ -21,6 +21,7 @@ use crate::{
     boxes::{Listing, Open, Unread},
     drafts::Waiting,
     identity::Editing,
+    organize::Erasing,
     outbox::Runner,
     reading::Reading,
     removing::Removing,
@@ -89,6 +90,8 @@ pub struct Mail {
     pub queued: Vec<Queued>,
     /// Outbox work a quit would leave undone.
     pub pending: usize,
+    /// Messages asked to go for good.
+    pub erasing: Option<Erasing>,
     /// The quit question is showing.
     pub quitting: bool,
     /// Asked once, the quit goes on.
@@ -176,6 +179,7 @@ impl Mail {
             runner: Runner::default(),
             queued: Vec::new(),
             pending: 0,
+            erasing: None,
             quitting: false,
             quit_anyway: false,
             focus: cx.focus_handle(),

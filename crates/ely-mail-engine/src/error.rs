@@ -43,6 +43,8 @@ pub enum Error {
     Unsupported(&'static str),
     /// Larger than the server takes, in bytes.
     TooLarge { size: u64, limit: u64 },
+    /// Deleted here; a late download is not kept.
+    Deleted,
 }
 
 impl fmt::Display for Error {
@@ -69,6 +71,7 @@ impl fmt::Display for Error {
             Self::TooLarge { size, limit } => {
                 write!(f, "the message is {size} bytes; the server takes {limit}")
             }
+            Self::Deleted => write!(f, "the message was deleted here"),
         }
     }
 }

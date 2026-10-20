@@ -163,6 +163,14 @@ impl Mail {
                 let words = ely_ui::i18n::counted(cx, &value, n, &[("n", &n.to_string())]);
                 details = details.text(label(key), words);
             }
+            let waiting = match synced.waiting {
+                0 => label("mail.sync.waiting_none"),
+                n => {
+                    let count = n.to_string();
+                    ely_ui::i18n::counted(cx, "mail.sync.waiting_value", n, &[("n", &count)])
+                }
+            };
+            details = details.text(label("mail.sync.waiting"), waiting);
         }
         let failed = syncing.failed.as_ref().map(|error| {
             Banner::new(
@@ -271,6 +279,7 @@ impl Render for Mail {
             .children(self.add_dialog(cx))
             .children(self.remove_dialog(cx))
             .children(self.delete_dialog(cx))
+            .children(self.erase_dialog(cx))
             .children(self.quit_dialog(cx))
     }
 }

@@ -4,8 +4,8 @@ use std::collections::HashMap;
 
 use rusqlite::ToSql;
 
-use super::{MailboxId, MessageId, Store};
-use crate::{Mailbox, Result};
+use super::{AccountId, MailboxId, MessageId, Store};
+use crate::{Error, Mailbox, Result, Role};
 
 /// Which messages a list holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,6 +27,11 @@ pub struct Filter {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Summary {
     pub id: MessageId,
+    pub account: AccountId,
+    /// Where it shows, a move not yet made included.
+    pub mailbox: MailboxId,
+    pub role: Option<Role>,
+    pub pop: bool,
     pub from: Vec<Mailbox>,
     pub subject: Option<String>,
     pub date: Option<i64>,
@@ -45,10 +50,11 @@ const FLAGGED: &str = "EXISTS (SELECT 1 FROM flags f WHERE f.message = m.id \
 impl Store {
     /// Newest first; SQLite sorts undated last.
     pub fn list(&self, scope: Scope, filter: Filter) -> Result<Vec<Summary>> {
-        let mut clauses = vec![match scope {
-            Scope::Mailbox(_) => "m.mailbox = ?1".to_owned(),
+        let mut clauses = vec!["NOT m.erasing".to_owned()];
+        clauses.push(match scope {
+            Scope::Mailbox(_) => "coalesce(m.moving, m.mailbox) = ?1".to_owned(),
             Scope::Inboxes => "b.role = 'inbox'".to_owned(),
-        }];
+        });
         if filter.unread {
             clauses.push(format!("NOT {SEEN}"));
         }
@@ -59,8 +65,9 @@ impl Store {
             clauses.push("m.attachments > 0".to_owned());
         }
         let sql = format!(
-            "SELECT m.id, m.sender, m.subject, m.date, m.attachments, {SEEN}, {FLAGGED}
-             FROM messages m JOIN mailboxes b ON b.id = m.mailbox
+            "SELECT m.id, m.sender, m.subject, m.date, m.attachments, {SEEN}, {FLAGGED},
+                    b.account, b.id, b.role, m.uidl IS NOT NULL
+             FROM messages m JOIN mailboxes b ON b.id = coalesce(m.moving, m.mailbox)
              WHERE {}
              ORDER BY m.date DESC, m.id DESC",
             clauses.join(" AND ")
@@ -83,12 +90,29 @@ impl Store {
                 row.get(4)?,
                 row.get(5)?,
                 row.get(6)?,
+                (
+                    row.get(7)?,
+                    row.get(8)?,
+                    row.get::<_, Option<String>>(9)?,
+                    row.get(10)?,
+                ),
             ))
         })?;
         rows.map(|row| {
-            let (id, from, subject, date, attachments, seen, flagged) = row?;
+            let (id, from, subject, date, attachments, seen, flagged, place) = row?;
+            let (account, mailbox, role, pop) = place;
+            let role = role
+                .map(|role| {
+                    Role::from_name(&role)
+                        .ok_or_else(|| Error::Store(format!("an unknown folder role {role:?}")))
+                })
+                .transpose()?;
             Ok(Summary {
                 id: MessageId(id),
+                account: AccountId(account),
+                mailbox: MailboxId(mailbox),
+                role,
+                pop,
                 from: serde_json::from_str(&from)?,
                 subject,
                 date,
@@ -103,7 +127,8 @@ impl Store {
     /// Unread messages per mailbox; mailboxes with none are left out.
     pub fn unread(&self) -> Result<HashMap<MailboxId, u32>> {
         let mut query = self.conn.prepare(&format!(
-            "SELECT m.mailbox, COUNT(*) FROM messages m WHERE NOT {SEEN} GROUP BY m.mailbox"
+            "SELECT coalesce(m.moving, m.mailbox) AS shown, COUNT(*) FROM messages m
+             WHERE NOT m.erasing AND NOT {SEEN} GROUP BY shown"
         ))?;
         let rows = query.query_map([], |row| Ok((MailboxId(row.get(0)?), row.get(1)?)))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)

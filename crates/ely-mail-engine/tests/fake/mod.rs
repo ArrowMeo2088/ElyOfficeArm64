@@ -31,6 +31,8 @@ pub enum Step {
     StartTls,
     /// Ends the script, holding the connection open unanswered.
     Hang,
+    /// Runs at this point, as if the user acted now.
+    Run(Box<dyn FnOnce() + Send>),
 }
 
 pub fn send(text: &str) -> Step {
@@ -174,6 +176,7 @@ async fn run(io: Box<dyn Io>, acceptor: &TlsAcceptor, steps: Vec<Step>) -> Resul
                 let tls = acceptor.accept(tcp).await.map_err(|e| e.to_string())?;
                 io = BufReader::new(Box::new(tls));
             }
+            Step::Run(act) => act(),
             Step::Hang => {
                 tokio::spawn(async move {
                     let _held = io;

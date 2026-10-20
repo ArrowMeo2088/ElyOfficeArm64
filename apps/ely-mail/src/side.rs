@@ -49,8 +49,10 @@ impl Render for Side {
             IconName::Send,
         )
         .unread(mail.pending as u32);
-        let mut list = MailboxList::new("mail-boxes")
-            .section(text(cx, "mail.boxes.unified", &[]), [inboxes, drafts, outbox]);
+        let mut list = MailboxList::new("mail-boxes").section(
+            text(cx, "mail.boxes.unified", &[]),
+            [inboxes, drafts, outbox],
+        );
         for (id, account) in mail.accounts() {
             let folders = mail.syncs.get(id).map_or(&[][..], |each| &each.folders);
             let mut sorted: Vec<&LocalFolder> = folders.iter().collect();
@@ -59,7 +61,7 @@ impl Render for Side {
                 let open = Open::Mailbox(*id, folder.id);
                 // Boxes with nothing unread are absent.
                 let unread = mail.unread.get(&folder.id).copied().unwrap_or(0);
-                Mailbox::new(open.key(), name(folder, cx), icon(folder.role)).unread(unread)
+                Mailbox::new(open.key(), folder_name(folder, cx), icon(folder.role)).unread(unread)
             });
             let settings = Mailbox::new(
                 Open::Account(*id).key(),
@@ -103,7 +105,7 @@ impl Mail {
 }
 
 /// Inbox in the reader's words; others as named.
-fn name(folder: &LocalFolder, cx: &App) -> SharedString {
+pub fn folder_name(folder: &LocalFolder, cx: &App) -> SharedString {
     match folder.role {
         Some(Role::Inbox) => text(cx, "mail.boxes.inbox", &[]),
         _ => folder.name.clone().into(),

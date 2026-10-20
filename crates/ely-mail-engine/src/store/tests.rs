@@ -143,6 +143,7 @@ fn a_v1_store_gains_sync_and_keeps_its_mail() {
         messages: 1,
         uncached: 0,
         partial: 0,
+        waiting: 0,
     };
     assert_eq!(store.synced(ann).unwrap(), synced);
     store

@@ -39,6 +39,8 @@ pub struct Synced {
     pub uncached: u64,
     /// Messages whose attachments wait for a request.
     pub partial: u64,
+    /// Changes made here, not yet on the server.
+    pub waiting: u64,
 }
 
 impl Store {
@@ -60,6 +62,17 @@ impl Store {
                 .any(|(listed, _)| mailbox_name(listed) == name)
             {
                 self.without_mail(MailboxId(id), None, |tx| {
+                    // Moves there go back; their flags stay queued.
+                    tx.execute(
+                        "INSERT INTO dropped (account, kind, words)
+                         SELECT ?1, 'vanished', ?2 FROM changes WHERE target = ?3",
+                        params![account.0, name, id],
+                    )?;
+                    tx.execute("UPDATE messages SET moving = NULL WHERE moving = ?1", [id])?;
+                    tx.execute(
+                        "UPDATE changes SET target = NULL, version = version + 1 WHERE target = ?1",
+                        [id],
+                    )?;
                     tx.execute("DELETE FROM mailboxes WHERE id = ?1", [id])
                 })?;
                 log::info!("mail: mailbox {id} is no longer listed; removed");
@@ -200,13 +213,31 @@ impl Store {
         Ok(held)
     }
 
-    /// The UIDLs a POP3 mailbox holds.
+    /// The UIDLs a POP3 mailbox holds, or deleted here.
     pub fn uidls(&self, mailbox: MailboxId) -> Result<HashSet<String>> {
-        let mut query = self
-            .conn
-            .prepare("SELECT uidl FROM messages WHERE mailbox = ?1 AND uidl IS NOT NULL")?;
+        let mut query = self.conn.prepare(
+            "SELECT uidl FROM messages WHERE mailbox = ?1 AND uidl IS NOT NULL
+             UNION SELECT uidl FROM pop_gone WHERE mailbox = ?1",
+        )?;
         let rows = query.query_map([mailbox.0], |row| row.get(0))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Deleted UIDLs the server no longer lists are forgotten.
+    pub fn forget_gone(&self, mailbox: MailboxId, listed: &HashSet<String>) -> Result<()> {
+        self.writable()?;
+        let held: Vec<String> = self
+            .conn
+            .prepare("SELECT uidl FROM pop_gone WHERE mailbox = ?1")?
+            .query_map([mailbox.0], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        for uidl in held.iter().filter(|uidl| !listed.contains(*uidl)) {
+            self.conn.execute(
+                "DELETE FROM pop_gone WHERE mailbox = ?1 AND uidl = ?2",
+                params![mailbox.0, uidl],
+            )?;
+        }
+        Ok(())
     }
 
     pub fn set_synced(&self, account: AccountId, at: i64) -> Result<()> {
@@ -241,6 +272,7 @@ impl Store {
             messages: count(messages)?,
             uncached: count(messages - cached)?,
             partial: count(partial)?,
+            waiting: self.changes_waiting(account)?,
         })
     }
 

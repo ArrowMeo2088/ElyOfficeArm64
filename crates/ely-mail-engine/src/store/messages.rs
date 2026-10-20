@@ -81,6 +81,24 @@ impl Store {
         Ok(found.optional()?.map(MessageId))
     }
 
+    /// Deleted here, waiting for the server.
+    fn deleted(&self, mailbox: MailboxId, key: &Key) -> Result<bool> {
+        let found = match key {
+            Key::Imap { uidvalidity, uid } => self.conn.query_row(
+                "SELECT 1 FROM changes WHERE mailbox = ?1 AND uidvalidity = ?2 AND uid = ?3
+                 AND expunge",
+                params![mailbox.0, uidvalidity, uid],
+                |_| Ok(()),
+            ),
+            Key::Pop { uidl } => self.conn.query_row(
+                "SELECT 1 FROM pop_gone WHERE mailbox = ?1 AND uidl = ?2",
+                params![mailbox.0, uidl],
+                |_| Ok(()),
+            ),
+        };
+        Ok(found.optional()?.is_some())
+    }
+
     /// One key, one message; headers again only set flags.
     pub fn put(
         &mut self,
@@ -90,6 +108,9 @@ impl Store {
         fetched: Fetched,
     ) -> Result<MessageId> {
         self.writable()?;
+        if self.deleted(mailbox, key)? {
+            return Err(Error::Deleted);
+        }
         let existing = self.find(mailbox, key)?;
         let (bytes, missing): (&[u8], &[String]) = match (fetched, existing) {
             (Fetched::Headers(_), Some(id)) => {
@@ -216,7 +237,7 @@ impl Store {
 
     pub fn get(&self, id: MessageId) -> Result<Stored> {
         let mut stored = self.conn.query_row(
-            &format!("SELECT {COLUMNS} FROM messages WHERE id = ?1"),
+            &format!("SELECT {COLUMNS} FROM messages WHERE id = ?1 AND NOT erasing"),
             [id.0],
             |found| Ok(row(found)),
         )??;
@@ -250,14 +271,11 @@ impl Store {
 
     pub fn remove(&mut self, id: MessageId) -> Result<()> {
         self.writable()?;
-        let content = self.content(id)?;
+        self.content(id)?;
         let tx = self.conn.transaction()?;
         let mut aside = Aside::new(&self.dir);
         let done = (|| -> Result<()> {
-            tx.execute("DELETE FROM messages WHERE id = ?1", [id.0])?;
-            if let Some(hash) = content {
-                aside.drop_unused(&tx, &hash)?;
-            }
+            delete(&tx, &mut aside, id)?;
             Ok(tx.commit()?)
         })();
         aside.settle(done)
@@ -303,11 +321,65 @@ impl Store {
     }
 }
 
+/// The row, and its original once unused.
+pub(super) fn delete(tx: &Transaction, aside: &mut Aside, id: MessageId) -> Result<()> {
+    let content: Option<String> = tx.query_row(
+        "SELECT content FROM messages WHERE id = ?1",
+        [id.0],
+        |row| row.get(0),
+    )?;
+    tx.execute("DELETE FROM messages WHERE id = ?1", [id.0])?;
+    if let Some(hash) = content {
+        aside.drop_unused(tx, &hash)?;
+    }
+    Ok(())
+}
+
+/// The server's flags, under changes not yet sent.
 fn replace_flags(tx: &Transaction, id: MessageId, flags: &[&str]) -> Result<()> {
     tx.execute("DELETE FROM flags WHERE message = ?1", [id.0])?;
     for flag in flags {
         tx.execute(
             "INSERT OR IGNORE INTO flags (message, flag) VALUES (?1, ?2)",
+            params![id.0, flag],
+        )?;
+    }
+    let has = |name: &str| flags.iter().any(|it| it.eq_ignore_ascii_case(name));
+    // A refused change returns to these.
+    tx.execute(
+        "UPDATE changes SET seen_was = CASE WHEN seen IS NULL THEN seen_was ELSE ?1 END,
+             flagged_was = CASE WHEN flagged IS NULL THEN flagged_was ELSE ?2 END
+         WHERE (mailbox, uidvalidity, uid) =
+             (SELECT mailbox, uidvalidity, uid FROM messages WHERE id = ?3)",
+        params![has("\\Seen"), has("\\Flagged"), id.0],
+    )?;
+    let queued: Option<(Option<bool>, Option<bool>)> = tx
+        .query_row(
+            "SELECT c.seen, c.flagged FROM changes c JOIN messages m ON m.mailbox = c.mailbox
+             AND m.uidvalidity = c.uidvalidity AND m.uid = c.uid WHERE m.id = ?1",
+            [id.0],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let (seen, flagged) = queued.unwrap_or_default();
+    for (flag, on) in [("\\Seen", seen), ("\\Flagged", flagged)] {
+        if let Some(on) = on {
+            put_flag(tx, id, flag, on)?;
+        }
+    }
+    Ok(())
+}
+
+/// One system flag on or off.
+pub(super) fn put_flag(tx: &Transaction, id: MessageId, flag: &str, on: bool) -> Result<()> {
+    // RFC 3501 §2.3.2: system flags match in any case.
+    tx.execute(
+        "DELETE FROM flags WHERE message = ?1 AND flag = ?2 COLLATE NOCASE",
+        params![id.0, flag],
+    )?;
+    if on {
+        tx.execute(
+            "INSERT INTO flags (message, flag) VALUES (?1, ?2)",
             params![id.0, flag],
         )?;
     }

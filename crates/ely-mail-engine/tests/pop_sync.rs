@@ -195,3 +195,31 @@ async fn an_imap_account_is_refused() {
         .unwrap_err();
     assert!(matches!(error, Error::Invalid(_)), "{error}");
 }
+
+#[tokio::test]
+async fn mail_deleted_here_does_not_come_down_again() {
+    let (_dir, store, account, id) = opened(true);
+    let mut first = vec![
+        expect("UIDL"),
+        send("+OK\n1 aa1\n.\n"),
+        expect("RETR 1"),
+        send("+OK\nSubject: One\n\nhi\n.\n"),
+    ];
+    first.extend(quit());
+    run(&store, &account, id, first).await.unwrap();
+    let inbox = store.lock().unwrap().folders(id).unwrap()[0].id;
+    let key = Key::Pop { uidl: "aa1".into() };
+    let one = store.lock().unwrap().find(inbox, &key).unwrap().unwrap();
+    let delete = ely_mail_engine::Change::Delete { erase: true };
+    store.lock().unwrap().change(&[one], delete).unwrap();
+    let mut again = vec![expect("UIDL"), send("+OK\n1 aa1\n.\n")];
+    again.extend(quit());
+    let report = run(&store, &account, id, again).await.unwrap();
+    assert_eq!(report.bodies, 0);
+    assert_eq!(store.lock().unwrap().find(inbox, &key).unwrap(), None);
+    // Once the server lets it go, so does the record.
+    let mut gone = vec![expect("UIDL"), send("+OK\n.\n")];
+    gone.extend(quit());
+    run(&store, &account, id, gone).await.unwrap();
+    assert!(store.lock().unwrap().uidls(inbox).unwrap().is_empty());
+}

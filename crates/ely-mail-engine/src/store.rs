@@ -12,12 +12,14 @@ use crate::{Error, Result};
 
 mod accounts;
 mod aside;
+mod changes;
 mod drafts;
 mod folders;
 mod identity;
 mod listing;
 mod messages;
 mod outbox;
+mod pushed;
 mod schema;
 mod search;
 #[cfg(test)]
@@ -26,12 +28,14 @@ mod threads;
 mod trusted;
 
 pub use accounts::Cached;
+pub use changes::Change;
 pub use drafts::{DraftId, Left, Remote, Shelved, Stowed, Unsent};
 pub use folders::{Held, LocalFolder, Synced};
 pub use identity::Identity;
 pub use listing::{Filter, Scope, Summary};
 pub use messages::{Fetched, Key, Stored};
 pub use outbox::{Filed, Filing, Going, Handed, Landing, Letter, OutboxId, Queued};
+pub(crate) use pushed::{Done, Pending, Settled};
 
 const DB: &str = "mail.db";
 const CONTENT: &str = "content";

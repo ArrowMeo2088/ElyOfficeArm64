@@ -56,7 +56,9 @@ fn a_v3_store_keeps_its_ids_and_stops_reusing_them() {
         .unwrap()
         .try_into()
         .unwrap();
-    old.open_mailbox(inbox, 1).unwrap();
+    old.conn
+        .execute("UPDATE mailboxes SET uidvalidity = 1", [])
+        .unwrap();
     // Today's writes name later columns; insert as SQL.
     old.conn
         .execute(
@@ -89,7 +91,9 @@ fn a_flagged_headers_only_v5_message_upgrades_and_stays_writable() {
         .unwrap()
         .try_into()
         .unwrap();
-    old.open_mailbox(inbox, 1).unwrap();
+    old.conn
+        .execute("UPDATE mailboxes SET uidvalidity = 1", [])
+        .unwrap();
     old.conn
         .execute(
             "INSERT INTO messages (mailbox, uidvalidity, uid, in_reply_to, refs, sender,

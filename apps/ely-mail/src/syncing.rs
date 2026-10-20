@@ -22,6 +22,8 @@ pub struct Syncing {
     pub run: u64,
     /// A folder changed mid-sync: sync once more.
     pub again: bool,
+    /// A change came mid-run: send the queue after.
+    pub push: bool,
     pub synced: Option<Synced>,
     pub failed: Option<String>,
     pub folders: Vec<LocalFolder>,
@@ -31,6 +33,22 @@ pub type Syncs = HashMap<AccountId, Syncing>;
 
 impl Mail {
     pub fn sync(&mut self, id: AccountId, cx: &mut Context<Self>) {
+        self.run_sync(id, false, cx);
+    }
+
+    /// Sends queued changes; a running sync sends them after.
+    pub fn push(&mut self, id: AccountId, cx: &mut Context<Self>) {
+        match self.syncs.get_mut(&id) {
+            Some(syncing) if syncing.task.is_some() => {
+                log::info!("mail: account {} sends its changes after this run", id.0);
+                syncing.push = true;
+            }
+            _ => self.run_sync(id, true, cx),
+        }
+    }
+
+    /// `only_changes` sends the queue, no mail comes down.
+    fn run_sync(&mut self, id: AccountId, only_changes: bool, cx: &mut Context<Self>) {
         if self.paused {
             return log::info!("mail: account {} not synced: paused", id.0);
         }
@@ -61,14 +79,25 @@ impl Mail {
                 .map_err(|err| ely_mail_engine::Error::Store(format!("the clock: {err}")))?
                 .as_secs() as i64;
             let secret = sync::secret(&account, &vault).await?;
-            match account.protocol {
-                Protocol::Imap => sync::imap(&account, id, secret, &tls, &store, now).await,
-                Protocol::Pop { .. } => sync::pop(&account, id, secret, &tls, &store, now).await,
+            match (account.protocol, only_changes) {
+                (Protocol::Imap, true) => sync::changes(&account, id, secret, &tls, &store)
+                    .await
+                    .map(|_| ()),
+                (Protocol::Imap, false) => sync::imap(&account, id, secret, &tls, &store, now)
+                    .await
+                    .map(|_| ()),
+                // POP3 changes stay here.
+                (Protocol::Pop { .. }, true) => Ok(()),
+                (Protocol::Pop { .. }, false) => sync::pop(&account, id, secret, &tls, &store, now)
+                    .await
+                    .map(|_| ()),
             }
         };
         let task = self.on_runtime(cx, work, move |mail, done, cx| {
+            // Let go changes are told whatever broke after.
+            mail.tell_dropped(id, cx);
             let failed = match done {
-                Ok(Ok(_)) => None,
+                Ok(Ok(())) => None,
                 Ok(Err(error)) => Some(error.to_string()),
                 Err(error) => Some(error),
             };
@@ -84,10 +113,13 @@ impl Mail {
             syncing.task = None;
             syncing.failed = failed;
             let again = std::mem::take(&mut syncing.again);
+            let push = std::mem::take(&mut syncing.push);
             mail.read_synced(id, cx);
             if again {
                 log::info!("mail: account {} syncs again for a changed folder", id.0);
                 mail.sync(id, cx);
+            } else if push {
+                mail.push(id, cx);
             }
         });
         self.syncs.entry(id).or_default().task = Some(task);
@@ -113,6 +145,7 @@ impl Mail {
         if paused {
             for syncing in self.syncs.values_mut() {
                 syncing.again = false;
+                syncing.push = false;
                 if let Some(task) = syncing.task.take() {
                     task.abort();
                 }
@@ -171,7 +204,7 @@ impl Mail {
         }
     }
 
-    fn read_synced(&mut self, id: AccountId, cx: &mut Context<Self>) {
+    pub fn read_synced(&mut self, id: AccountId, cx: &mut Context<Self>) {
         self.with_store(
             cx,
             move |store| Ok((store.synced(id)?, store.folders(id)?)),

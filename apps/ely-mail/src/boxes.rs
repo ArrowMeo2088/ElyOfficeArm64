@@ -3,7 +3,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use ely_gpui_component::mail::Mail as Row;
-use ely_mail_engine::{AccountId, Filter, MailboxId, Role, Scope, Summary};
+use ely_mail_engine::{AccountId, Filter, MailboxId, MessageId, Role, Scope, Summary};
 use gpui::{Context, SharedString};
 
 use crate::{
@@ -54,10 +54,23 @@ impl Open {
     }
 }
 
+/// Where a listed message is, and its state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Fact {
+    pub id: MessageId,
+    pub account: AccountId,
+    pub mailbox: MailboxId,
+    pub role: Option<Role>,
+    pub pop: bool,
+    pub seen: bool,
+    pub flagged: bool,
+}
+
 /// Rows read, and where each key sits.
 pub struct Indexed {
     rows: Vec<Row>,
     at: HashMap<SharedString, usize>,
+    facts: HashMap<SharedString, Fact>,
 }
 
 /// Off the UI thread: a long list takes a while.
@@ -67,7 +80,11 @@ pub fn index(rows: Vec<Row>) -> Indexed {
         .enumerate()
         .map(|(ix, row)| (row.key.clone(), ix))
         .collect();
-    Indexed { rows, at }
+    Indexed {
+        rows,
+        at,
+        facts: HashMap::new(),
+    }
 }
 
 /// The open list and the messages picked in it.
@@ -78,6 +95,8 @@ pub struct Listing {
     /// None until read, or when nothing lists mail.
     pub mails: Option<Result<Rc<Vec<Row>>, String>>,
     at: HashMap<SharedString, usize>,
+    /// Mail rows only; drafts and the Outbox have none.
+    pub facts: HashMap<SharedString, Fact>,
     pub selected: Vec<SharedString>,
     /// The one message picked, for the reading pane.
     pub chosen: Option<Row>,
@@ -86,12 +105,20 @@ pub struct Listing {
 impl Listing {
     pub fn show(&mut self, mails: Option<Result<Indexed, String>>) {
         self.at = HashMap::new();
+        self.facts = HashMap::new();
         self.mails = mails.map(|read| {
             read.map(|indexed| {
                 self.at = indexed.at;
+                self.facts = indexed.facts;
                 Rc::new(indexed.rows)
             })
         });
+    }
+
+    /// The picked messages' facts, in list order.
+    pub fn picked(&self) -> Vec<Fact> {
+        let facts = self.selected.iter().filter_map(|key| self.facts.get(key));
+        facts.copied().collect()
     }
 
     /// Keeps the picks still listed.
@@ -140,6 +167,7 @@ impl Mail {
     pub fn select(&mut self, keys: &[SharedString], cx: &mut Context<Self>) {
         self.listing.pick(keys.to_vec());
         self.read_letter(cx);
+        self.read_on_open(cx);
         cx.notify();
     }
 
@@ -160,9 +188,12 @@ impl Mail {
                 let rows = match scope {
                     Some(scope) => {
                         let list = store.list(scope, filter)?;
-                        Some(index(
-                            list.into_iter().map(|each| row(each, &none)).collect(),
-                        ))
+                        let facts = list.iter().map(|each| (key(each), fact(each))).collect();
+                        let rows = list.into_iter().map(|each| row(each, &none)).collect();
+                        Some(Indexed {
+                            facts,
+                            ..index(rows)
+                        })
                     }
                     None if open == Open::Drafts => {
                         kept = store.drafts()?;
@@ -216,9 +247,25 @@ impl Mail {
     }
 }
 
+fn key(summary: &Summary) -> SharedString {
+    summary.id.0.to_string().into()
+}
+
+fn fact(summary: &Summary) -> Fact {
+    Fact {
+        id: summary.id,
+        account: summary.account,
+        mailbox: summary.mailbox,
+        role: summary.role,
+        pop: summary.pop,
+        seen: summary.seen,
+        flagged: summary.flagged,
+    }
+}
+
 /// `none` names a missing sender, then subject.
 fn row(summary: Summary, none: &(SharedString, SharedString)) -> Row {
-    let key = summary.id.0.to_string();
+    let key = key(&summary);
     let from = summary.from.first().map(|from| match &from.name {
         Some(name) if !name.trim().is_empty() => name.clone(),
         _ => from.email.clone(),
