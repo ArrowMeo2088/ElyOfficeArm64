@@ -1,6 +1,6 @@
 //! IMAP folders as mailboxes, and how far they are synced.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::{Transaction, params};
 
@@ -148,6 +148,15 @@ impl Store {
                 .push(flag);
         }
         Ok(held)
+    }
+
+    /// The UIDLs a POP3 mailbox holds.
+    pub fn uidls(&self, mailbox: MailboxId) -> Result<HashSet<String>> {
+        let mut query = self
+            .conn
+            .prepare("SELECT uidl FROM messages WHERE mailbox = ?1 AND uidl IS NOT NULL")?;
+        let rows = query.query_map([mailbox.0], |row| row.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn set_synced(&self, account: AccountId, at: i64) -> Result<()> {

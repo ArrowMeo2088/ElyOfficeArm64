@@ -97,7 +97,7 @@ impl Mail {
                 server(&account.outgoing, cx),
             )
             .text(label("mail.account.auth"), auth(account.auth, cx));
-        let (details, failed) = self.sync_rows(*id, details, cx);
+        let (details, failed) = self.sync_rows(*id, account.protocol, details, cx);
         let remove = Button::new("mail-remove", label("mail.remove.open"))
             .on_click(|_, window, cx| window.dispatch_action(Box::new(menu::RemoveAccount), cx));
         div()
@@ -116,6 +116,7 @@ impl Mail {
     fn sync_rows(
         &self,
         id: AccountId,
+        protocol: Protocol,
         details: DescriptionList,
         cx: &App,
     ) -> (DescriptionList, Option<Banner>) {
@@ -128,12 +129,24 @@ impl Mail {
             (None, Some(at)) => local_time(at).into(),
             (None, None) => label("mail.sync.never"),
         };
-        let days = sync::BODY_DAYS.to_string();
-        let mut details = details.text(label("mail.sync.last"), last).text(
-            label("mail.sync.range"),
-            text(cx, "mail.sync.range_value", &[("days", &days)]),
-        );
-        if let Some(synced) = syncing.synced {
+        let mut details = details.text(label("mail.sync.last"), last);
+        if let Protocol::Pop { keep } = protocol {
+            let server = label(if keep {
+                "mail.sync.kept"
+            } else {
+                "mail.sync.deleted"
+            });
+            details = details
+                .text(label("mail.sync.range"), label("mail.sync.range_pop"))
+                .text(label("mail.sync.server"), server);
+        } else {
+            let days = sync::BODY_DAYS.to_string();
+            details = details.text(
+                label("mail.sync.range"),
+                text(cx, "mail.sync.range_value", &[("days", &days)]),
+            );
+        }
+        if let (Some(synced), Protocol::Imap) = (syncing.synced, protocol) {
             for (key, n) in [
                 ("mail.sync.uncached", synced.uncached),
                 ("mail.sync.partial", synced.partial),
@@ -196,7 +209,7 @@ impl Mail {
 pub fn protocol_name(protocol: Protocol) -> &'static str {
     match protocol {
         Protocol::Imap => "IMAP",
-        Protocol::Pop => "POP3",
+        Protocol::Pop { .. } => "POP3",
     }
 }
 

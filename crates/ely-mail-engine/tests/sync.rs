@@ -118,7 +118,8 @@ async fn a_first_sync_takes_headers_and_recent_bodies() {
             folders: 2,
             headers: 1,
             bodies: 1,
-            removed: 0
+            removed: 0,
+            deleted: 0
         }
     );
     let store = store.lock().unwrap();

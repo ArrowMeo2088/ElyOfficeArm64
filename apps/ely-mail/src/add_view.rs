@@ -4,7 +4,7 @@ use ely_gpui_component::{
     buttons::{Button, ButtonVariant, SegmentedControl},
     data_display::DescriptionList,
     feedback::{Banner, InlineMessage},
-    forms::{Input, PasswordInput},
+    forms::{Input, PasswordInput, Switch},
     overlays::Dialog,
     primitives::Severity,
 };
@@ -206,6 +206,21 @@ impl Mail {
                     rows = rows
                         .item(label("mail.add.user"), field(&fields.user))
                         .item(label("mail.add.password"), password);
+                }
+                if adding.kind == Kind::Pop {
+                    let this = this.clone();
+                    let keep = Switch::new("mail-add-keep", adding.keep)
+                        .name(label("mail.add.keep"))
+                        .on_change(move |on, _, cx| {
+                            this.update(cx, |mail, cx| {
+                                if let Some(adding) = &mut mail.adding {
+                                    adding.set_keep(on);
+                                    cx.notify();
+                                }
+                            })
+                            .ok();
+                        });
+                    rows = rows.item(label("mail.add.keep"), keep);
                 }
                 rows.item(label("mail.add.incoming"), field(&fields.incoming))
                     .item(label("mail.add.port"), field(&fields.incoming_port))

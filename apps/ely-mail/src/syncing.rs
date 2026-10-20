@@ -1,4 +1,4 @@
-//! IMAP accounts sync on open and once added.
+//! Accounts sync on open and once added.
 
 use std::{
     collections::HashMap,
@@ -26,9 +26,6 @@ impl Mail {
         let Some((_, account)) = self.accounts().iter().find(|(each, _)| *each == id) else {
             return log::info!("mail: sync asked of a gone account");
         };
-        if account.protocol != Protocol::Imap {
-            return;
-        }
         if self.syncs.get(&id).is_some_and(|each| each.task.is_some()) {
             return log::info!("mail: account {} is already syncing", id.0);
         }
@@ -50,7 +47,10 @@ impl Mail {
                 .map_err(|err| ely_mail_engine::Error::Store(format!("the clock: {err}")))?
                 .as_secs() as i64;
             let secret = sync::secret(&account, &vault).await?;
-            sync::imap(&account, id, secret, &tls, &store, now).await
+            match account.protocol {
+                Protocol::Imap => sync::imap(&account, id, secret, &tls, &store, now).await,
+                Protocol::Pop { .. } => sync::pop(&account, id, secret, &tls, &store, now).await,
+            }
         };
         let task = self.on_runtime(cx, work, move |mail, done, cx| {
             let failed = match done {

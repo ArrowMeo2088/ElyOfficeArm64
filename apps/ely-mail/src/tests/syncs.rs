@@ -1,41 +1,45 @@
 use ely_mail_engine::{Protocol, Store};
 use gpui::TestAppContext;
 
-use super::{Keys, account, closed_port, settle, window, window_with};
+use super::{Keys, account, adding, closed_port, settle, type_in, window, window_with};
+use crate::kinds::Kind;
 
 #[test]
-fn an_imap_account_syncs_on_open_and_says_why_it_failed() {
+fn every_account_syncs_on_open_and_says_why_it_failed() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).unwrap();
     let mut ann = account("ann@example.com");
     ann.incoming.port = closed_port();
     let ann = store.add_account(&ann).unwrap();
-    let pop = ely_mail_engine::Account {
-        protocol: Protocol::Pop,
+    let mut pop = ely_mail_engine::Account {
+        protocol: Protocol::Pop { keep: true },
         ..account("bo@example.com")
     };
+    pop.incoming.port = closed_port();
     let bo = store.add_account(&pop).unwrap();
     drop(store);
     let keys = Keys::default();
     keys.kept
         .lock()
         .unwrap()
-        .insert("account:ann@example.com".into(), "pw".into());
+        .extend(["ann", "bo"].map(|name| (format!("account:{name}@example.com"), "pw".into())));
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), keys);
     settle(cx, |app| {
-        mail.read(app)
-            .syncs
-            .get(&ann)
-            .is_some_and(|each| each.task.is_none() && each.synced.is_some())
+        [ann, bo].iter().all(|id| {
+            mail.read(app)
+                .syncs
+                .get(id)
+                .is_some_and(|each| each.task.is_none() && each.synced.is_some())
+        })
     });
     cx.update(|_, app| {
-        let mail = mail.read(app);
-        let syncing = &mail.syncs[&ann];
-        let failed = syncing.failed.as_deref().unwrap();
-        assert!(failed.starts_with("cannot connect"), "{failed}");
-        assert_eq!(syncing.synced.unwrap().at, None);
-        assert!(!mail.syncs.contains_key(&bo), "POP3 is collected apart");
+        for id in [ann, bo] {
+            let syncing = &mail.read(app).syncs[&id];
+            let failed = syncing.failed.as_deref().unwrap();
+            assert!(failed.starts_with("cannot connect"), "{failed}");
+            assert_eq!(syncing.synced.unwrap().at, None);
+        }
     });
 }
 
@@ -87,4 +91,25 @@ fn a_missing_tls_is_the_sync_failure() {
         );
         assert!(syncing.task.is_none());
     });
+}
+
+#[test]
+fn a_pop_account_keeps_a_server_copy_unless_told() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut cx = TestAppContext::single();
+    let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
+    adding(&mail, Kind::Pop, cx);
+    type_in(&mail, cx, |f| &f.address, "bo@example.com");
+    type_in(&mail, cx, |f| &f.user, "bo");
+    type_in(&mail, cx, |f| &f.incoming, "pop.example.com");
+    type_in(&mail, cx, |f| &f.outgoing, "smtp.example.com");
+    let protocol = |cx: &mut gpui::VisualTestContext| {
+        cx.update(|_, app| {
+            let adding = mail.read(app).adding.as_ref().unwrap();
+            adding.account(None, app).unwrap().protocol
+        })
+    };
+    assert_eq!(protocol(cx), Protocol::Pop { keep: true });
+    cx.update(|_, app| mail.update(app, |mail, _| mail.adding.as_mut().unwrap().set_keep(false)));
+    assert_eq!(protocol(cx), Protocol::Pop { keep: false });
 }

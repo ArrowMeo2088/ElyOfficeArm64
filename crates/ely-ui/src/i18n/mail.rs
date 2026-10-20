@@ -21,6 +21,7 @@ pub(super) const EN: &[(&str, &str)] = &[
     ("mail.add.outgoing", "Outgoing server (SMTP)"),
     ("mail.add.port", "Port"),
     ("mail.add.security", "Security"),
+    ("mail.add.keep", "Keep a copy on the server"),
     ("mail.security.tls", "TLS"),
     ("mail.security.starttls", "STARTTLS"),
     ("mail.auth.title", "Sign-in"),
@@ -115,6 +116,10 @@ pub(super) const EN: &[(&str, &str)] = &[
     ("mail.sync.running", "Syncing…"),
     ("mail.sync.never", "Not yet"),
     ("mail.sync.range", "Downloaded"),
+    ("mail.sync.range_pop", "Every new message, whole"),
+    ("mail.sync.server", "On the server"),
+    ("mail.sync.kept", "A copy stays"),
+    ("mail.sync.deleted", "Deleted once downloaded"),
     (
         "mail.sync.range_value",
         "Headers of all mail; text from the last {days} days; attachments when asked",
@@ -138,7 +143,10 @@ pub(super) const EN: &[(&str, &str)] = &[
         "1 message has attachments not downloaded",
     ),
     ("mail.sync.failed", "The last sync failed: {error}"),
-    ("mail.sync.unread", "The sync state could not be read: {error}"),
+    (
+        "mail.sync.unread",
+        "The sync state could not be read: {error}",
+    ),
 ];
 
 pub(super) const ZH_CN: &[(&str, &str)] = &[
@@ -162,6 +170,7 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("mail.add.outgoing", "发信服务器（SMTP）"),
     ("mail.add.port", "端口"),
     ("mail.add.security", "加密"),
+    ("mail.add.keep", "在服务器上保留副本"),
     ("mail.security.tls", "TLS"),
     ("mail.security.starttls", "STARTTLS"),
     ("mail.auth.title", "登录方式"),
@@ -244,7 +253,14 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("mail.sync.running", "正在同步…"),
     ("mail.sync.never", "尚未同步"),
     ("mail.sync.range", "已下载"),
-    ("mail.sync.range_value", "全部邮件的邮件头；最近 {days} 天的正文；附件按需下载"),
+    ("mail.sync.range_pop", "每封新邮件整封下载"),
+    ("mail.sync.server", "服务器上"),
+    ("mail.sync.kept", "保留副本"),
+    ("mail.sync.deleted", "下载后删除"),
+    (
+        "mail.sync.range_value",
+        "全部邮件的邮件头；最近 {days} 天的正文；附件按需下载",
+    ),
     ("mail.sync.uncached", "未下载"),
     ("mail.sync.uncached_value", "{n} 封邮件只有邮件头"),
     ("mail.sync.uncached_value.one", "1 封邮件只有邮件头"),

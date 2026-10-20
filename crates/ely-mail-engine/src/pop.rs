@@ -67,6 +67,15 @@ impl Pop {
         .await?
     }
 
+    /// Marks it deleted; QUIT carries that out.
+    pub async fn delete(&mut self, number: usize) -> Result<()> {
+        within(
+            "deleting the message",
+            ask(&mut self.io, &format!("DELE {number}")),
+        )
+        .await?
+    }
+
     pub async fn quit(mut self) -> Result<()> {
         within("logging out", ask(&mut self.io, "QUIT")).await??;
         Ok(())

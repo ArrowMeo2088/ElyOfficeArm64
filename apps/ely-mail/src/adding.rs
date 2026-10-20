@@ -42,6 +42,8 @@ pub struct Adding {
     pub outgoing_security: Security,
     /// Typed-in accounts choose; providers fix it.
     pub auth: Auth,
+    /// POP3 leaves a copy on the server (§12.3).
+    pub keep: bool,
     pub step: Step,
     /// The ports last filled in; any other was typed.
     filled: [String; 2],
@@ -108,6 +110,7 @@ impl Adding {
             incoming_security: Security::Tls,
             outgoing_security: Security::StartTls,
             auth: Auth::Password,
+            keep: true,
             step: Step::Editing,
             filled: Default::default(),
             asked: None,
@@ -144,10 +147,16 @@ impl Adding {
         self.set_ports(cx);
     }
 
+    pub fn set_keep(&mut self, keep: bool) {
+        self.stop();
+        self.step = Step::Editing;
+        self.keep = keep;
+    }
+
     /// The usual ports, unless one was typed.
     fn set_ports(&mut self, cx: &mut App) {
         let ports = [
-            kinds::port(Some(self.kind.protocol()), self.incoming_security),
+            kinds::port(Some(self.kind.protocol(self.keep)), self.incoming_security),
             kinds::port(None, self.outgoing_security),
         ];
         let fields = [&self.fields.incoming_port, &self.fields.outgoing_port];
@@ -229,7 +238,7 @@ impl Adding {
             address,
             user,
             auth: self.auth(),
-            protocol: self.kind.protocol(),
+            protocol: self.kind.protocol(self.keep),
             incoming,
             outgoing,
         };

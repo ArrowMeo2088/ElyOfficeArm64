@@ -1,4 +1,4 @@
-//! IMAP sync: folders, flags, deletions and the 90-day window (§12.3).
+//! IMAP and POP3 sync (§12.3).
 
 use std::{
     collections::{HashMap, HashSet},
@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::{
-    Account, AccountId, Error, Fetched, Got, Held, Imap, Key, MailboxId, Result, Secret, Store,
-    TlsConnector, Vault, oauth,
+    Account, AccountId, Error, Fetched, Got, Held, Imap, Key, MailboxId, Pop, Protocol, Result,
+    Role, Secret, Store, TlsConnector, Vault, oauth,
 };
 
 /// Bodies come down for mail this recent.
@@ -23,6 +23,8 @@ pub struct Report {
     pub headers: usize,
     pub bodies: usize,
     pub removed: usize,
+    /// POP3 messages deleted from the server.
+    pub deleted: usize,
 }
 
 /// The password, or an access token from the refresh token.
@@ -79,6 +81,52 @@ pub async fn imap(
         report.headers,
         report.bodies,
         report.removed
+    );
+    Ok(report)
+}
+
+/// New mail by UIDL; no folders, local copies stay.
+pub async fn pop(
+    account: &Account,
+    id: AccountId,
+    secret: Secret,
+    tls: &TlsConnector,
+    store: &Mutex<Store>,
+    now: i64,
+) -> Result<Report> {
+    let Protocol::Pop { keep } = account.protocol else {
+        return Err(Error::Invalid("a POP3 sync of an IMAP account".into()));
+    };
+    let mut pop = Pop::connect(&account.incoming, &account.login(secret), tls).await?;
+    let inbox = match lock(store)?.set_folders(id, &[("INBOX", Some(Role::Inbox))])?[..] {
+        [inbox] => inbox,
+        _ => return Err(Error::Store("a POP3 account has one inbox".into())),
+    };
+    let mut held = lock(store)?.uidls(inbox)?;
+    let mut report = Report {
+        folders: 1,
+        ..Report::default()
+    };
+    for (number, uidl) in pop.uids().await? {
+        if !held.contains(&uidl) {
+            let bytes = pop.fetch(number).await?;
+            let key = Key::Pop { uidl: uidl.clone() };
+            lock(store)?.put(inbox, &key, &[], Fetched::Whole(&bytes))?;
+            held.insert(uidl);
+            report.bodies += 1;
+        }
+        if !keep {
+            pop.delete(number).await?;
+            report.deleted += 1;
+        }
+    }
+    pop.quit().await?;
+    lock(store)?.set_synced(id, now)?;
+    log::info!(
+        "mail: account {} synced: {} new, {} deleted on the server",
+        id.0,
+        report.bodies,
+        report.deleted
     );
     Ok(report)
 }

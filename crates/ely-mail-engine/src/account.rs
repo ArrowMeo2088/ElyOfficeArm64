@@ -8,7 +8,10 @@ use crate::{Error, Imap, Login, Pop, Result, Secret, Server, Smtp, TlsConnector,
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Imap,
-    Pop,
+    /// `keep` leaves each message on the server (§12.3).
+    Pop {
+        keep: bool,
+    },
 }
 
 /// A password, or OAuth with one provider.
@@ -106,7 +109,7 @@ impl Account {
                     .logout()
                     .await
             }
-            Protocol::Pop => Pop::connect(&self.incoming, login, tls).await?.quit().await,
+            Protocol::Pop { .. } => Pop::connect(&self.incoming, login, tls).await?.quit().await,
         }
     }
 }

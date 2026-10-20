@@ -37,9 +37,10 @@ impl Kind {
         KINDS.into_iter().find(|kind| kind.key() == key)
     }
 
-    pub fn protocol(self) -> Protocol {
+    /// `keep` is POP3's server copy.
+    pub fn protocol(self, keep: bool) -> Protocol {
         match self {
-            Kind::Pop => Protocol::Pop,
+            Kind::Pop => Protocol::Pop { keep },
             _ => Protocol::Imap,
         }
     }
@@ -78,8 +79,8 @@ pub fn port(protocol: Option<Protocol>, security: Security) -> u16 {
     match (protocol, security) {
         (Some(Protocol::Imap), Security::Tls) => 993,
         (Some(Protocol::Imap), Security::StartTls) => 143,
-        (Some(Protocol::Pop), Security::Tls) => 995,
-        (Some(Protocol::Pop), Security::StartTls) => 110,
+        (Some(Protocol::Pop { .. }), Security::Tls) => 995,
+        (Some(Protocol::Pop { .. }), Security::StartTls) => 110,
         (None, Security::Tls) => 465,
         (None, Security::StartTls) => 587,
     }

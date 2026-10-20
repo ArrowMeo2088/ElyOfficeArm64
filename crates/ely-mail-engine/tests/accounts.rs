@@ -11,7 +11,7 @@ fn pop_oauth(address: &str) -> Account {
         address: address.into(),
         user: "bo".into(),
         auth: Auth::Microsoft,
-        protocol: Protocol::Pop,
+        protocol: Protocol::Pop { keep: true },
         incoming: Server {
             host: "pop.example.com".into(),
             port: 995,
