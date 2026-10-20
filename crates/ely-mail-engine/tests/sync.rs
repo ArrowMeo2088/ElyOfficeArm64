@@ -98,7 +98,7 @@ fn key(uidvalidity: u32, uid: u32) -> Key {
 }
 
 fn inbox(store: &Store, id: AccountId) -> MailboxId {
-    store.folders(id).unwrap()[0].0
+    store.folders(id).unwrap()[0].id
 }
 
 fn opened() -> (tempfile::TempDir, Mutex<Store>, AccountId) {
@@ -127,7 +127,7 @@ async fn a_first_sync_takes_headers_and_recent_bodies() {
         .folders(id)
         .unwrap()
         .into_iter()
-        .map(|(_, name, role)| (name, role))
+        .map(|folder| (folder.name, folder.role))
         .collect();
     assert_eq!(
         folders,
@@ -319,7 +319,10 @@ async fn inbox_casing_does_not_destroy_cached_mail() {
         .unwrap();
     let folders = store.folders(id).unwrap();
     assert_eq!(folders.len(), 1);
-    assert_eq!((kept[0], folders[0].1.as_str()), (folders[0].0, "INBOX"));
+    assert_eq!(
+        (kept[0], folders[0].name.as_str()),
+        (folders[0].id, "INBOX")
+    );
     let new = store.find(kept[0], &key(7, 2)).unwrap().unwrap();
     assert_eq!(
         store.original(new).unwrap().unwrap(),
@@ -345,7 +348,7 @@ async fn roles_are_asked_for_when_the_server_can_list_them() {
     .await
     .unwrap();
     let folders = store.lock().unwrap().folders(id).unwrap();
-    assert_eq!(folders[0].2, Some(Role::Sent));
+    assert_eq!(folders[0].role, Some(Role::Sent));
 }
 
 /// One FETCH line carrying each section as a literal.
@@ -407,4 +410,38 @@ async fn a_recent_body_sync_leaves_attachments_on_the_server() {
     assert_eq!(mail.attachments[0].name.as_deref(), Some("report.pdf"));
     assert!(mail.attachments[0].bytes.is_empty());
     assert_eq!(store.synced(id).unwrap().partial, 1);
+}
+
+#[tokio::test]
+async fn an_offline_folder_takes_every_message_whole() {
+    let (_dir, store, id) = opened();
+    run(&store, id, first_sync()).await.unwrap();
+    let mailbox = inbox(&store.lock().unwrap(), id);
+    store.lock().unwrap().set_offline(mailbox, true).unwrap();
+    let steps = vec![
+        expect("{tag} CAPABILITY"),
+        send("* CAPABILITY IMAP4rev1\n{tag} OK caps\n"),
+        expect("{tag} LIST \"\" *"),
+        send("* LIST (\\HasNoChildren) \"/\" INBOX\n"),
+        send("* LIST (\\HasNoChildren \\Sent) \"/\" Sent\n{tag} OK listed\n"),
+        expect("{tag} EXAMINE \"INBOX\""),
+        send("* 2 EXISTS\n* OK [UIDVALIDITY 7] v\n{tag} OK in\n"),
+        expect("{tag} UID FETCH 1:* (UID FLAGS)"),
+        send("* 1 FETCH (UID 1 FLAGS (\\Seen))\n* 2 FETCH (UID 2 FLAGS ())\n"),
+        send("{tag} OK flags\n"),
+        expect("{tag} UID FETCH 1 (UID FLAGS BODY.PEEK[])"),
+        send(&literal(1, "\\Seen", "BODY[]", &format!("{OLD}kept\n"))),
+        send("{tag} OK bodies\n"),
+        expect("{tag} EXAMINE \"Sent\""),
+        send("* 0 EXISTS\n* OK [UIDVALIDITY 3] v\n{tag} OK in\n"),
+    ];
+    let report = run(&store, id, steps).await.unwrap();
+    assert_eq!((report.headers, report.bodies), (0, 1));
+    let mut store = store.lock().unwrap();
+    assert!(store.folders(id).unwrap()[0].offline);
+    let held = store.open_mailbox(mailbox, 7).unwrap();
+    assert!(held[&1].whole && held[&2].whole);
+    let old = store.find(mailbox, &key(7, 1)).unwrap().unwrap();
+    let bytes = store.original(old).unwrap().unwrap();
+    assert!(String::from_utf8(bytes).unwrap().ends_with("kept\r\n"));
 }

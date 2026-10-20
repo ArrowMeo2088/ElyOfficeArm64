@@ -124,6 +124,16 @@ pub(super) const EN: &[(&str, &str)] = &[
         "mail.sync.range_value",
         "Headers of all mail; text from the last {days} days; attachments when asked",
     ),
+    (
+        "mail.sync.range_rest",
+        "Other folders: headers of all mail; text from the last {days} days; attachments when asked",
+    ),
+    ("mail.sync.whole", "Kept whole"),
+    (
+        "mail.sync.whole_value",
+        "Every message in {names}, with attachments",
+    ),
+    ("mail.sync.whole_sep", ", "),
     ("mail.sync.uncached", "Not downloaded"),
     (
         "mail.sync.uncached_value",
@@ -146,6 +156,19 @@ pub(super) const EN: &[(&str, &str)] = &[
     (
         "mail.sync.unread",
         "The sync state could not be read: {error}",
+    ),
+    ("mail.menu.sync", "Sync"),
+    ("mail.sync.now", "Sync Now"),
+    ("mail.sync.pause", "Pause Sync"),
+    ("mail.sync.resume", "Resume Sync"),
+    (
+        "mail.sync.paused",
+        "Sync is paused. Nothing downloads until you resume.",
+    ),
+    ("mail.sync.offline", "Keep {name} whole offline"),
+    (
+        "mail.sync.offline_failed",
+        "The folder setting was not saved: {error}",
     ),
 ];
 
@@ -261,6 +284,13 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
         "mail.sync.range_value",
         "全部邮件的邮件头；最近 {days} 天的正文；附件按需下载",
     ),
+    (
+        "mail.sync.range_rest",
+        "其他文件夹：全部邮件的邮件头；最近 {days} 天的正文；附件按需下载",
+    ),
+    ("mail.sync.whole", "完整保留"),
+    ("mail.sync.whole_value", "{names} 的每封邮件，连同附件"),
+    ("mail.sync.whole_sep", "、"),
     ("mail.sync.uncached", "未下载"),
     ("mail.sync.uncached_value", "{n} 封邮件只有邮件头"),
     ("mail.sync.uncached_value.one", "1 封邮件只有邮件头"),
@@ -269,4 +299,11 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("mail.sync.partial_value.one", "1 封邮件的附件未下载"),
     ("mail.sync.failed", "上次同步失败：{error}"),
     ("mail.sync.unread", "读不出同步状态：{error}"),
+    ("mail.menu.sync", "同步"),
+    ("mail.sync.now", "立即同步"),
+    ("mail.sync.pause", "暂停同步"),
+    ("mail.sync.resume", "恢复同步"),
+    ("mail.sync.paused", "同步已暂停。恢复之前不下载任何内容。"),
+    ("mail.sync.offline", "离线完整保留 {name}"),
+    ("mail.sync.offline_failed", "文件夹设置未存下：{error}"),
 ];

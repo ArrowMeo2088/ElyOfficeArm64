@@ -51,15 +51,15 @@ async fn run(
 
 fn subjects(store: &Mutex<Store>, id: AccountId) -> Vec<(String, String)> {
     let store = store.lock().unwrap();
-    let [(inbox, name, role)] = store.folders(id).unwrap().try_into().unwrap();
-    assert_eq!((name.as_str(), role), ("INBOX", Some(Role::Inbox)));
+    let [inbox] = store.folders(id).unwrap().try_into().unwrap();
+    assert_eq!((inbox.name.as_str(), inbox.role), ("INBOX", Some(Role::Inbox)));
     let mut out: Vec<_> = store
-        .uidls(inbox)
+        .uidls(inbox.id)
         .unwrap()
         .into_iter()
         .map(|uidl| {
             let key = Key::Pop { uidl: uidl.clone() };
-            let found = store.find(inbox, &key).unwrap().unwrap();
+            let found = store.find(inbox.id, &key).unwrap().unwrap();
             let stored = store.get(found).unwrap();
             assert!(stored.body);
             (uidl, stored.subject.unwrap())

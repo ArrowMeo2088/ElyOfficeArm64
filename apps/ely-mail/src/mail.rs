@@ -44,6 +44,10 @@ pub struct Mail {
     pub adding: Option<Adding>,
     pub removing: Option<Removing>,
     pub syncs: Syncs,
+    /// Numbers every sync, even across forgotten accounts.
+    pub runs: u64,
+    /// Until resumed, no account syncs.
+    pub paused: bool,
     /// Numbers every request across dialogs.
     pub asked: u64,
     pub focus: FocusHandle,
@@ -102,12 +106,15 @@ impl Mail {
             adding: None,
             removing: None,
             syncs: Syncs::new(),
+            runs: 0,
+            paused: false,
             asked: 0,
             focus: cx.focus_handle(),
             root: WeakEntity::new_invalid(),
             side: cx.new(|_| Side::new(this)),
         };
         mail.read_accounts(cx);
+        Self::sync_on_a_timer(cx);
         mail
     }
 
@@ -126,10 +133,7 @@ impl Mail {
                 }
                 mail.accounts = Some(read);
                 if first {
-                    let ids: Vec<_> = mail.accounts().iter().map(|(id, _)| *id).collect();
-                    for id in ids {
-                        mail.sync(id, cx);
-                    }
+                    mail.sync_all(cx);
                 }
             },
         );

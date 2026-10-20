@@ -158,6 +158,26 @@ async fn one(
             _ => {}
         }
     }
+    let key = |uid| Key::Imap {
+        uidvalidity: opened.uidvalidity,
+        uid,
+    };
+    if lock(store)?.offline(mailbox)? {
+        let mut whole: Vec<u32> = server
+            .keys()
+            .filter(|uid| !held.get(uid).is_some_and(|held| held.whole))
+            .copied()
+            .collect();
+        whole.sort_unstable();
+        for batch in whole.chunks(BATCH) {
+            for got in imap.bodies(batch).await? {
+                let fetched = Fetched::Whole(&got.bytes);
+                put(store, mailbox, key(got.uid), &got, fetched)?;
+                report.bodies += 1;
+            }
+        }
+        return Ok(());
+    }
     let recent: HashSet<u32> = imap.since(day).await?.into_iter().collect();
     let mut headers = Vec::new();
     let mut bodies = Vec::new();
@@ -170,10 +190,6 @@ async fn one(
     }
     headers.sort_unstable();
     bodies.sort_unstable();
-    let key = |uid| Key::Imap {
-        uidvalidity: opened.uidvalidity,
-        uid,
-    };
     for batch in headers.chunks(BATCH) {
         for got in imap.headers(batch).await? {
             put(

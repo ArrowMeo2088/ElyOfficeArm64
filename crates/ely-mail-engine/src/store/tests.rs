@@ -143,9 +143,10 @@ fn a_v1_store_gains_sync_and_keeps_its_mail() {
     store
         .set_folders(ann, &[("INBOX", Some(Role::Inbox))])
         .unwrap();
-    let [(inbox, name, role)] = store.folders(ann).unwrap().try_into().unwrap();
-    assert_eq!((name.as_str(), role), ("INBOX", Some(Role::Inbox)));
-    let held = store.open_mailbox(inbox, 7).unwrap();
+    let [inbox] = store.folders(ann).unwrap().try_into().unwrap();
+    assert_eq!((inbox.name.as_str(), inbox.role), ("INBOX", Some(Role::Inbox)));
+    assert!(!inbox.offline);
+    let held = store.open_mailbox(inbox.id, 7).unwrap();
     assert_eq!(held.keys().copied().collect::<Vec<_>>(), [1]);
     assert!(held[&1].body);
     store.set_synced(ann, 9).unwrap();

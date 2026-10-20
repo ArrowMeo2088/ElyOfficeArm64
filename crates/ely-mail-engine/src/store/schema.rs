@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -57,4 +57,9 @@ ALTER TABLE accounts ADD COLUMN synced INTEGER;
 ALTER TABLE mailboxes ADD COLUMN role TEXT;
 ALTER TABLE mailboxes ADD COLUMN uidvalidity INTEGER;
 ALTER TABLE messages ADD COLUMN missing TEXT NOT NULL DEFAULT '[]';
+";
+
+/// Folders kept whole (C12.8).
+const V3: &str = "
+ALTER TABLE mailboxes ADD COLUMN offline INTEGER NOT NULL DEFAULT 0;
 ";

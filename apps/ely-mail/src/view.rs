@@ -4,11 +4,12 @@ use ely_gpui_component::{
     buttons::{Button, ButtonVariant},
     data_display::DescriptionList,
     feedback::{Banner, EmptyState, ErrorView},
+    layout::ScrollArea,
     overlays::ConfirmDialog,
     primitives::{IconName, Severity},
     typography::format,
 };
-use ely_mail_engine::{Account, AccountId, Auth, Protocol, Security, Server, sync};
+use ely_mail_engine::{Account, AccountId, Auth, LocalFolder, Protocol, Security, Server, sync};
 use ely_platform::AppId;
 use ely_ui::Shell;
 use gpui::{
@@ -97,18 +98,26 @@ impl Mail {
                 server(&account.outgoing, cx),
             )
             .text(label("mail.account.auth"), auth(account.auth, cx));
-        let (details, failed) = self.sync_rows(*id, account.protocol, details, cx);
+        let (id, protocol) = (*id, account.protocol);
+        let (details, failed) = self.sync_rows(id, protocol, details, cx);
         let remove = Button::new("mail-remove", label("mail.remove.open"))
             .on_click(|_, window, cx| window.dispatch_action(Box::new(menu::RemoveAccount), cx));
-        div()
+        let page = div()
             .p_6()
             .flex()
             .flex_col()
             .gap_4()
             .max_w_128()
+            .children(self.paused_banner(cx))
             .children(failed)
             .child(details)
-            .child(div().child(remove))
+            .child(self.sync_buttons(id, cx))
+            .children(self.offline_switches(id, protocol, cx))
+            .child(div().child(remove));
+        ScrollArea::new("mail-account-scroll")
+            .vertical()
+            .size_full()
+            .child(page)
             .into_any_element()
     }
 
@@ -140,11 +149,9 @@ impl Mail {
                 .text(label("mail.sync.range"), label("mail.sync.range_pop"))
                 .text(label("mail.sync.server"), server);
         } else {
-            let days = sync::BODY_DAYS.to_string();
-            details = details.text(
-                label("mail.sync.range"),
-                text(cx, "mail.sync.range_value", &[("days", &days)]),
-            );
+            for (key, value) in imap_range(&syncing.folders, cx) {
+                details = details.text(key, value);
+            }
         }
         if let (Some(synced), Protocol::Imap) = (syncing.synced, protocol) {
             for (key, n) in [
@@ -206,6 +213,28 @@ impl Mail {
     }
 }
 
+/// What the rest download, then folders kept whole.
+pub fn imap_range(folders: &[LocalFolder], cx: &App) -> Vec<(SharedString, SharedString)> {
+    let (whole, rest): (Vec<_>, Vec<_>) = folders.iter().partition(|folder| folder.offline);
+    let label = |key: &str| text(cx, key, &[]);
+    let days = sync::BODY_DAYS.to_string();
+    let mut rows = Vec::new();
+    if whole.is_empty() || !rest.is_empty() {
+        let key = match whole.is_empty() {
+            true => "mail.sync.range_value",
+            false => "mail.sync.range_rest",
+        };
+        rows.push((label("mail.sync.range"), text(cx, key, &[("days", &days)])));
+    }
+    if !whole.is_empty() {
+        let sep = label("mail.sync.whole_sep");
+        let names: Vec<&str> = whole.iter().map(|folder| folder.name.as_str()).collect();
+        let value = text(cx, "mail.sync.whole_value", &[("names", &names.join(&sep))]);
+        rows.push((label("mail.sync.whole"), value));
+    }
+    rows
+}
+
 pub fn protocol_name(protocol: Protocol) -> &'static str {
     match protocol {
         Protocol::Imap => "IMAP",
@@ -235,6 +264,7 @@ impl Render for Mail {
                 cx.listener(|mail, _: &menu::AddAccount, window, cx| mail.start_adding(window, cx)),
             )
             .on_action(cx.listener(|mail, _: &menu::RemoveAccount, _, cx| mail.ask_remove(cx)))
+            .on_action(cx.listener(|mail, _: &menu::SyncAll, _, cx| mail.sync_all(cx)))
             .child(shell)
             .children(self.add_dialog(cx))
             .children(self.remove_dialog(cx))

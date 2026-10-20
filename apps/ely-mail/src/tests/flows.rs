@@ -357,23 +357,31 @@ fn two_saves_in_flight_add_an_address_once() {
     });
     passed(&mail, account("ANN@example.com"), "pw2", cx);
     cx.update(|_, app| mail.update(app, |mail, cx| mail.save(cx)));
+    // Either save may reach the store first.
     settle(cx, |app| {
-        matches!(
-            mail.read(app).adding.as_ref().map(|adding| &adding.step),
-            Some(Step::Failed(_))
-        )
+        let mail = mail.read(app);
+        mail.accounts().len() == 1
+            && !matches!(
+                mail.adding.as_ref().map(|adding| &adding.step),
+                Some(Step::Saving)
+            )
     });
-    assert_eq!(step_words(&mail, cx), "ANN@example.com is already added.");
-    cx.update(|_, app| assert_eq!(mail.read(app).accounts().len(), 1));
-    assert_eq!(
-        Store::open(dir.path()).unwrap().accounts().unwrap()[0].1,
-        account("ann@example.com")
-    );
+    let won = Store::open(dir.path()).unwrap().accounts().unwrap();
+    assert_eq!(won.len(), 1);
+    let (address, secret) = if won[0].1 == account("ann@example.com") {
+        assert_eq!(step_words(&mail, cx), "ANN@example.com is already added.");
+        ("ann", "pw")
+    } else {
+        assert_eq!(won[0].1, account("ANN@example.com"));
+        cx.update(|_, app| assert!(mail.read(app).adding.is_none()));
+        ("ANN", "pw2")
+    };
     let kept = keys.kept.lock().unwrap();
     assert_eq!(kept.len(), 1);
     assert_eq!(
-        kept.get("account:ann@example.com").map(String::as_str),
-        Some("pw")
+        kept.get(&format!("account:{address}@example.com"))
+            .map(String::as_str),
+        Some(secret)
     );
 }
 

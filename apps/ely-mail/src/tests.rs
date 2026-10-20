@@ -21,6 +21,7 @@ use crate::{
     mail::{Mail, Parts},
 };
 
+mod controls;
 mod flows;
 mod syncs;
 

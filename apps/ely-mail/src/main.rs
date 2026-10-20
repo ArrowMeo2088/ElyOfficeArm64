@@ -3,6 +3,7 @@
 
 mod add_view;
 mod adding;
+mod controls;
 mod flow;
 mod kinds;
 mod mail;

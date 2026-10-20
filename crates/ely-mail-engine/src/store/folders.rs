@@ -13,8 +13,20 @@ pub struct Held {
     pub id: MessageId,
     /// The body is here, perhaps without attachments.
     pub body: bool,
+    /// Every part is here.
+    pub whole: bool,
     /// Sorted.
     pub flags: Vec<String>,
+}
+
+/// A local mailbox.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LocalFolder {
+    pub id: MailboxId,
+    pub name: String,
+    pub role: Option<Role>,
+    /// Every message comes down whole.
+    pub offline: bool,
 }
 
 /// An account's sync, as the window shows it.
@@ -67,28 +79,56 @@ impl Store {
     }
 
     /// The account's mailboxes in name order.
-    pub fn folders(&self, account: AccountId) -> Result<Vec<(MailboxId, String, Option<Role>)>> {
-        let mut query = self
-            .conn
-            .prepare("SELECT id, name, role FROM mailboxes WHERE account = ?1 ORDER BY name")?;
+    pub fn folders(&self, account: AccountId) -> Result<Vec<LocalFolder>> {
+        let mut query = self.conn.prepare(
+            "SELECT id, name, role, offline FROM mailboxes WHERE account = ?1 ORDER BY name",
+        )?;
         let rows = query.query_map([account.0], |row| {
             Ok((
                 MailboxId(row.get(0)?),
                 row.get(1)?,
                 row.get::<_, Option<String>>(2)?,
+                row.get(3)?,
             ))
         })?;
         rows.map(|row| {
-            let (id, name, role) = row?;
+            let (id, name, role, offline) = row?;
             let role = role
                 .map(|role| {
                     Role::from_name(&role)
                         .ok_or_else(|| Error::Store(format!("an unknown folder role {role:?}")))
                 })
                 .transpose()?;
-            Ok((id, name, role))
+            Ok(LocalFolder {
+                id,
+                name,
+                role,
+                offline,
+            })
         })
         .collect()
+    }
+
+    /// Whether the mailbox's mail comes down whole.
+    pub fn offline(&self, mailbox: MailboxId) -> Result<bool> {
+        Ok(self.conn.query_row(
+            "SELECT offline FROM mailboxes WHERE id = ?1",
+            [mailbox.0],
+            |row| row.get(0),
+        )?)
+    }
+
+    pub fn set_offline(&self, mailbox: MailboxId, offline: bool) -> Result<()> {
+        self.writable()?;
+        let changed = self.conn.execute(
+            "UPDATE mailboxes SET offline = ?1 WHERE id = ?2",
+            params![offline, mailbox.0],
+        )?;
+        if changed != 1 {
+            return Err(Error::Store(format!("no mailbox {}", mailbox.0)));
+        }
+        log::info!("mail: mailbox {} offline: {offline}", mailbox.0);
+        Ok(())
     }
 
     /// Held messages by UID; mail under another UIDVALIDITY goes.
@@ -116,19 +156,21 @@ impl Store {
         }
         let mut held: HashMap<u32, Held> = HashMap::new();
         let mut query = self.conn.prepare(
-            "SELECT id, uid, content IS NOT NULL FROM messages
-             WHERE mailbox = ?1 AND uidvalidity = ?2",
+            "SELECT id, uid, content IS NOT NULL, content IS NOT NULL AND missing = '[]'
+             FROM messages WHERE mailbox = ?1 AND uidvalidity = ?2",
         )?;
         let rows = query.query_map(params![mailbox.0, uidvalidity], |row| {
-            Ok((row.get::<_, u32>(1)?, MessageId(row.get(0)?), row.get(2)?))
+            let id = MessageId(row.get(0)?);
+            Ok((row.get::<_, u32>(1)?, id, row.get(2)?, row.get(3)?))
         })?;
         for row in rows {
-            let (uid, id, body) = row?;
+            let (uid, id, body, whole) = row?;
             held.insert(
                 uid,
                 Held {
                     id,
                     body,
+                    whole,
                     flags: Vec::new(),
                 },
             );

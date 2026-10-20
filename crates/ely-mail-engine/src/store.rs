@@ -21,7 +21,7 @@ mod search;
 mod tests;
 
 pub use accounts::Cached;
-pub use folders::{Held, Synced};
+pub use folders::{Held, LocalFolder, Synced};
 pub use messages::{Fetched, Key, Stored};
 
 const DB: &str = "mail.db";

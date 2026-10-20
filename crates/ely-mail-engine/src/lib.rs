@@ -21,7 +21,7 @@ pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
 pub use store::{
-    AccountId, Cached, Fetched, Held, Key, MailboxId, MessageId, Sizes, Store, Stored, Synced,
+    AccountId, Cached, Fetched, Held, Key, LocalFolder, MailboxId, MessageId, Sizes, Store, Stored, Synced,
 };
 pub use tokio_rustls::TlsConnector;
 pub use vault::{Backend, Kept, Keyring, Vault};
