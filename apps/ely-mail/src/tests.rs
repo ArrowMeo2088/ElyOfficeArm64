@@ -29,6 +29,7 @@ mod organize;
 mod outbox;
 mod panes;
 mod reading;
+mod search;
 mod syncs;
 mod threads;
 mod writing;
@@ -113,7 +114,7 @@ pub(crate) fn window_with<'a>(
         vault: Vault::new(Box::new(keys)),
         tls,
     };
-    let (mail, cx) = cx.add_window_view(move |_, cx| Mail::new(parts, cx));
+    let (mail, cx) = cx.add_window_view(move |window, cx| Mail::new(parts, window, cx));
     settle(cx, |app| mail.read(app).accounts.is_some());
     (mail, cx)
 }

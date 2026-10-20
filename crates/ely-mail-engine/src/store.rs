@@ -14,6 +14,7 @@ mod accounts;
 mod aside;
 mod changes;
 mod drafts;
+mod find;
 mod folders;
 mod identity;
 mod listing;
@@ -30,6 +31,7 @@ mod trusted;
 pub use accounts::Cached;
 pub use changes::Change;
 pub use drafts::{DraftId, Left, Remote, Shelved, Stowed, Unsent};
+pub use find::{Field, Found, Search};
 pub use folders::{Held, LocalFolder, Synced};
 pub use identity::Identity;
 pub use listing::{Filter, Scope, Summary};
@@ -141,10 +143,14 @@ fn open(dir: &Path, steps: &[&str]) -> Result<Store> {
         Some(format!(
             "written by a newer ElyMail (schema v{version}, this one reads v{target})"
         ))
-    } else if version < target {
-        upgrade(&mut conn, dir, version, steps).err()
     } else {
-        None
+        // Parked originals return before the upgrade reads them.
+        if version > 0 {
+            aside::recover(&conn, dir)?;
+        }
+        (version < target)
+            .then(|| upgrade(&mut conn, dir, version, steps).err())
+            .flatten()
     };
     if let Some(reason) = refused {
         log::warn!("mail: store opened read-only: {reason}");
@@ -159,7 +165,9 @@ fn open(dir: &Path, steps: &[&str]) -> Result<Store> {
     }
     conn.pragma_update(None, "foreign_keys", true)?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
-    aside::recover(&conn, dir)?;
+    if version == 0 {
+        aside::recover(&conn, dir)?;
+    }
     log::info!("mail: store opened at schema v{target}");
     Ok(Store {
         conn,
@@ -178,7 +186,7 @@ fn upgrade(
     if version > 0 {
         backup(conn, dir, version).map_err(|err| format!("no backup before upgrade: {err}"))?;
     }
-    migrate(conn, version, steps).map_err(|err| {
+    migrate(conn, dir, version, steps).map_err(|err| {
         format!(
             "upgrade from schema v{version} to v{} failed: {err}",
             steps.len()
@@ -188,12 +196,16 @@ fn upgrade(
     Ok(())
 }
 
-fn migrate(conn: &mut Connection, version: usize, steps: &[&str]) -> Result<()> {
+fn migrate(conn: &mut Connection, dir: &Path, version: usize, steps: &[&str]) -> Result<()> {
     // A rebuilt parent would cascade into its children.
     conn.pragma_update(None, "foreign_keys", false)?;
     let tx = conn.transaction()?;
     for step in &steps[version..] {
         tx.execute_batch(step)?;
+    }
+    if version < schema::REINDEX && steps.len() >= schema::REINDEX {
+        let count = search::refill(&tx, dir)?;
+        log::info!("mail: {count} messages indexed again in the upgrade");
     }
     if tx.prepare("PRAGMA foreign_key_check")?.exists([])? {
         return Err(Error::Store("rows point at missing rows".into()));

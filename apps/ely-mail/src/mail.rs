@@ -25,6 +25,7 @@ use crate::{
     outbox::Runner,
     reading::Reading,
     removing::Removing,
+    seeking::Seeking,
     side::Side,
     syncing::Syncs,
 };
@@ -57,6 +58,7 @@ pub struct Mail {
     /// Remove acts on its account.
     pub open: Open,
     pub filter: Filter,
+    pub seeking: Seeking,
     pub listing: Listing,
     pub reading: Reading,
     pub unread: Unread,
@@ -111,7 +113,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         Err(error) => ely_platform::startup::fail(app, &format!("{error:#}")),
     };
     let parts = Parts::system(&dir);
-    let mail = cx.new(|cx| Mail::new(parts, cx));
+    let mail = cx.new(|cx| Mail::new(parts, window, cx));
     let root = ely_ui::tool_root(app, mail.clone().into(), crate::menu::menus(cx), window, cx);
     mail.update(cx, |mail, cx| {
         mail.root = root.downgrade();
@@ -122,7 +124,7 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
 }
 
 impl Mail {
-    pub fn new(parts: Parts, cx: &mut Context<Self>) -> Self {
+    pub fn new(parts: Parts, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .thread_name("mail")
@@ -159,6 +161,7 @@ impl Mail {
             accounts: None,
             open: Open::Inboxes,
             filter: Filter::default(),
+            seeking: Seeking::new(window, cx),
             listing: Listing::default(),
             reading: Reading::default(),
             unread: Unread::new(),

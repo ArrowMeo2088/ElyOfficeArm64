@@ -151,6 +151,7 @@ impl Mail {
             }
             self.listing.show(None);
             self.listing.pick(Vec::new());
+            self.stop_seeking(cx);
             self.read_letter(cx);
         }
         self.read_mail(cx);
@@ -176,6 +177,15 @@ impl Mail {
         self.listing.read += 1;
         let (read, open, filter) = (self.listing.read, self.open, self.filter);
         let scope = open.scope();
+        let search = match scope.map(|_| self.seeking.search(filter, cx)).transpose() {
+            Ok(search) => search.flatten(),
+            Err(error) => {
+                log::warn!("mail: a search's dates failed: {error}");
+                self.listing.show(Some(Err(error)));
+                self.listing.pick(Vec::new());
+                return cx.notify();
+            }
+        };
         let none = (
             text(cx, "mail.no_sender", &[]),
             text(cx, "mail.no_subject", &[]),
@@ -184,10 +194,17 @@ impl Mail {
         self.with_store(
             cx,
             move |store| {
-                let mut kept = Vec::new();
+                let (mut kept, mut unsearched) = (Vec::new(), None);
                 let rows = match scope {
                     Some(scope) => {
-                        let list = store.list(scope, filter)?;
+                        let list = match &search {
+                            Some(search) => {
+                                let found = store.search(search)?;
+                                unsearched = Some(found.unsearched);
+                                found.messages
+                            }
+                            None => store.list(scope, filter)?,
+                        };
                         let facts = list.iter().map(|each| (key(each), fact(each))).collect();
                         let rows = list.into_iter().map(|each| row(each, &none)).collect();
                         Some(Indexed {
@@ -205,14 +222,16 @@ impl Mail {
                     Open::Outbox => store.outbox()?,
                     _ => Vec::new(),
                 };
-                Ok((rows, store.unread()?, kept, queued, store.pending()?))
+                let unread = store.unread()?;
+                Ok((rows, unread, kept, queued, store.pending()?, unsearched))
             },
             move |mail, read_now, cx| {
                 if mail.listing.read != read {
                     return log::info!("mail: list read {read} ended after a newer one");
                 }
                 match read_now {
-                    Ok((rows, unread, kept, queued, pending)) => {
+                    Ok((rows, unread, kept, queued, pending, unsearched)) => {
+                        mail.seeking.unsearched = unsearched;
                         mail.unread = unread;
                         mail.shelved = kept;
                         mail.pending = pending;
@@ -225,6 +244,7 @@ impl Mail {
                     }
                     Err(error) => {
                         log::warn!("mail: list read {read} failed: {error}");
+                        mail.seeking.unsearched = None;
                         let listed = scope.is_some() || matches!(open, Open::Drafts | Open::Outbox);
                         mail.listing.show(listed.then_some(Err(error)));
                     }

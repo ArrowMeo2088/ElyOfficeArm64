@@ -1,9 +1,10 @@
 use std::fs;
 
 use rusqlite::Connection;
+use sha2::{Digest, Sha256};
 
 use super::folders::Synced;
-use super::{BACKUPS, DB, open, schema::STEPS};
+use super::{BACKUPS, CONTENT, DB, open, schema::STEPS};
 use crate::{Account, Auth, Error, Protocol, Role, Security, Server};
 
 fn account(address: &str) -> Account {
@@ -22,8 +23,22 @@ fn account(address: &str) -> Account {
     }
 }
 
+/// An original on disk for a row written as SQL.
+fn held(dir: &std::path::Path) -> String {
+    let bytes = b"Subject: kept\r\n\r\nhi\r\n";
+    let hash: String = Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let folder = dir.join(CONTENT).join(&hash[..2]);
+    fs::create_dir_all(&folder).unwrap();
+    fs::write(folder.join(&hash), bytes).unwrap();
+    hash
+}
+
 mod ids;
 mod listing;
+mod reindex;
 mod threads;
 
 const ADD: &str = "ALTER TABLE accounts ADD COLUMN nick TEXT";
@@ -129,7 +144,7 @@ fn a_v1_store_gains_sync_and_keeps_its_mail() {
                  (1, 7, 1, '[]', '[]', '[]', '[]', '[]', '{}'),
                  (1, 6, 2, '[]', '[]', '[]', '[]', '[]', NULL);",
             ann.0,
-            "a".repeat(64)
+            held(dir.path())
         ))
         .unwrap();
     drop(old);

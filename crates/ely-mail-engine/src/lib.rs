@@ -28,9 +28,10 @@ pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
 pub use store::{
-    AccountId, Cached, Change, DraftId, Fetched, Filed, Filing, Filter, Going, Handed, Held,
-    Identity, Key, Landing, Left, Letter, LocalFolder, MailboxId, MessageId, OutboxId, Queued,
-    Remote, Scope, Shelved, Sizes, Store, Stored, Stowed, Summary, Synced, Unsent,
+    AccountId, Cached, Change, DraftId, Fetched, Field, Filed, Filing, Filter, Found, Going,
+    Handed, Held, Identity, Key, Landing, Left, Letter, LocalFolder, MailboxId, MessageId,
+    OutboxId, Queued, Remote, Scope, Search, Shelved, Sizes, Store, Stored, Stowed, Summary,
+    Synced, Unsent,
 };
 pub use tokio_rustls::TlsConnector;
 pub use vault::{Backend, Kept, Keyring, Vault};

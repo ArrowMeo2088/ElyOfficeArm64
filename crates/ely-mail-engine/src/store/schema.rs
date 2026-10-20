@@ -1,5 +1,8 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
+
+/// Upgrades to this version reindex every message.
+pub(super) const REINDEX: usize = 12;
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -250,5 +253,14 @@ CREATE TABLE dropped (
     kind TEXT NOT NULL CHECK (kind IN ('gone', 'renumbered', 'refused', 'unsupported', 'unplaced',
         'vanished')),
     words TEXT
+);
+";
+
+/// Searching by word, CJK by character, sender apart (C12.16).
+const V12: &str = "
+DROP TABLE search;
+CREATE VIRTUAL TABLE search USING fts5(
+    subject, sender, recipients, body, files,
+    content = '', contentless_delete = 1, tokenize = 'unicode61 remove_diacritics 2'
 );
 ";

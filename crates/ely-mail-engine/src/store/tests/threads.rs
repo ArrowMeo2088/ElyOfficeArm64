@@ -1,6 +1,6 @@
 //! A v6 store links the messages it already holds.
 
-use super::{STEPS, account, open};
+use super::{STEPS, account, held, open};
 use crate::{MessageId, Role};
 
 #[test]
@@ -29,7 +29,7 @@ fn a_v6_store_links_its_messages_on_upgrade() {
                 "INSERT INTO messages (mailbox, uidvalidity, uid, message_id, in_reply_to, refs,
                      sender, recipients, copies, content, date)
                  VALUES (?1, 1, ?2, ?3, ?4, ?5, '[]', '[]', '[]', ?6, ?2)",
-                rusqlite::params![inbox.0, uid as i64, id, reply, refs, "a".repeat(64)],
+                rusqlite::params![inbox.0, uid as i64, id, reply, refs, held(dir.path())],
             )
             .unwrap();
         ids.push(MessageId(old.conn.last_insert_rowid()));

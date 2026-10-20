@@ -41,6 +41,23 @@ pub struct Summary {
     pub attachments: Option<u32>,
 }
 
+impl Filter {
+    /// The narrowing, as SQL over `m`.
+    pub(super) fn clauses(&self) -> Vec<String> {
+        let mut clauses = Vec::new();
+        if self.unread {
+            clauses.push(format!("NOT {SEEN}"));
+        }
+        if self.flagged {
+            clauses.push(FLAGGED.to_owned());
+        }
+        if self.attachments {
+            clauses.push("m.attachments > 0".to_owned());
+        }
+        clauses
+    }
+}
+
 // RFC 3501 §2.3.2: system flags match in any case.
 const SEEN: &str = "EXISTS (SELECT 1 FROM flags f WHERE f.message = m.id \
                     AND f.flag = '\\Seen' COLLATE NOCASE)";
@@ -55,23 +72,7 @@ impl Store {
             Scope::Mailbox(_) => "coalesce(m.moving, m.mailbox) = ?1".to_owned(),
             Scope::Inboxes => "b.role = 'inbox'".to_owned(),
         });
-        if filter.unread {
-            clauses.push(format!("NOT {SEEN}"));
-        }
-        if filter.flagged {
-            clauses.push(FLAGGED.to_owned());
-        }
-        if filter.attachments {
-            clauses.push("m.attachments > 0".to_owned());
-        }
-        let sql = format!(
-            "SELECT m.id, m.sender, m.subject, m.date, m.attachments, {SEEN}, {FLAGGED},
-                    b.account, b.id, b.role, m.uidl IS NOT NULL
-             FROM messages m JOIN mailboxes b ON b.id = coalesce(m.moving, m.mailbox)
-             WHERE {}
-             ORDER BY m.date DESC, m.id DESC",
-            clauses.join(" AND ")
-        );
+        clauses.extend(filter.clauses());
         let id;
         let values: Vec<&dyn ToSql> = match scope {
             Scope::Mailbox(mailbox) => {
@@ -80,8 +81,20 @@ impl Store {
             }
             Scope::Inboxes => Vec::new(),
         };
+        self.summaries(&clauses.join(" AND "), &values)
+    }
+
+    /// Messages meeting `clauses`, newest first.
+    pub(super) fn summaries(&self, clauses: &str, values: &[&dyn ToSql]) -> Result<Vec<Summary>> {
+        let sql = format!(
+            "SELECT m.id, m.sender, m.subject, m.date, m.attachments, {SEEN}, {FLAGGED},
+                    b.account, b.id, b.role, m.uidl IS NOT NULL
+             FROM messages m JOIN mailboxes b ON b.id = coalesce(m.moving, m.mailbox)
+             WHERE {clauses}
+             ORDER BY m.date DESC, m.id DESC"
+        );
         let mut query = self.conn.prepare(&sql)?;
-        let rows = query.query_map(values.as_slice(), |row| {
+        let rows = query.query_map(values, |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,

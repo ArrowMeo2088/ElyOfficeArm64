@@ -22,6 +22,7 @@ mod pictures;
 mod reader;
 mod reading;
 mod removing;
+mod seeking;
 mod side;
 mod syncing;
 mod view;

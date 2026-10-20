@@ -2,7 +2,7 @@
 
 use ely_gpui_component::{
     buttons::{ToggleGroup, ToggleItem},
-    feedback::ErrorView,
+    feedback::{EmptyState, ErrorView},
     layout::SplitPane,
     mail::MailList,
     primitives::IconName,
@@ -83,6 +83,10 @@ impl Mail {
             )
             .detail(detail.clone())
             .into_any_element(),
+            Some(Ok(mails)) if mails.is_empty() && self.seeking.unsearched.is_some() => {
+                let none = text(cx, "mail.search.none", &[]);
+                EmptyState::new("mail-search-none", IconName::SearchX, none).into_any_element()
+            }
             Some(Ok(mails)) => {
                 let (this, starring) = (cx.weak_entity(), cx.weak_entity());
                 let list = MailList::new("mail-list", mails.clone())
@@ -101,18 +105,20 @@ impl Mail {
                 list.into_any_element()
             }
         };
+        let lists_mail = !matches!(self.open, Open::Drafts | Open::Outbox);
+        let searched = matches!(self.open, Open::Inboxes | Open::Mailbox(..));
         div()
             .size_full()
             .flex()
             .flex_col()
-            .children(
-                (!matches!(self.open, Open::Drafts | Open::Outbox)).then(|| {
-                    div()
-                        .debug_selector(|| "mail-filters".into())
-                        .p_2()
-                        .child(toggles)
-                }),
-            )
+            .children(searched.then(|| self.search_bar(cx)))
+            .children(lists_mail.then(|| {
+                div()
+                    .debug_selector(|| "mail-filters".into())
+                    .px_2()
+                    .pb_2()
+                    .child(toggles)
+            }))
             .child(div().flex_1().min_h_0().child(list))
             .into_any_element()
     }

@@ -6,14 +6,14 @@ use ely_gpui_component::{
     overlays::ConfirmDialog,
     primitives::{IconName, Severity},
 };
-use ely_mail_engine::{AccountId, Change, MessageId, Role, push::Dropped};
+use ely_mail_engine::{AccountId, Change, LocalFolder, MessageId, Role, push::Dropped};
 use gpui::{
     AnyElement, App, Context, InteractiveElement as _, IntoElement, ParentElement as _,
     SharedString, Styled as _, Window, div,
 };
 
 use crate::{
-    boxes::{Fact, Open},
+    boxes::Fact,
     mail::{Mail, text},
 };
 
@@ -122,9 +122,7 @@ impl Mail {
             let label = text(cx, key, &[]);
             row = row.child(self.button(id, icon, label, change, cx));
         }
-        if let (true, Open::Mailbox(account, _)) = (picked.iter().all(|f| !f.pop), self.open) {
-            row = row.children(self.move_menu(account, &picked, cx));
-        }
+        row = row.children(self.move_menu(&picked, cx));
         Some(row.into_any_element())
     }
 
@@ -213,18 +211,27 @@ impl Mail {
         target.is_some_and(|target| target.id != fact.mailbox)
     }
 
-    fn move_menu(
-        &self,
-        account: AccountId,
-        picked: &[Fact],
-        cx: &mut Context<Self>,
-    ) -> Option<DropdownMenu> {
+    /// The picked messages' one IMAP account, and its other folders.
+    pub fn move_targets(&self, picked: &[Fact]) -> Option<(AccountId, Vec<&LocalFolder>)> {
+        let account = picked.first()?.account;
+        if picked
+            .iter()
+            .any(|fact| fact.pop || fact.account != account)
+        {
+            return None;
+        }
         let folders = &self.syncs.get(&account)?.folders;
+        let targets = folders
+            .iter()
+            .filter(|folder| !picked.iter().all(|fact| fact.mailbox == folder.id))
+            .collect();
+        Some((account, targets))
+    }
+
+    fn move_menu(&self, picked: &[Fact], cx: &mut Context<Self>) -> Option<DropdownMenu> {
+        let (_, targets) = self.move_targets(picked)?;
         let mut menu = Menu::new();
-        for folder in folders {
-            if picked.iter().all(|fact| fact.mailbox == folder.id) {
-                continue;
-            }
+        for folder in targets {
             let (this, target) = (cx.weak_entity(), folder.id);
             let name = crate::side::folder_name(folder, cx);
             menu = menu.item(MenuItem::new(name).on_click(move |_, cx| {
