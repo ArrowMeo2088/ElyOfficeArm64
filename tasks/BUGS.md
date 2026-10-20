@@ -161,3 +161,4 @@ P0 次序：W-01、K-01、L-01、O-01、W-02、L-02、W-03、L-03、W-04、L-04�
 - [ ] P3-18 Windows：`tests::menu::right_clicks_open_excel_rows_on_cells_and_headers` 第二次右键 A2（先 `cell.goto D9`）等不到菜单；不带 R9.3、R9.4 的源码同样失败，原因未查
 - [ ] P3-19 Windows：ElyTable 全量单测并行跑（默认线程数或 6）时，`output` 的测试与 worker 一起停在零 CPU、不再前进；逐个跑（`--test-threads=1`）不停，原因未查
 
+- [ ] P3-20 发布（v0.1.9 实测）：macOS 任务在 `macos-signing` 运行器上读 `ELY_SHARE`（`~/Documents/GitHub/ElyOfficeSuite`）时，系统为“文稿”文件夹弹出访问许可，无人点按即一直等：`source.sh` 的 tar 卡在 `open()` 一小时不动。本次取消该任务，经 ssh 在同一 CI 克隆跑 `ci.sh macos v0.1.9`（ssh 有完全磁盘访问）。待用户在 Mac 上给运行器（`~/actions-runner-signing`）完全磁盘访问，或允许该提示；之后的标签才能由流程自建 macOS 包
