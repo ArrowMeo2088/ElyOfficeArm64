@@ -9,8 +9,8 @@ use ely_gpui_component::{
 use ely_lok::{LokView, sheet};
 use ely_office::prelude::*;
 use gpui::{
-    AnyElement, Context, Entity, IntoElement, ParentElement as _, Pixels, Point, Styled as _, div,
-    px,
+    AnyElement, Context, Entity, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
+    Point, Styled as _, div, px,
 };
 
 use crate::book::Book;
@@ -112,6 +112,7 @@ impl Book {
                     .absolute()
                     .left(corner.x)
                     .top(corner.y)
+                    .block_mouse_except_scroll()
                     .child(
                         IconButton::new("table-choices-open", IconName::ChevronDown)
                             .variant(ButtonVariant::Ghost)
@@ -137,6 +138,7 @@ impl Book {
                 .absolute()
                 .left(below.x)
                 .top(below.y)
+                .block_mouse_except_scroll()
                 .max_w(theme.tooltip_max_width())
                 .px_2()
                 .py_1()

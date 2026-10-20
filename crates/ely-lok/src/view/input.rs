@@ -270,6 +270,12 @@ impl LokView {
 
     /// Posts a non-text key; text waits for the IME.
     pub(super) fn key_down(&mut self, keystroke: &Keystroke) -> bool {
+        if keystroke.key == "enter"
+            && keystroke.modifiers == Modifiers::none()
+            && self.complete()
+        {
+            return true;
+        }
         let Some((char_code, key_code)) = vcl_key(keystroke) else {
             return false;
         };

@@ -5,8 +5,8 @@ use ely_gpui_component::{
     primitives::raise,
 };
 use gpui::{
-    AnyElement, Bounds, Context, Hsla, IntoElement, Keystroke, Modifiers, ParentElement, Pixels,
-    anchored, rgb,
+    AnyElement, Bounds, Context, Hsla, InteractiveElement, IntoElement, Keystroke, Modifiers,
+    ParentElement, Pixels, anchored, div, rgb,
 };
 
 use super::{LokView, input::Input};
@@ -67,6 +67,8 @@ impl LokView {
         };
         log::info!("lok: completes {}", item.label);
         self.send(Input::Complete(item.label.to_string()));
+        self.cell.functions.clear();
+        self.picked = 0;
         true
     }
 
@@ -94,7 +96,7 @@ impl LokView {
         let place = anchored()
             .position(cell.bottom_left())
             .snap_to_window()
-            .child(hint);
+            .child(div().block_mouse_except_scroll().child(hint));
         Some(raise("lok-view-hints", place).into_any_element())
     }
 }
