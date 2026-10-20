@@ -86,6 +86,7 @@ fn reply_to(mail: &Mail) -> Draft {
         from: mail.from[0].clone(),
         to: mail.to.clone(),
         cc: mail.cc.clone(),
+        bcc: Vec::new(),
         subject: format!("Re: {}", mail.subject.as_deref().unwrap()),
         text: mail.text.clone().unwrap(),
         html: mail.html.clone(),

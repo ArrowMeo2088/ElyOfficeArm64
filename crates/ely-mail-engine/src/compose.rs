@@ -1,6 +1,7 @@
 //! Answers, forwards and the bodies they send (C12.12, MAIL-05).
 
 use crate::{Error, Mail, Mailbox, Part, Result, page};
+use serde::{Deserialize, Serialize};
 
 /// Where an answer or a forward starts.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -102,11 +103,13 @@ fn prefixed(subject: Option<&str>, prefix: &str, known: &[&str]) -> String {
 }
 
 /// The earlier message under an answer or a forward.
-pub enum Earlier<'a> {
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Earlier {
     /// An answer's: a lead line, then the words quoted.
-    Quoted { lead: &'a str, text: &'a str },
+    Quoted { lead: String, text: String },
     /// A forward's: its header lines, then the words.
-    Forwarded { lead: &'a [String], text: &'a str },
+    Forwarded { lead: Vec<String>, text: String },
 }
 
 /// What the writer wrote, and what goes under it.
@@ -116,7 +119,7 @@ pub struct Writing<'a> {
     pub markdown: bool,
     /// Empty for none.
     pub signature: &'a str,
-    pub earlier: Option<Earlier<'a>>,
+    pub earlier: Option<&'a Earlier>,
 }
 
 /// A message's plain text, and its HTML for Markdown.
@@ -137,7 +140,7 @@ pub fn bodies(writing: &Writing) -> Result<Bodies> {
         // RFC 3676 §4.3: dash, dash, space.
         text.push(format!("-- \n{signature}"));
     }
-    match &writing.earlier {
+    match writing.earlier {
         Some(Earlier::Quoted {
             lead,
             text: earlier,
@@ -161,7 +164,7 @@ pub fn bodies(writing: &Writing) -> Result<Bodies> {
     if !signature.is_empty() {
         html.push_str(&format!("<p>-- <br>\n{}</p>\n", lines(signature)));
     }
-    match &writing.earlier {
+    match writing.earlier {
         Some(Earlier::Quoted { lead, text: earlier }) => html.push_str(&format!(
             "<p>{}</p>\n<blockquote style=\"margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex\">\n{}</blockquote>\n",
             escape(lead),

@@ -115,9 +115,9 @@ fn plain_text_sends_no_html() {
         words: "Yes.\n**not bold**\n\n",
         markdown: false,
         signature: "Ana\nAtrium",
-        earlier: Some(Earlier::Quoted {
-            lead: "Ben wrote:",
-            text: "Lunch?\n\nAt one.",
+        earlier: Some(&Earlier::Quoted {
+            lead: "Ben wrote:".into(),
+            text: "Lunch?\n\nAt one.".into(),
         }),
     })
     .unwrap();
@@ -137,9 +137,9 @@ fn markdown_sends_html_and_its_source() {
         words: "**Yes** <script>x()</script> [go](javascript:x)",
         markdown: true,
         signature: "",
-        earlier: Some(Earlier::Quoted {
-            lead: "Ben <b@x> wrote:",
-            text: "a < b",
+        earlier: Some(&Earlier::Quoted {
+            lead: "Ben <b@x> wrote:".into(),
+            text: "a < b".into(),
         }),
     })
     .unwrap();
@@ -162,9 +162,9 @@ fn a_forward_carries_its_header_lines_unquoted() {
         words: "",
         markdown: true,
         signature: "Ben",
-        earlier: Some(Earlier::Forwarded {
-            lead: &lead,
-            text: "Hi\nthere",
+        earlier: Some(&Earlier::Forwarded {
+            lead: lead.to_vec(),
+            text: "Hi\nthere".into(),
         }),
     })
     .unwrap();

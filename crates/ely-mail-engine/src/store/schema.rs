@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -161,4 +161,30 @@ CREATE TABLE identities (
     name TEXT,
     signature TEXT NOT NULL
 );
+";
+
+/// Messages being written, and their server copies (C12.13).
+const V9: &str = "
+ALTER TABLE accounts ADD COLUMN drafts_up INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE drafts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account INTEGER NOT NULL REFERENCES accounts ON DELETE CASCADE,
+    saved INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    remote_mailbox TEXT,
+    remote_validity INTEGER,
+    remote_uid INTEGER,
+    CHECK ((remote_mailbox IS NULL) = (remote_uid IS NULL)
+        AND (remote_uid IS NULL) = (remote_validity IS NULL))
+);
+CREATE TABLE draft_files (
+    draft INTEGER NOT NULL REFERENCES drafts ON DELETE CASCADE,
+    place INTEGER NOT NULL,
+    name TEXT,
+    content_type TEXT NOT NULL,
+    params TEXT NOT NULL,
+    content_id TEXT,
+    bytes BLOB NOT NULL,
+    PRIMARY KEY (draft, place)
+) WITHOUT ROWID;
 ";

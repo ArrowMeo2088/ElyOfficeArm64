@@ -112,6 +112,7 @@ impl Mail {
             .children(self.identity_editor(id, window, cx))
             .child(self.sync_buttons(id, cx))
             .children(self.offline_switches(id, protocol, cx))
+            .children(self.drafts_switch(id, protocol, cx))
             .child(div().child(remove));
         ScrollArea::new("mail-account-scroll")
             .vertical()
@@ -268,6 +269,7 @@ impl Render for Mail {
             .child(shell)
             .children(self.add_dialog(cx))
             .children(self.remove_dialog(cx))
+            .children(self.delete_dialog(cx))
     }
 }
 

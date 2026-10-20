@@ -19,7 +19,9 @@ use gpui::{
 };
 
 use super::{Compose, file_name};
-use crate::{mail::text, writing::Before};
+use ely_mail_engine::compose::Earlier;
+
+use crate::mail::text;
 
 impl Compose {
     fn sender_picker(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -38,11 +40,8 @@ impl Compose {
                 let Ok(id) = value.parse() else {
                     return log::error!("mail: a sender key is not a number");
                 };
-                this.update(cx, |compose, cx| {
-                    compose.from = AccountId(id);
-                    cx.notify();
-                })
-                .ok();
+                this.update(cx, |compose, cx| compose.choose_sender(AccountId(id), cx))
+                    .ok();
             });
         Some(div().max_w_96().child(select).into_any_element())
     }
@@ -82,8 +81,8 @@ impl Compose {
         }
         if let Some(before) = &self.before {
             let (lead, words) = match before {
-                Before::Quoted { lead, text } => (lead.clone(), text.clone()),
-                Before::Forwarded { lead, text } => (lead.join("\n"), text.clone()),
+                Earlier::Quoted { lead, text } => (lead.clone(), text.clone()),
+                Earlier::Forwarded { lead, text } => (lead.join("\n"), text.clone()),
             };
             let lines = format!("{lead}\n\n{words}");
             let quoted = QuotedText::new("mail-write-earlier")
@@ -149,6 +148,7 @@ impl Render for Compose {
         let composer = MailComposer::new("mail-composer", body)
             .to(self.to.clone())
             .cc(self.cc.clone())
+            .bcc(self.bcc.clone())
             .subject(self.subject.clone())
             .busy(self.sending || self.reading > 0)
             .check(compose::is_address)
@@ -178,6 +178,7 @@ impl Render for Compose {
                         compose
                             .files
                             .retain(|file| file.key.to_string() != key.as_ref());
+                        compose.touched(cx);
                         cx.notify();
                     })
                     .ok();

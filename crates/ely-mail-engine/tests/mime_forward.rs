@@ -15,6 +15,7 @@ fn forward(mail: &Mail) -> Vec<u8> {
         },
         to: Vec::new(),
         cc: Vec::new(),
+        bcc: Vec::new(),
         subject: "fwd".into(),
         text: "see attached".into(),
         html: None,

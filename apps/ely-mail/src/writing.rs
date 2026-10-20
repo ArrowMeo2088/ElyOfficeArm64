@@ -11,7 +11,7 @@ use gpui::{App, AppContext as _, Context, Window, px, size};
 use tokio::task::JoinHandle;
 
 use crate::{
-    compose::Compose,
+    compose::{Compose, Reopened},
     mail::{Mail, text},
 };
 
@@ -35,6 +35,7 @@ pub struct Opening {
     pub senders: Vec<Sender>,
     pub from: AccountId,
     pub answered: Option<Answered>,
+    pub draft: Option<Reopened>,
 }
 
 /// The message answered or forwarded.
@@ -51,13 +52,6 @@ pub struct Answered {
     pub missing: usize,
 }
 
-/// The earlier message under the words, owned.
-#[derive(Clone, Debug)]
-pub enum Before {
-    Quoted { lead: String, text: String },
-    Forwarded { lead: Vec<String>, text: String },
-}
-
 /// Everything a message is built from.
 pub struct Outgoing {
     pub from: Mailbox,
@@ -68,29 +62,36 @@ pub struct Outgoing {
     pub words: String,
     pub markdown: bool,
     pub signature: String,
-    pub before: Option<Before>,
+    pub before: Option<Earlier>,
     pub attachments: Vec<Part>,
     pub in_reply_to: Option<String>,
     pub references: Vec<String>,
     pub date: i64,
 }
 
+/// What the bytes are for: only a draft shows Bcc.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Purpose {
+    Sending,
+    Draft,
+}
+
 /// The envelope addresses and the message bytes.
-pub fn prepare(out: &Outgoing) -> Result<(Vec<String>, Vec<u8>)> {
-    let earlier = out.before.as_ref().map(|before| match before {
-        Before::Quoted { lead, text } => Earlier::Quoted { lead, text },
-        Before::Forwarded { lead, text } => Earlier::Forwarded { lead, text },
-    });
+pub fn prepare(out: &Outgoing, purpose: Purpose) -> Result<(Vec<String>, Vec<u8>)> {
     let bodies = compose::bodies(&Writing {
         words: &out.words,
         markdown: out.markdown,
         signature: &out.signature,
-        earlier,
+        earlier: out.before.as_ref(),
     })?;
     let built = build(&Draft {
         from: out.from.clone(),
         to: out.to.clone(),
         cc: out.cc.clone(),
+        bcc: match purpose {
+            Purpose::Sending => Vec::new(),
+            Purpose::Draft => out.bcc.clone(),
+        },
         subject: out.subject.clone(),
         text: bodies.text,
         html: bodies.html,
@@ -111,7 +112,7 @@ pub fn prepare(out: &Outgoing) -> Result<(Vec<String>, Vec<u8>)> {
     Ok((envelope, built.bytes))
 }
 
-fn senders(store: &Store) -> Result<Vec<Sender>> {
+pub fn senders(store: &Store) -> Result<Vec<Sender>> {
     store
         .accounts()?
         .into_iter()
@@ -173,6 +174,7 @@ fn answered(store: &Store, id: MessageId, how: How) -> Result<Opening> {
             files,
             missing,
         }),
+        draft: None,
     })
 }
 
@@ -229,6 +231,7 @@ impl Mail {
                             senders,
                             from,
                             answered: None,
+                            draft: None,
                         },
                         cx,
                     );
@@ -250,9 +253,14 @@ impl Mail {
         );
     }
 
-    fn open_compose(&mut self, opening: Opening, cx: &mut Context<Self>) {
+    pub fn open_compose(&mut self, opening: Opening, cx: &mut Context<Self>) {
         let mut options = ely_ui::window_options(AppId::Mail, size(px(760.0), px(680.0)), cx);
-        let title = match opening.answered.as_ref().map(|each| &each.start.subject) {
+        let subject = match (&opening.draft, &opening.answered) {
+            (Some(draft), _) => Some(&draft.unsent.subject),
+            (None, Some(answered)) => Some(&answered.start.subject),
+            (None, None) => None,
+        };
+        let title = match subject {
             Some(subject) if !subject.is_empty() => subject.clone().into(),
             _ => text(cx, "mail.write.title", &[]),
         };

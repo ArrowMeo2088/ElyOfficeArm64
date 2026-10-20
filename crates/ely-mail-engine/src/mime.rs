@@ -61,12 +61,14 @@ pub enum Shown {
     Html(String),
 }
 
-/// A message to write; Bcc stays in the SMTP envelope.
+/// A message to write; sent Bcc stays in the envelope.
 #[derive(Clone, Debug)]
 pub struct Draft {
     pub from: Mailbox,
     pub to: Vec<Mailbox>,
     pub cc: Vec<Mailbox>,
+    /// Written as a header: for draft copies only.
+    pub bcc: Vec<Mailbox>,
     pub subject: String,
     pub text: String,
     pub html: Option<String>,
@@ -132,6 +134,7 @@ pub(crate) fn utf8_headers(raw: &[u8]) -> Result<bool> {
 
 pub fn build(draft: &Draft) -> Result<Built> {
     let people = [&draft.from].into_iter().chain(&draft.to).chain(&draft.cc);
+    let people = people.chain(&draft.bcc);
     for person in people {
         mailbox(&person.email)?;
         line("a name", person.name.as_deref().unwrap_or_default())?;
@@ -152,6 +155,9 @@ pub fn build(draft: &Draft) -> Result<Built> {
     }
     if !draft.cc.is_empty() {
         builder = builder.cc(Out::new_list(draft.cc.iter().map(address).collect()));
+    }
+    if !draft.bcc.is_empty() {
+        builder = builder.bcc(Out::new_list(draft.bcc.iter().map(address).collect()));
     }
     if let Some(id) = &draft.in_reply_to {
         builder = builder.in_reply_to(id.as_str());

@@ -9,6 +9,7 @@ use crate::{
 };
 
 mod conn;
+mod drafts;
 mod parts;
 
 use conn::{Arg, Conn};
@@ -164,13 +165,16 @@ impl Imap {
     }
 
     pub async fn examine(&mut self, mailbox: &str) -> Result<Opened> {
+        self.open("EXAMINE", "opening the mailbox", mailbox).await
+    }
+
+    /// EXAMINE reads; SELECT may change.
+    async fn open(&mut self, verb: &str, step: &'static str, mailbox: &str) -> Result<Opened> {
         let (mut uidvalidity, mut exists) = (None, None);
         within(
-            "opening the mailbox",
-            self.conn.run(
-                "EXAMINE",
-                &[Arg::Text(mailbox)],
-                |response, _| match response {
+            step,
+            self.conn
+                .run(verb, &[Arg::Text(mailbox)], |response, _| match response {
                     Response::Data { outcome, .. } => {
                         if let Some(ResponseCode::UidValidity(value)) = &outcome.code {
                             uidvalidity = Some(*value);
@@ -178,8 +182,7 @@ impl Imap {
                     }
                     Response::MailboxData(MailboxDatum::Exists(count)) => exists = Some(*count),
                     _ => {}
-                },
-            ),
+                }),
         )
         .await??
         .map_err(Error::Server)?;

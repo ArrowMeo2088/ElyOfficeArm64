@@ -115,6 +115,10 @@ pub fn words(cx: &gpui::App) -> Words {
 impl Mail {
     /// Reads the picked message's thread, or what changed in it.
     pub fn read_letter(&mut self, cx: &mut Context<Self>) {
+        if self.open == crate::boxes::Open::Drafts {
+            self.reading.shown = None;
+            return;
+        }
         let picked = self.listing.chosen.as_ref().map(|row| row.key.clone());
         let id = match picked.map(|key| key.parse::<i64>()) {
             Some(Ok(id)) => MessageId(id),

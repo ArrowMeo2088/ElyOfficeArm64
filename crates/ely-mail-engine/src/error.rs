@@ -39,6 +39,8 @@ pub enum Error {
     SignInAgain(String),
     /// A remote picture did not come.
     Fetch(String),
+    /// The server lacks an extension the step needs.
+    Unsupported(&'static str),
 }
 
 impl fmt::Display for Error {
@@ -61,6 +63,7 @@ impl fmt::Display for Error {
             Self::SignIn(text) => write!(f, "sign-in failed: {text}"),
             Self::SignInAgain(text) => write!(f, "sign in again: {text}"),
             Self::Fetch(text) => write!(f, "picture not fetched: {text}"),
+            Self::Unsupported(name) => write!(f, "the server does not support {name}"),
         }
     }
 }

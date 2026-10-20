@@ -6,7 +6,10 @@ use ely_gpui_component::mail::Mail as Row;
 use ely_mail_engine::{AccountId, Filter, MailboxId, Role, Scope, Summary};
 use gpui::{Context, SharedString};
 
-use crate::mail::{Mail, text};
+use crate::{
+    draft_list,
+    mail::{Mail, text},
+};
 
 pub type Unread = HashMap<MailboxId, u32>;
 
@@ -14,6 +17,8 @@ pub type Unread = HashMap<MailboxId, u32>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Open {
     Inboxes,
+    /// Drafts kept here, of every account.
+    Drafts,
     Mailbox(AccountId, MailboxId),
     /// The account's settings and sync.
     Account(AccountId),
@@ -23,6 +28,7 @@ impl Open {
     pub fn key(self) -> SharedString {
         match self {
             Open::Inboxes => "inboxes".into(),
+            Open::Drafts => "drafts".into(),
             Open::Mailbox(_, mailbox) => format!("box-{}", mailbox.0).into(),
             Open::Account(id) => format!("account-{}", id.0).into(),
         }
@@ -30,7 +36,7 @@ impl Open {
 
     pub fn account(self) -> Option<AccountId> {
         match self {
-            Open::Inboxes => None,
+            Open::Inboxes | Open::Drafts => None,
             Open::Mailbox(id, _) | Open::Account(id) => Some(id),
         }
     }
@@ -39,7 +45,7 @@ impl Open {
         match self {
             Open::Inboxes => Some(Scope::Inboxes),
             Open::Mailbox(_, mailbox) => Some(Scope::Mailbox(mailbox)),
-            Open::Account(_) => None,
+            Open::Drafts | Open::Account(_) => None,
         }
     }
 }
@@ -109,6 +115,7 @@ impl Mail {
             self.open = open;
             if let Open::Account(id) = open {
                 self.read_identity(id, cx);
+                self.read_drafts_up(id, cx);
             }
             self.listing.show(None);
             self.listing.pick(Vec::new());
@@ -134,7 +141,8 @@ impl Mail {
     /// Unread counts, and the open list when it lists mail.
     pub fn read_mail(&mut self, cx: &mut Context<Self>) {
         self.listing.read += 1;
-        let (read, scope, filter) = (self.listing.read, self.open.scope(), self.filter);
+        let (read, open, filter) = (self.listing.read, self.open, self.filter);
+        let scope = open.scope();
         let none = (
             text(cx, "mail.no_sender", &[]),
             text(cx, "mail.no_subject", &[]),
@@ -142,6 +150,7 @@ impl Mail {
         self.with_store(
             cx,
             move |store| {
+                let mut kept = Vec::new();
                 let rows = match scope {
                     Some(scope) => {
                         let list = store.list(scope, filter)?;
@@ -149,22 +158,28 @@ impl Mail {
                             list.into_iter().map(|each| row(each, &none)).collect(),
                         ))
                     }
+                    None if open == Open::Drafts => {
+                        kept = store.drafts()?;
+                        Some(index(draft_list::rows(&kept, &none)))
+                    }
                     None => None,
                 };
-                Ok((rows, store.unread()?))
+                Ok((rows, store.unread()?, kept))
             },
             move |mail, read_now, cx| {
                 if mail.listing.read != read {
                     return log::info!("mail: list read {read} ended after a newer one");
                 }
                 match read_now {
-                    Ok((rows, unread)) => {
+                    Ok((rows, unread, kept)) => {
                         mail.unread = unread;
+                        mail.shelved = kept;
                         mail.listing.show(rows.map(Ok));
                     }
                     Err(error) => {
                         log::warn!("mail: list read {read} failed: {error}");
-                        mail.listing.show(scope.map(|_| Err(error)));
+                        let listed = scope.is_some() || open == Open::Drafts;
+                        mail.listing.show(listed.then_some(Err(error)));
                     }
                 }
                 let keys = std::mem::take(&mut mail.listing.selected);

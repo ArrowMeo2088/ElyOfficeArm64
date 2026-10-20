@@ -8,9 +8,15 @@ use ely_gpui_component::{
     primitives::IconName,
 };
 use ely_mail_engine::Filter;
-use gpui::{AnyElement, Axis, Context, IntoElement, ParentElement as _, Styled as _, div, px};
+use gpui::{
+    AnyElement, Axis, Context, InteractiveElement as _, IntoElement, ParentElement as _,
+    Styled as _, div, px,
+};
 
-use crate::mail::{Mail, text};
+use crate::{
+    boxes::Open,
+    mail::{Mail, text},
+};
 
 type Filtered = fn(Filter) -> bool;
 
@@ -31,7 +37,10 @@ impl Mail {
     pub fn panes(&self, cx: &mut Context<Self>) -> AnyElement {
         SplitPane::new("mail-panes", Axis::Horizontal, px(240.))
             .pane(self.list_pane(cx))
-            .pane(self.reader(cx))
+            .pane(match self.open {
+                Open::Drafts => self.draft_pane(cx),
+                _ => self.reader(cx),
+            })
             .into_any_element()
     }
 
@@ -81,7 +90,12 @@ impl Mail {
             .size_full()
             .flex()
             .flex_col()
-            .child(div().p_2().child(toggles))
+            .children((self.open != Open::Drafts).then(|| {
+                div()
+                    .debug_selector(|| "mail-filters".into())
+                    .p_2()
+                    .child(toggles)
+            }))
             .child(div().flex_1().min_h_0().child(list))
             .into_any_element()
     }

@@ -12,6 +12,7 @@ use crate::{Error, Result};
 
 mod accounts;
 mod aside;
+mod drafts;
 mod folders;
 mod identity;
 mod listing;
@@ -24,6 +25,7 @@ mod threads;
 mod trusted;
 
 pub use accounts::Cached;
+pub use drafts::{DraftId, Left, Remote, Shelved, Stowed, Unsent};
 pub use folders::{Held, LocalFolder, Synced};
 pub use identity::Identity;
 pub use listing::{Filter, Scope, Summary};
@@ -197,10 +199,7 @@ fn migrate(conn: &mut Connection, version: usize, steps: &[&str]) -> Result<()> 
 fn backup(conn: &Connection, dir: &Path, version: usize) -> Result<()> {
     let folder = dir.join(BACKUPS);
     fs::create_dir_all(&folder).map_err(|err| disk("making the backup folder", err))?;
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|err| Error::Store(format!("the clock is before 1970: {err}")))?
-        .as_secs();
+    let now = now()?;
     let target = folder.join(format!("mail-v{version}-{now}.db"));
     let target = target
         .to_str()
@@ -208,6 +207,14 @@ fn backup(conn: &Connection, dir: &Path, version: usize) -> Result<()> {
     conn.execute("VACUUM INTO ?1", [target])?;
     log::info!("mail: store schema v{version} backed up before upgrade");
     Ok(())
+}
+
+/// Seconds since 1970.
+fn now() -> Result<i64> {
+    let since = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|err| Error::Store(format!("the clock is before 1970: {err}")))?;
+    Ok(since.as_secs() as i64)
 }
 
 /// Two levels: `content/ab/abcd…`.

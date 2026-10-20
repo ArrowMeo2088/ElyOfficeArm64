@@ -1,13 +1,14 @@
 //! The window: accounts and the dialogs that change them.
 
 use std::{
+    collections::{HashMap, HashSet},
     future::Future,
     path::Path,
     sync::{Arc, Mutex},
 };
 
 use ely_gpui_component::primitives::Severity;
-use ely_mail_engine::{Account, AccountId, Filter, Store, TlsConnector, Vault};
+use ely_mail_engine::{Account, AccountId, DraftId, Filter, Shelved, Store, TlsConnector, Vault};
 use ely_platform::AppId;
 use ely_ui::Root;
 use gpui::{App, AppContext as _, Context, Entity, FocusHandle, SharedString, WeakEntity, Window};
@@ -16,6 +17,7 @@ use tokio::runtime::Runtime;
 use crate::{
     adding::Adding,
     boxes::{Listing, Open, Unread},
+    drafts::Waiting,
     identity::Editing,
     reading::Reading,
     removing::Removing,
@@ -65,6 +67,18 @@ pub struct Mail {
     pub paused: bool,
     /// Numbers every request across dialogs.
     pub asked: u64,
+    /// Server copies under way, and the next asked.
+    pub pushing: HashMap<DraftId, Option<Waiting>>,
+    /// Drafts read to reopen; their windows follow.
+    pub reopening: HashSet<DraftId>,
+    /// Deleted while reopening: no window follows.
+    pub unwanted: HashSet<DraftId>,
+    /// The drafts listed, when Drafts is open.
+    pub shelved: Vec<Shelved>,
+    /// A draft asked to be deleted.
+    pub deleting: Option<DraftId>,
+    /// The open account's drafts go to its server.
+    pub drafts_up: Option<(AccountId, bool)>,
     pub focus: FocusHandle,
     pub root: WeakEntity<Root>,
     pub side: Entity<Side>,
@@ -130,6 +144,12 @@ impl Mail {
             runs: 0,
             paused: false,
             asked: 0,
+            pushing: HashMap::new(),
+            reopening: HashSet::new(),
+            unwanted: HashSet::new(),
+            shelved: Vec::new(),
+            deleting: None,
+            drafts_up: None,
             focus: cx.focus_handle(),
             root: WeakEntity::new_invalid(),
             side: cx.new(|_| Side::new(this)),

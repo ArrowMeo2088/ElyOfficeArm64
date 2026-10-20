@@ -4,7 +4,9 @@ use std::path::Path;
 
 use ely_gpui_component::{mail::Draft, primitives::Severity};
 use ely_mail_engine::{
-    Fetched, Identity, Key, Mailbox, MessageId, Role, Store, compose::attachment, read,
+    Fetched, Identity, Key, Mailbox, MessageId, Role, Store,
+    compose::{Earlier, attachment},
+    read,
 };
 use gpui::{TestAppContext, VisualTestContext, WindowHandle};
 
@@ -12,7 +14,7 @@ use super::{Keys, account, settle, window};
 use crate::{
     boxes::Open,
     compose::Compose,
-    writing::{Before, How, Outgoing, prepare},
+    writing::{How, Outgoing, Purpose, prepare},
 };
 
 pub(super) const NOTE: &str = "From: Ann <ann@example.com>\r\nTo: bo@example.com, Cy <cy@example.com>\r\n\
@@ -85,7 +87,7 @@ fn reply_all_starts_addressed_and_quoting_the_message() {
         assert_eq!(shown(&compose.to), ["ann@example.com", "cy@example.com"]);
         assert_eq!(shown(&compose.cc), ["dee@example.com"]);
         assert_eq!(compose.subject.as_ref(), "Re: plan");
-        let Some(Before::Quoted { lead, text }) = &compose.before else {
+        let Some(Earlier::Quoted { lead, text }) = &compose.before else {
             panic!("the message is quoted");
         };
         assert!(lead.starts_with("On 2024-01-0"), "{lead}");
@@ -98,7 +100,7 @@ fn reply_all_starts_addressed_and_quoting_the_message() {
         let out = compose
             .outgoing(&draft(&["ann@example.com"], "Re: plan"), app)
             .unwrap();
-        prepare(&out).unwrap().1
+        prepare(&out, Purpose::Sending).unwrap().1
     });
     let sent = read(&bytes).unwrap();
     assert_eq!(sent.in_reply_to, ["a@x"]);
@@ -130,7 +132,7 @@ fn a_forward_carries_the_files_that_are_here() {
             .collect();
         assert_eq!(names, [Some("a.pdf".to_owned())]);
         assert_eq!(compose.missing, 1, "b.pdf is not downloaded");
-        let Some(Before::Forwarded { lead, text }) = &compose.before else {
+        let Some(Earlier::Forwarded { lead, text }) = &compose.before else {
             panic!("the message is forwarded");
         };
         assert!(
@@ -169,7 +171,7 @@ fn a_message_is_built_with_its_hidden_copies_off_the_page() {
         references: Vec::new(),
         date: 1_704_099_600,
     };
-    let (envelope, bytes) = prepare(&out).unwrap();
+    let (envelope, bytes) = prepare(&out, Purpose::Sending).unwrap();
     assert_eq!(
         envelope,
         ["ann@example.com", "cy@example.com", "hidden@example.com"]
@@ -186,11 +188,28 @@ fn a_message_is_built_with_its_hidden_copies_off_the_page() {
         markdown: false,
         ..out
     };
-    assert_eq!(read(&prepare(&plain).unwrap().1).unwrap().html, None);
+    assert_eq!(
+        read(&prepare(&plain, Purpose::Sending).unwrap().1)
+            .unwrap()
+            .html,
+        None
+    );
+    let (_, copy) = prepare(&plain, Purpose::Draft).unwrap();
+    let copy = String::from_utf8_lossy(&copy);
+    let head = &copy[..copy.find("\r\n\r\n").unwrap()];
+    assert!(
+        head.contains("hidden@example.com"),
+        "a draft keeps Bcc: {head}"
+    );
+    assert!(
+        head.lines()
+            .any(|line| line.to_ascii_lowercase().starts_with("bcc:")),
+        "{head}"
+    );
 }
 
 #[test]
-fn words_written_are_not_lost_to_closing() {
+fn words_written_are_kept_on_closing() {
     let dir = tempfile::tempdir().unwrap();
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
     let mut cx = TestAppContext::single();
@@ -214,8 +233,8 @@ fn words_written_are_not_lost_to_closing() {
             })
             .unwrap()
     });
-    assert!(!closes(cx), "words make it ask");
-    cx.update(|_, app| assert!(compose.read(app).unwrap().discarding));
+    assert!(!closes(cx), "words are kept first");
+    settle(cx, |app| compose.read(app).is_err());
 }
 
 #[test]
@@ -283,7 +302,7 @@ fn a_saved_name_and_signature_sign_the_next_message() {
         let out = compose
             .outgoing(&draft(&["ann@example.com"], "Hi"), app)
             .unwrap();
-        let sent = read(&prepare(&out).unwrap().1).unwrap();
+        let sent = read(&prepare(&out, Purpose::Sending).unwrap().1).unwrap();
         assert_eq!(sent.from[0].name.as_deref(), Some("Bo Lee"));
         let text = sent.text.unwrap().replace("\r\n", "\n");
         assert!(text.ends_with("-- \nBo\nAtrium"), "{text:?}");

@@ -1,17 +1,18 @@
-//! Leaving with messages open; files being read; edits (C12.12).
+//! Leaving with messages open: each goes into Drafts (C12.12, C12.13).
 
-use ely_gpui_component::{mail::Draft, primitives::Severity};
+use ely_gpui_component::primitives::Severity;
+use ely_mail_engine::{Shelved, Store};
 use gpui::{TestAppContext, VisualTestContext, WindowHandle};
 
 use super::{
-    Keys, settle, window,
+    Keys, account, settle, window,
     writing::{NOTE, composing, draft, opened, seeded},
 };
 use crate::{
     compose::{Compose, file_name},
-    writing::{How, Sender, guard_leaving, prepare},
+    mail::Mail,
+    writing::{How, Purpose, guard_leaving, prepare},
 };
-use ely_mail_engine::AccountId;
 
 /// A message with a PDF here and one not downloaded.
 fn with_files() -> String {
@@ -24,13 +25,27 @@ fn with_files() -> String {
 fn closes(compose: WindowHandle<Compose>, cx: &mut VisualTestContext) -> bool {
     cx.update(|_, app| {
         compose
-            .update(app, |compose, window, cx| {
-                let closes = compose.may_close(window, cx);
-                compose.discarding = false;
-                closes
-            })
+            .update(app, |compose, window, cx| compose.may_close(window, cx))
             .unwrap()
     })
+}
+
+/// The drafts the store holds now.
+pub(super) fn kept(mail: &gpui::Entity<Mail>, cx: &mut VisualTestContext) -> Vec<Shelved> {
+    cx.update(|_, app| {
+        let store = mail.read(app).store.clone().unwrap();
+        let store = store.lock().unwrap();
+        store.drafts().unwrap()
+    })
+}
+
+fn drafts_in(mail: &gpui::Entity<Mail>, app: &gpui::App) -> usize {
+    let store = mail.read(app).store.clone().unwrap();
+    store.lock().unwrap().drafts().unwrap().len()
+}
+
+fn gone(compose: WindowHandle<Compose>, cx: &mut VisualTestContext) {
+    settle(cx, |app| compose.read(app).is_err());
 }
 
 fn with<R>(
@@ -50,7 +65,7 @@ fn write(compose: WindowHandle<Compose>, words: &str, cx: &mut VisualTestContext
 }
 
 #[test]
-fn quit_asks_each_message_with_words_and_goes_on_after_a_discard() {
+fn quit_keeps_each_message_then_goes() {
     let dir = tempfile::tempdir().unwrap();
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
     let mut cx = TestAppContext::single();
@@ -72,25 +87,14 @@ fn quit_asks_each_message_with_words_and_goes_on_after_a_discard() {
     write(first, "one", cx);
     write(second, "two", cx);
     cx.update(|window, app| window.dispatch_action(Box::new(ely_ui::commands::Quit), app));
-    settle(cx, |_| true);
-    let asked = |compose: WindowHandle<Compose>, cx: &mut VisualTestContext| {
-        cx.update(|_, app| compose.read(app).unwrap().discarding)
-    };
-    assert!(asked(first, cx), "the first message asks");
-    assert!(!asked(second, cx), "one question at a time");
-    assert_eq!(composing(cx).len(), 2, "nothing closed yet");
-    with(first, cx, |compose, window, cx| {
-        compose.confirm_discard(window, cx)
-    });
-    settle(cx, |app| {
-        let open = app.windows().into_iter();
-        open.filter(|each| each.downcast::<Compose>().is_some())
-            .count()
-            == 1
-    });
-    assert!(asked(second, cx), "the quit went on to the next");
-    with(second, cx, |compose, _, cx| compose.keep_writing(cx));
-    assert!(!asked(second, cx));
+    gone(first, cx);
+    gone(second, cx);
+    let mut words: Vec<_> = kept(&mail, cx)
+        .into_iter()
+        .map(|draft| draft.unsent.words)
+        .collect();
+    words.sort();
+    assert_eq!(words, ["one", "two"], "each went into Drafts");
 }
 
 #[test]
@@ -112,7 +116,7 @@ fn the_main_window_stays_while_a_message_is_sending() {
 }
 
 #[test]
-fn send_waits_for_files_still_being_read() {
+fn closing_waits_for_files_then_keeps_them() {
     let dir = tempfile::tempdir().unwrap();
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
     let file = dir.path().join("note.txt");
@@ -127,41 +131,40 @@ fn send_waits_for_files_still_being_read() {
         assert!(!compose.sending, "the file is not read yet");
         assert_eq!(compose.reading, 1);
     });
-    assert!(!closes(compose, cx), "a file on its way asks first");
-    settle(cx, |app| compose.read(app).unwrap().reading == 0);
-    cx.update(|_, app| assert_eq!(compose.read(app).unwrap().files.len(), 1));
+    assert!(!closes(compose, cx), "a file on its way holds the close");
+    gone(compose, cx);
+    let [draft] = kept(&mail, cx).try_into().unwrap();
+    let store = cx.update(|_, app| mail.read(app).store.clone().unwrap());
+    let files = store.lock().unwrap().draft_files(draft.id).unwrap();
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].bytes, b"hello");
 }
 
 #[test]
-fn a_forward_asks_once_its_addresses_subject_or_files_change() {
+fn an_untouched_forward_leaves_no_draft() {
     let dir = tempfile::tempdir().unwrap();
     let id = seeded(dir.path(), with_files().as_bytes(), &[]);
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
-    let forward = |cx: &mut VisualTestContext| {
+    for touched in [false, true] {
         cx.update(|_, app| mail.update(app, |mail, cx| mail.answer(id, How::Forward, cx)));
         let compose = opened(cx);
         settle(cx, |_| true);
-        compose
-    };
-    let compose = forward(cx);
-    assert!(closes(compose, cx), "untouched, it closes");
-    let addressed = Draft {
-        to: vec!["eve@example.com".into()],
-        ..draft(&[], "Fwd: plan")
-    };
-    with(compose, cx, |compose, _, cx| compose.edited(addressed, cx));
-    assert!(!closes(compose, cx), "an address makes it ask");
-    with(compose, cx, |compose, _, cx| {
-        compose.edited(draft(&[], "Fwd: plan!"), cx)
-    });
-    assert!(!closes(compose, cx), "a subject makes it ask");
-    with(compose, cx, |compose, _, cx| {
-        compose.edited(draft(&[], "Fwd: plan"), cx)
-    });
-    assert!(closes(compose, cx), "back as it was");
-    with(compose, cx, |compose, _, _| compose.files.clear());
-    assert!(!closes(compose, cx), "a forwarded file taken off asks");
+        if touched {
+            with(compose, cx, |compose, _, _| compose.files.clear());
+        }
+        let shut = closes(compose, cx);
+        assert_eq!(shut, !touched, "a file taken off is kept first");
+        if !shut {
+            gone(compose, cx);
+        } else {
+            with(compose, cx, |_, window, _| window.remove_window());
+            gone(compose, cx);
+        }
+        assert_eq!(kept(&mail, cx).len(), usize::from(touched));
+    }
+    let [draft] = kept(&mail, cx).try_into().unwrap();
+    assert_eq!(draft.unsent.subject, "Fwd: plan");
 }
 
 #[test]
@@ -185,7 +188,7 @@ fn a_file_without_a_name_is_forwarded() {
         );
         compose.outgoing(&draft(&["eve@example.com"], "Fwd: plan"), app)
     });
-    let (_, bytes) = prepare(&out.unwrap()).unwrap();
+    let (_, bytes) = prepare(&out.unwrap(), Purpose::Sending).unwrap();
     let sent = ely_mail_engine::read(&bytes).unwrap();
     assert_eq!(sent.attachments.len(), 1);
     assert_eq!(sent.attachments[0].name, None);
@@ -204,7 +207,7 @@ fn press_close(on: gpui::AnyWindowHandle, cx: &mut VisualTestContext) {
 }
 
 #[test]
-fn the_drawn_close_asks_as_the_system_close_does() {
+fn the_drawn_close_keeps_as_the_system_close_does() {
     let dir = tempfile::tempdir().unwrap();
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
     let mut cx = TestAppContext::single();
@@ -214,17 +217,24 @@ fn the_drawn_close_asks_as_the_system_close_does() {
     cx.update(|_, app| mail.update(app, |mail, cx| mail.write_new(cx)));
     let compose = opened(cx);
     write(compose, "words", cx);
+    with(compose, cx, |compose, _, _| compose.sending = true);
     press_close(compose.into(), cx);
-    let asked = cx.update(|_, app| compose.read(app).map(|compose| compose.discarding));
-    assert_eq!(asked.ok(), Some(true), "the message stays and asks");
-    with(compose, cx, |compose, _, cx| compose.keep_writing(cx));
+    assert!(
+        cx.update(|_, app| compose.read(app).is_ok()),
+        "sending holds it"
+    );
     press_close(main, cx);
     let open = cx.update(|_, app| app.windows().len());
     assert_eq!(open, 2, "the main window waits for the message");
+    with(compose, cx, |compose, _, _| compose.sending = false);
+    press_close(compose.into(), cx);
+    gone(compose, cx);
+    let [draft] = kept(&mail, cx).try_into().unwrap();
+    assert_eq!(draft.unsent.words, "words");
 }
 
 #[test]
-fn a_success_keeps_the_window_holding_edits_made_while_sending() {
+fn a_success_keeps_edits_made_while_sending_as_a_draft() {
     let dir = tempfile::tempdir().unwrap();
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
     let mut cx = TestAppContext::single();
@@ -240,21 +250,18 @@ fn a_success_keeps_the_window_holding_edits_made_while_sending() {
         if late {
             write(compose, "before and late edit", cx);
         }
-        with(compose, cx, |compose, window, cx| {
-            compose.sent(Ok(()), window, cx)
-        });
-        settle(cx, |_| true);
+        with(compose, cx, |compose, _, cx| compose.sent(Ok(()), cx));
         if !late {
-            assert!(composing(cx).is_empty(), "as sent, it closes");
+            gone(compose, cx);
+            assert!(kept(&mail, cx).is_empty(), "as sent, nothing stays");
             continue;
         }
+        settle(cx, |app| drafts_in(&mail, app) == 1);
         let problem = cx.update(|_, app| compose.read(app).unwrap().problem.clone());
         assert_eq!(problem.map(|(severity, _)| severity), Some(Severity::Info));
-        assert!(!closes(compose, cx), "the late edit asks before it goes");
-        write(compose, "before", cx);
-        assert!(closes(compose, cx), "as sent, nothing is lost");
-        with(compose, cx, |_, window, _| window.remove_window());
-        settle(cx, |_| true);
+        let [draft] = kept(&mail, cx).try_into().unwrap();
+        assert_eq!(draft.unsent.words, "before and late edit", "kept at once");
+        assert!(closes(compose, cx), "kept, it closes");
     }
 }
 
@@ -262,6 +269,10 @@ fn a_success_keeps_the_window_holding_edits_made_while_sending() {
 fn a_success_keeps_the_window_when_the_sender_or_format_changed() {
     let dir = tempfile::tempdir().unwrap();
     seeded(dir.path(), format!("{NOTE}\r\nx").as_bytes(), &[]);
+    let cy = Store::open(dir.path())
+        .unwrap()
+        .add_account(&account("cy@example.com"))
+        .unwrap();
     let mut cx = TestAppContext::single();
     let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
     for sender in [false, true] {
@@ -269,34 +280,34 @@ fn a_success_keeps_the_window_when_the_sender_or_format_changed() {
         let compose = opened(cx);
         write(compose, "words", cx);
         with(compose, cx, |compose, _, cx| {
-            let other = Sender {
-                id: AccountId(compose.from.0 + 1),
-                address: "other@example.com".into(),
-                identity: compose.senders[0].identity.clone(),
-            };
-            compose.senders.push(other);
             compose.edited(draft(&["ann@example.com"], "Hi"), cx);
             compose.begin_sending(cx);
         });
         if sender {
-            with(compose, cx, |compose, _, _| compose.from = compose.senders[1].id);
+            with(compose, cx, |compose, _, cx| compose.choose_sender(cy, cx));
         } else {
             let mut there = VisualTestContext::from_window(compose.into(), cx);
             there.run_until_parked();
-            let plain = there.debug_bounds("segment plain").expect("the format switch");
+            let plain = there
+                .debug_bounds("segment plain")
+                .expect("the format switch");
             there.simulate_click(plain.center(), gpui::Modifiers::none());
             there.run_until_parked();
             assert!(!cx.update(|_, app| compose.read(app).unwrap().markdown));
         }
-        with(compose, cx, |compose, window, cx| {
-            compose.sent(Ok(()), window, cx)
-        });
-        settle(cx, |_| true);
+        with(compose, cx, |compose, _, cx| compose.sent(Ok(()), cx));
+        settle(cx, |app| drafts_in(&mail, app) == 1);
         let problem = cx.update(|_, app| compose.read(app).map(|it| it.problem.clone()));
         let severity = problem.ok().flatten().map(|(severity, _)| severity);
         assert_eq!(severity, Some(Severity::Info), "sender changed: {sender}");
-        assert!(!closes(compose, cx), "the unsent change asks first");
+        assert!(closes(compose, cx), "the unsent change was kept");
         with(compose, cx, |_, window, _| window.remove_window());
-        settle(cx, |_| true);
+        gone(compose, cx);
+        let drafts = kept(&mail, cx);
+        let draft = drafts.first().expect("kept");
+        assert_eq!(draft.account == cy, sender);
+        assert_eq!(draft.unsent.markdown, sender);
+        let store = cx.update(|_, app| mail.read(app).store.clone().unwrap());
+        store.lock().unwrap().unshelve(draft.id).unwrap();
     }
 }

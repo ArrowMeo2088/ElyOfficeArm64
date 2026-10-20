@@ -6,6 +6,8 @@ mod adding;
 mod boxes;
 mod compose;
 mod controls;
+mod draft_list;
+mod drafts;
 mod flow;
 mod identity;
 mod kinds;

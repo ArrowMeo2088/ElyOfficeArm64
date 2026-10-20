@@ -3,22 +3,30 @@
 use std::path::PathBuf;
 
 use ely_gpui_component::{
-    documents::{MarkdownDocument, MarkdownMode},
+    documents::{DocumentEvent, MarkdownDocument, MarkdownMode},
     mail::Draft,
     primitives::Severity,
 };
-use ely_mail_engine::{AccountId, Error, Mailbox, Part, compose};
+use ely_mail_engine::{
+    AccountId, Error, Mailbox, Part,
+    compose::{self, Earlier},
+};
 use gpui::{
-    App, AppContext as _, Context, Entity, FocusHandle, PathPromptOptions, SharedString,
-    WeakEntity, Window,
+    AnyWindowHandle, App, AppContext as _, Context, Entity, FocusHandle, PathPromptOptions,
+    SharedString, WeakEntity, Window,
 };
 
+mod keeping;
+mod lead;
 mod page;
+
+#[cfg(test)]
+pub use keeping::PAUSE;
+pub use keeping::Shelf;
 
 use crate::{
     mail::{Mail, text},
-    view::local_time,
-    writing::{Before, How, Opening, Outgoing, Sender, prepare},
+    writing::{Opening, Outgoing, Purpose, Sender, prepare},
 };
 
 /// An attached file and its key in the list.
@@ -33,10 +41,11 @@ pub struct Compose {
     pub from: AccountId,
     pub to: Vec<SharedString>,
     pub cc: Vec<SharedString>,
+    pub bcc: Vec<SharedString>,
     pub subject: SharedString,
     in_reply_to: Option<String>,
     references: Vec<String>,
-    pub before: Option<Before>,
+    pub before: Option<Earlier>,
     /// Only the answered message's headers are kept.
     pub headers_only: bool,
     pub markdown: bool,
@@ -56,20 +65,9 @@ pub struct Compose {
     pub sending: bool,
     pub problem: Option<(Severity, SharedString)>,
     pub discarding: bool,
-    /// A quit waits on this message's answer.
-    quitting: bool,
+    pub shelf: Shelf,
+    window: AnyWindowHandle,
     focus: FocusHandle,
-}
-
-fn person(mailbox: &Mailbox) -> String {
-    match &mailbox.name {
-        Some(name) if !name.trim().is_empty() => format!("{name} <{}>", mailbox.email),
-        _ => mailbox.email.clone(),
-    }
-}
-
-fn people(list: &[Mailbox]) -> String {
-    list.iter().map(person).collect::<Vec<_>>().join(", ")
 }
 
 /// A file's shown name; some have none.
@@ -96,7 +94,21 @@ impl Compose {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let document = cx.new(|cx| MarkdownDocument::new("", MarkdownMode::Visual, window, cx));
+        let kept = opening.draft.as_ref();
+        let (words, markdown) = kept.map_or(("", true), |it| {
+            (it.unsent.words.as_str(), it.unsent.markdown)
+        });
+        let mode = match markdown {
+            true => MarkdownMode::Visual,
+            false => MarkdownMode::Source,
+        };
+        let document = cx.new(|cx| MarkdownDocument::new(words, mode, window, cx));
+        cx.subscribe(&document, |compose, _, event, cx| {
+            if matches!(event, DocumentEvent::Changed) {
+                compose.touched(cx);
+            }
+        })
+        .detach();
         let this = cx.weak_entity();
         ely_gpui_component::shell::guard_close(window, cx, move |window, cx| {
             this.update(cx, |compose, cx| compose.may_close(window, cx))
@@ -108,12 +120,13 @@ impl Compose {
             from: opening.from,
             to: Vec::new(),
             cc: Vec::new(),
+            bcc: Vec::new(),
             subject: SharedString::default(),
             in_reply_to: None,
             references: Vec::new(),
             before: None,
             headers_only: false,
-            markdown: true,
+            markdown,
             document,
             files: Vec::new(),
             next_file: 0,
@@ -131,9 +144,13 @@ impl Compose {
             sending: false,
             problem: None,
             discarding: false,
-            quitting: false,
+            shelf: Shelf::default(),
+            window: window.window_handle(),
             focus: cx.focus_handle(),
         };
+        if let Some(draft) = opening.draft {
+            compose.restore(draft);
+        }
         if let Some(answered) = opening.answered {
             let start = answered.start;
             compose.to = start.to.iter().map(|to| to.email.clone().into()).collect();
@@ -147,22 +164,52 @@ impl Compose {
                 compose.add_file(part);
             }
             if answered.whole {
-                compose.before = Some(lead(answered.how, &answered.mail, answered.text, cx));
+                let earlier = lead::lead(answered.how, &answered.mail, answered.text, cx);
+                compose.before = Some(earlier);
             }
         }
         compose.written = Draft {
             to: compose.to.clone(),
             cc: compose.cc.clone(),
+            bcc: compose.bcc.clone(),
             subject: compose.subject.trim().to_owned().into(),
-            ..blank()
         };
         compose.base = compose.carried(cx);
+        if let Some(id) = compose.shelf.id {
+            compose.shelf = Shelf::reopened(id, compose.base.clone());
+        }
         compose
+    }
+
+    /// Takes up a kept draft where it was left.
+    fn restore(&mut self, draft: Reopened) {
+        let addresses = |list: Vec<String>| list.into_iter().map(Into::into).collect();
+        let unsent = draft.unsent;
+        self.to = addresses(unsent.to);
+        self.cc = addresses(unsent.cc);
+        self.bcc = addresses(unsent.bcc);
+        self.subject = unsent.subject.into();
+        self.in_reply_to = unsent.in_reply_to;
+        self.references = unsent.references;
+        self.before = unsent.earlier;
+        self.headers_only = unsent.headers_only;
+        self.missing = unsent.missing;
+        for part in draft.files {
+            self.add_file(part);
+        }
+        self.shelf.id = Some(draft.id);
     }
 
     /// The composer's addresses and subject after an edit.
     pub fn edited(&mut self, draft: Draft, cx: &mut Context<Self>) {
         self.written = draft;
+        self.touched(cx);
+        cx.notify();
+    }
+
+    pub fn choose_sender(&mut self, from: AccountId, cx: &mut Context<Self>) {
+        self.from = from;
+        self.touched(cx);
         cx.notify();
     }
 
@@ -181,63 +228,10 @@ impl Compose {
     fn carried(&self, cx: &App) -> Carried {
         Carried {
             draft: self.written.clone(),
-            words: self.document.read(cx).text(cx).trim().to_owned(),
+            words: self.document.read(cx).text(cx),
             files: self.files.iter().map(|file| file.key).collect(),
             from: self.from,
             markdown: self.markdown,
-        }
-    }
-
-    /// Anything written, taken off, or still being read.
-    fn dirty(&self, cx: &App) -> bool {
-        self.reading > 0 || self.carried(cx) != self.base
-    }
-
-    /// The window closes unless sending or holding words.
-    pub fn may_close(&mut self, _: &mut Window, cx: &mut Context<Self>) -> bool {
-        if self.sending {
-            self.problem = Some((Severity::Warning, text(cx, "mail.write.wait", &[])));
-            cx.notify();
-            return false;
-        }
-        if self.dirty(cx) {
-            self.discarding = true;
-            cx.notify();
-            return false;
-        }
-        true
-    }
-
-    /// Lets the message go; a waiting quit goes on.
-    pub fn confirm_discard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        log::info!("mail: a message was discarded");
-        window.remove_window();
-        if self.quitting {
-            cx.defer(ely_ui::commands::quit);
-        }
-    }
-
-    /// Back to writing; a waiting quit stops.
-    pub fn keep_writing(&mut self, cx: &mut Context<Self>) {
-        self.discarding = false;
-        self.quitting = false;
-        cx.notify();
-    }
-
-    /// Asked on the way out; true lets the app go.
-    pub fn may_leave(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let leaves = self.may_close(window, cx);
-        self.quitting = self.discarding;
-        if !leaves {
-            window.activate_window();
-        }
-        leaves
-    }
-
-    fn discard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.may_close(window, cx) {
-            log::info!("mail: a blank message closed");
-            window.remove_window();
         }
     }
 
@@ -249,6 +243,7 @@ impl Compose {
         };
         self.document
             .update(cx, |document, cx| document.set_mode(mode, window, cx));
+        self.touched(cx);
         cx.notify();
     }
 
@@ -299,11 +294,13 @@ impl Compose {
                     Ok(parts) => {
                         log::info!("mail: {} files attached", parts.len());
                         parts.into_iter().for_each(|part| compose.add_file(part));
+                        compose.touched(cx);
                     }
                     Err(error) => {
                         log::warn!("mail: a file was not attached");
                         let words = text(cx, "mail.write.attach_failed", &[("error", &error)]);
                         compose.problem = Some((Severity::Danger, words));
+                        compose.unread(cx);
                     }
                 }
                 cx.notify();
@@ -351,7 +348,7 @@ impl Compose {
         );
         self.begin_sending(cx);
         let (from, mail) = (self.from, self.mail.clone());
-        let built = cx.background_spawn(async move { prepare(&out) });
+        let built = cx.background_spawn(async move { prepare(&out, Purpose::Sending) });
         cx.spawn_in(window, async move |this, cx| {
             let outcome = async {
                 let (envelope, bytes) = built.await.map_err(Sent::from)?;
@@ -365,7 +362,7 @@ impl Compose {
                 }
             }
             .await;
-            this.update_in(cx, |compose, window, cx| compose.sent(outcome, window, cx))
+            this.update(cx, |compose, cx| compose.sent(outcome, cx))
                 .ok();
         })
         .detach();
@@ -378,7 +375,7 @@ impl Compose {
         cx.notify();
     }
 
-    pub fn sent(&mut self, outcome: Result<(), Sent>, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn sent(&mut self, outcome: Result<(), Sent>, cx: &mut Context<Self>) {
         self.sending = false;
         let carried = self.in_flight.take();
         let (severity, key, error) = match outcome {
@@ -388,7 +385,7 @@ impl Compose {
                 self.mail
                     .update(cx, |mail, cx| mail.toast(words, Severity::Success, cx))
                     .ok();
-                return self.after_sending(carried, window, cx);
+                return self.after_sending(carried, cx);
             }
             Err(Sent::Unsure(error)) => (Severity::Warning, "mail.write.unsure", error),
             Err(Sent::Failed(error)) => (Severity::Danger, "mail.write.failed", error),
@@ -401,34 +398,49 @@ impl Compose {
 
 impl Compose {
     /// Closes, unless edits came after what was sent.
-    fn after_sending(
-        &mut self,
-        carried: Option<Carried>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn after_sending(&mut self, carried: Option<Carried>, cx: &mut Context<Self>) {
         let Some(carried) = carried else {
             log::error!("mail: a send ended that was never started");
             return;
         };
         if self.reading == 0 && carried == self.carried(cx) {
-            return window.remove_window();
+            return self.sent_off(true, cx);
         }
         log::info!("mail: edits made while sending stay, unsent");
         self.base = carried;
         self.problem = Some((Severity::Info, text(cx, "mail.write.sent_later", &[])));
+        self.sent_off(false, cx);
         cx.notify();
     }
 }
 
 /// What one send carried.
-#[derive(PartialEq)]
-struct Carried {
+#[derive(Clone, PartialEq)]
+pub struct Carried {
     draft: Draft,
     words: String,
     files: Vec<u64>,
     from: AccountId,
     markdown: bool,
+}
+
+impl Carried {
+    /// The same message, but for outer spaces.
+    pub(super) fn blank_as(&self, base: &Carried) -> bool {
+        let words = self.words.trim() == base.words.trim();
+        words
+            && self.draft == base.draft
+            && self.files == base.files
+            && self.from == base.from
+            && self.markdown == base.markdown
+    }
+}
+
+/// A draft from the store, to write on.
+pub struct Reopened {
+    pub id: ely_mail_engine::DraftId,
+    pub unsent: ely_mail_engine::Unsent,
+    pub files: Vec<Part>,
 }
 
 fn blank() -> Draft {
@@ -454,40 +466,4 @@ impl From<Error> for Sent {
             other => Sent::Failed(other.to_string()),
         }
     }
-}
-
-/// The line or lines that introduce the earlier message.
-fn lead(how: How, mail: &ely_mail_engine::Mail, words: String, cx: &App) -> Before {
-    let sender = people(&mail.from);
-    let date = mail.date.map(local_time);
-    if how != How::Forward {
-        let lead = match &date {
-            Some(date) => text(
-                cx,
-                "mail.write.wrote",
-                &[("sender", &sender), ("date", date)],
-            ),
-            None => text(cx, "mail.write.wrote_undated", &[("sender", &sender)]),
-        };
-        return Before::Quoted {
-            lead: lead.to_string(),
-            text: words,
-        };
-    }
-    let line = |key: &str, value: &str| text(cx, key, &[("value", value)]).to_string();
-    let mut lead = vec![
-        text(cx, "mail.write.forwarded", &[]).to_string(),
-        line("mail.write.lead.from", &sender),
-    ];
-    lead.extend(date.map(|date| line("mail.write.lead.date", &date)));
-    lead.extend(
-        mail.subject
-            .iter()
-            .map(|it| line("mail.write.lead.subject", it)),
-    );
-    lead.push(line("mail.write.lead.to", &people(&mail.to)));
-    if !mail.cc.is_empty() {
-        lead.push(line("mail.write.lead.cc", &people(&mail.cc)));
-    }
-    Before::Forwarded { lead, text: words }
 }
