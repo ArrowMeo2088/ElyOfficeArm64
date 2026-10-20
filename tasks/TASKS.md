@@ -312,3 +312,8 @@
 - [x] R8.4 ElyMark 公式（§14）：行内公式排版（原只显示着色的 TeX 原文）；`\(…\)` 读作行内公式，`\[…\]` 读作块公式（组件库 dceca9f、e095f06、a20e712、5fba7b3、de961eb；`tex/tests.rs`、`math_text.rs` 与 ElyMark `visual.rs` 测试 — 第 1 轮：折行处的公式画错行、相邻公式合并、链接地址与 `<code>` 被换、`\$` 被拒、跨块成对、行内错误不显示、注释超长；第 2 轮：段首空格的块公式、嵌套 `<code>`、注释超长；第 3 轮：交叉闭合的标签，修后以测试核对，不再审查）
 - [x] R8.5 发布 0.1.8（用户 2026-10-18 定，要快）：版本号，打标签由发布流程三端建包、签名公证、上传（Windows 任务重跑通过；macOS 原在 LaunchDaemon 运行器上找不到签名证书，改到 `macos-signing`，本次在其会话里手动跑 `ci.sh`，公证并上传；发布说明中英两段）
 - [x] R8.6 答复 #8、#9，写已修于 0.1.8，修好的关闭；`agents.md` 随之（两条已答复并关闭；`agents.md` 记下签名运行器）
+
+## R9 GitHub #2 与 PR #1（用户 2026-10-19 定：发 0.1.9 前修好）
+
+- [x] R9.1 #2 ElyShow 点“编辑母版”即反复报“no visibility”（§10）：根因在内核：母版视图里 `getParts` 数母版、`getPartName` 给母版名，`getPartInfo` 却按同一序号读幻灯片；母版多于幻灯片时末几个序号无页，信息里没有 `visible`，`Doc::sheets` 照规则报错，每次重读都报；序号在幻灯片数以内时母版带着同号幻灯片的隐藏与尺寸。补丁 `0052-lok-impress-master-view-part-info.patch`：母版视图里按 `getPartName` 的读法取母版页。测试：`client/tests/show.rs` 的 `the_master_view_lists_its_masters`（隐藏一张幻灯片，进母版视图、加两个母版，三个母版都列出且都显示）在未打补丁的内核上报同一句“no visibility”，打上后通过；show 与 slides 的内核测试全过，`lo-patches.sh` 照样从中途接着打。Windows 内核已重建。未验证：macOS（报告所在的平台）与 Linux 的内核尚未重建，发布前在各自的共享引擎上重建
+- [x] R9.2 合并 PR #1（用户定）：选区画在已画好的图块之上，Omarchy 等主题的选区色不透明时盖住所选文字；画选区时不透明度至多 0.3，更低的照用（`view/render.rs`）。合并前在 Windows 上跑其测试 `selection_keeps_document_text_readable_across_themes` 通过，去掉上限即以对比度 1:1 失败；在 GitHub 以合并提交并入（bddf765），本地 main 随之合并
