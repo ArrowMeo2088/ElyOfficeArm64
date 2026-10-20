@@ -12,6 +12,7 @@ use crate::{Error, Result};
 
 mod accounts;
 mod aside;
+mod folders;
 mod html;
 mod messages;
 mod schema;
@@ -20,6 +21,7 @@ mod search;
 mod tests;
 
 pub use accounts::Cached;
+pub use folders::{Held, Synced};
 pub use messages::{Fetched, Key, Stored};
 
 const DB: &str = "mail.db";
@@ -68,6 +70,7 @@ impl Store {
 
     /// The mailbox by name, made on first use.
     pub fn mailbox(&self, account: AccountId, name: &str) -> Result<MailboxId> {
+        let name = mailbox_name(name);
         let find = "SELECT id FROM mailboxes WHERE account = ?1 AND name = ?2";
         if let Some(id) = self
             .conn
@@ -214,4 +217,12 @@ fn folder_size(folder: &Path) -> Result<u64> {
 
 fn disk(step: &str, err: io::Error) -> Error {
     Error::Store(format!("{step}: {err}"))
+}
+
+/// RFC 3501 §5.1: INBOX in any case is INBOX.
+fn mailbox_name(name: &str) -> &str {
+    match name.eq_ignore_ascii_case("INBOX") {
+        true => "INBOX",
+        false => name,
+    }
 }

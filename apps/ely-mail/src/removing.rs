@@ -55,6 +55,7 @@ impl Mail {
             return log::info!("mail: the account to remove is already gone");
         };
         let (id, name, vault) = (removing.id, account.secret_name(), self.vault.clone());
+        self.stop_sync(id);
         let address = removing.address;
         self.with_store(
             cx,
@@ -80,7 +81,10 @@ impl Mail {
                             cx,
                         );
                     }
-                    Err(error) => mail.failed("mail.remove.failed", &error, cx),
+                    Err(error) => {
+                        mail.failed("mail.remove.failed", &error, cx);
+                        mail.sync(id, cx);
+                    }
                 }
                 mail.read_accounts(cx);
             },

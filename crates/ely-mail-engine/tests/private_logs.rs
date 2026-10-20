@@ -27,8 +27,8 @@ async fn trace_logs_keep_no_password_token_or_mail() {
             expect(&format!("{{tag}} LOGIN \"ann@example.com\" \"{PASSWORD}\"")),
             send("{tag} OK in\n"),
             expect("{tag} EXAMINE \"INBOX\""),
-            send("{tag} OK done\n"),
-            expect("{tag} UID FETCH 7 BODY.PEEK[]"),
+            send("* 1 EXISTS\n* OK [UIDVALIDITY 7] v\n{tag} OK done\n"),
+            expect("{tag} UID FETCH 7 (UID FLAGS BODY.PEEK[])"),
             send(&format!(
                 "* 1 FETCH (UID 7 BODY[] {{{}}}\n{message})\n{{tag}} OK fetched\n",
                 message.replace('\n', "\r\n").len()

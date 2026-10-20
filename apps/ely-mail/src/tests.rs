@@ -10,7 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ely_mail_engine::{Account, Auth, Backend, Checked, Protocol, Security, Server, Store, Vault};
+use ely_mail_engine::{
+    Account, Auth, Backend, Checked, Protocol, Security, Server, Store, TlsConnector, Vault,
+};
 use gpui::{App, Entity, TestAppContext, VisualTestContext};
 
 use crate::{
@@ -20,6 +22,7 @@ use crate::{
 };
 
 mod flows;
+mod syncs;
 
 /// A credential store that keeps or refuses.
 #[derive(Clone, Default)]
@@ -70,6 +73,16 @@ pub(crate) fn window<'a>(
     dir: &Path,
     keys: Keys,
 ) -> (Entity<Mail>, &'a mut VisualTestContext) {
+    let tls = ely_mail_engine::system_tls().map_err(|err| err.to_string());
+    window_with(cx, dir, keys, tls)
+}
+
+pub(crate) fn window_with<'a>(
+    cx: &'a mut TestAppContext,
+    dir: &Path,
+    keys: Keys,
+    tls: Result<TlsConnector, String>,
+) -> (Entity<Mail>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(ely_gpui_component::init_for_tests);
     cx.update(|cx| {
@@ -89,7 +102,7 @@ pub(crate) fn window<'a>(
     let parts = Parts {
         store: Store::open(dir).map_err(|err| err.to_string()),
         vault: Vault::new(Box::new(keys)),
-        tls: ely_mail_engine::system_tls().map_err(|err| err.to_string()),
+        tls,
     };
     let (mail, cx) = cx.add_window_view(move |_, cx| Mail::new(parts, cx));
     settle(cx, |app| mail.read(app).accounts.is_some());
@@ -102,9 +115,10 @@ pub(crate) fn closed_port() -> u16 {
     listener.local_addr().unwrap().port()
 }
 
+/// On this machine's discard port, so syncs end at once.
 pub(crate) fn account(address: &str) -> Account {
-    let server = |host: &str, port| Server {
-        host: host.into(),
+    let server = |port| Server {
+        host: "127.0.0.1".into(),
         port,
         security: Security::Tls,
     };
@@ -113,8 +127,8 @@ pub(crate) fn account(address: &str) -> Account {
         user: address.into(),
         auth: Auth::Password,
         protocol: Protocol::Imap,
-        incoming: server("imap.example.com", 993),
-        outgoing: server("smtp.example.com", 465),
+        incoming: server(9),
+        outgoing: server(9),
     }
 }
 

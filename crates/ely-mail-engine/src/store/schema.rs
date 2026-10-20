@@ -1,5 +1,5 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1];
+pub(super) const STEPS: &[&str] = &[V1, V2];
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -49,4 +49,12 @@ CREATE VIRTUAL TABLE search USING fts5(
 CREATE TRIGGER messages_gone AFTER DELETE ON messages BEGIN
     DELETE FROM search WHERE rowid = old.id;
 END;
+";
+
+/// IMAP sync (C12.6).
+const V2: &str = "
+ALTER TABLE accounts ADD COLUMN synced INTEGER;
+ALTER TABLE mailboxes ADD COLUMN role TEXT;
+ALTER TABLE mailboxes ADD COLUMN uidvalidity INTEGER;
+ALTER TABLE messages ADD COLUMN missing TEXT NOT NULL DEFAULT '[]';
 ";

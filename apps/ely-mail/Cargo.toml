@@ -16,6 +16,7 @@ ely-mail-engine.workspace = true
 ely-platform.workspace = true
 ely-ui.workspace = true
 gpui.workspace = true
+jiff.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 

@@ -12,6 +12,7 @@ form_urlencoded = "1"
 getrandom.workspace = true
 html5ever.workspace = true
 imap-proto.workspace = true
+jiff.workspace = true
 log.workspace = true
 mail-builder.workspace = true
 mail-parser.workspace = true

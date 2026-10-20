@@ -8,7 +8,7 @@ use ely_gpui_component::{
     primitives::{IconName, Severity},
     typography::format,
 };
-use ely_mail_engine::{Account, Auth, Protocol, Security, Server};
+use ely_mail_engine::{Account, AccountId, Auth, Protocol, Security, Server, sync};
 use ely_platform::AppId;
 use ely_ui::Shell;
 use gpui::{
@@ -77,7 +77,7 @@ impl Mail {
             Some(Err(detail)) => return error("mail.store.unread", detail, cx),
             Some(Ok(accounts)) => accounts,
         };
-        let Some((_, account)) = accounts.iter().find(|(id, _)| Some(*id) == self.picked) else {
+        let Some((id, account)) = accounts.iter().find(|(id, _)| Some(*id) == self.picked) else {
             return EmptyState::new("mail-empty", IconName::Mail, text(cx, "mail.empty", &[]))
                 .action(self.add_button(cx))
                 .into_any_element();
@@ -97,6 +97,7 @@ impl Mail {
                 server(&account.outgoing, cx),
             )
             .text(label("mail.account.auth"), auth(account.auth, cx));
+        let (details, failed) = self.sync_rows(*id, details, cx);
         let remove = Button::new("mail-remove", label("mail.remove.open"))
             .on_click(|_, window, cx| window.dispatch_action(Box::new(menu::RemoveAccount), cx));
         div()
@@ -105,9 +106,51 @@ impl Mail {
             .flex_col()
             .gap_4()
             .max_w_128()
+            .children(failed)
             .child(details)
             .child(div().child(remove))
             .into_any_element()
+    }
+
+    /// When it last synced, what is here, why it failed.
+    fn sync_rows(
+        &self,
+        id: AccountId,
+        details: DescriptionList,
+        cx: &App,
+    ) -> (DescriptionList, Option<Banner>) {
+        let Some(syncing) = self.syncs.get(&id) else {
+            return (details, None);
+        };
+        let label = |key: &str| text(cx, key, &[]);
+        let last = match (&syncing.task, syncing.synced.and_then(|synced| synced.at)) {
+            (Some(_), _) => label("mail.sync.running"),
+            (None, Some(at)) => local_time(at).into(),
+            (None, None) => label("mail.sync.never"),
+        };
+        let days = sync::BODY_DAYS.to_string();
+        let mut details = details.text(label("mail.sync.last"), last).text(
+            label("mail.sync.range"),
+            text(cx, "mail.sync.range_value", &[("days", &days)]),
+        );
+        if let Some(synced) = syncing.synced {
+            for (key, n) in [
+                ("mail.sync.uncached", synced.uncached),
+                ("mail.sync.partial", synced.partial),
+            ] {
+                let value = format!("{key}_value");
+                let words = ely_ui::i18n::counted(cx, &value, n, &[("n", &n.to_string())]);
+                details = details.text(label(key), words);
+            }
+        }
+        let failed = syncing.failed.as_ref().map(|error| {
+            Banner::new(
+                "mail-sync-failed",
+                Severity::Danger,
+                text(cx, "mail.sync.failed", &[("error", error)]),
+            )
+        });
+        (details, failed)
     }
 
     fn remove_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -182,5 +225,19 @@ impl Render for Mail {
             .child(shell)
             .children(self.add_dialog(cx))
             .children(self.remove_dialog(cx))
+    }
+}
+
+/// Local time to the minute.
+fn local_time(at: i64) -> String {
+    match jiff::Timestamp::from_second(at) {
+        Ok(at) => at
+            .to_zoned(jiff::tz::TimeZone::system())
+            .strftime("%Y-%m-%d %H:%M")
+            .to_string(),
+        Err(error) => {
+            log::error!("mail: a sync time out of range: {error}");
+            at.to_string()
+        }
     }
 }

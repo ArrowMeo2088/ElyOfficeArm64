@@ -9,6 +9,7 @@ mod mail;
 mod menu;
 mod removing;
 mod side;
+mod syncing;
 mod view;
 
 #[cfg(test)]

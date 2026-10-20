@@ -13,7 +13,7 @@ use ely_ui::Root;
 use gpui::{App, AppContext as _, Context, Entity, FocusHandle, SharedString, WeakEntity, Window};
 use tokio::runtime::Runtime;
 
-use crate::{adding::Adding, removing::Removing, side::Side};
+use crate::{adding::Adding, removing::Removing, side::Side, syncing::Syncs};
 
 /// What the engine runs on and keeps to.
 pub struct Parts {
@@ -43,6 +43,7 @@ pub struct Mail {
     pub picked: Option<AccountId>,
     pub adding: Option<Adding>,
     pub removing: Option<Removing>,
+    pub syncs: Syncs,
     /// Numbers every request across dialogs.
     pub asked: u64,
     pub focus: FocusHandle,
@@ -100,6 +101,7 @@ impl Mail {
             picked: None,
             adding: None,
             removing: None,
+            syncs: Syncs::new(),
             asked: 0,
             focus: cx.focus_handle(),
             root: WeakEntity::new_invalid(),
@@ -113,7 +115,8 @@ impl Mail {
         self.with_store(
             cx,
             |store| store.accounts(),
-            |mail, read, _| {
+            |mail, read, cx| {
+                let first = mail.accounts.is_none();
                 if let Ok(accounts) = &read {
                     let still = |id| accounts.iter().any(|(each, _)| *each == id);
                     mail.picked = mail
@@ -122,6 +125,12 @@ impl Mail {
                         .or_else(|| accounts.first().map(|(id, _)| *id));
                 }
                 mail.accounts = Some(read);
+                if first {
+                    let ids: Vec<_> = mail.accounts().iter().map(|(id, _)| *id).collect();
+                    for id in ids {
+                        mail.sync(id, cx);
+                    }
+                }
             },
         );
     }

@@ -111,6 +111,34 @@ pub(super) const EN: &[(&str, &str)] = &[
     ("mail.remove.go", "Remove Account"),
     ("mail.remove.done", "{address} removed."),
     ("mail.remove.failed", "The account was not removed: {error}"),
+    ("mail.sync.last", "Last synced"),
+    ("mail.sync.running", "Syncing…"),
+    ("mail.sync.never", "Not yet"),
+    ("mail.sync.range", "Downloaded"),
+    (
+        "mail.sync.range_value",
+        "Headers of all mail; text from the last {days} days; attachments when asked",
+    ),
+    ("mail.sync.uncached", "Not downloaded"),
+    (
+        "mail.sync.uncached_value",
+        "{n} messages have only their headers here",
+    ),
+    (
+        "mail.sync.uncached_value.one",
+        "1 message has only its headers here",
+    ),
+    ("mail.sync.partial", "Attachments"),
+    (
+        "mail.sync.partial_value",
+        "{n} messages have attachments not downloaded",
+    ),
+    (
+        "mail.sync.partial_value.one",
+        "1 message has attachments not downloaded",
+    ),
+    ("mail.sync.failed", "The last sync failed: {error}"),
+    ("mail.sync.unread", "The sync state could not be read: {error}"),
 ];
 
 pub(super) const ZH_CN: &[(&str, &str)] = &[
@@ -212,4 +240,17 @@ pub(super) const ZH_CN: &[(&str, &str)] = &[
     ("mail.remove.go", "删除账号"),
     ("mail.remove.done", "已删除 {address}。"),
     ("mail.remove.failed", "账号没有删除：{error}"),
+    ("mail.sync.last", "上次同步"),
+    ("mail.sync.running", "正在同步…"),
+    ("mail.sync.never", "尚未同步"),
+    ("mail.sync.range", "已下载"),
+    ("mail.sync.range_value", "全部邮件的邮件头；最近 {days} 天的正文；附件按需下载"),
+    ("mail.sync.uncached", "未下载"),
+    ("mail.sync.uncached_value", "{n} 封邮件只有邮件头"),
+    ("mail.sync.uncached_value.one", "1 封邮件只有邮件头"),
+    ("mail.sync.partial", "附件"),
+    ("mail.sync.partial_value", "{n} 封邮件的附件未下载"),
+    ("mail.sync.partial_value.one", "1 封邮件的附件未下载"),
+    ("mail.sync.failed", "上次同步失败：{error}"),
+    ("mail.sync.unread", "读不出同步状态：{error}"),
 ];

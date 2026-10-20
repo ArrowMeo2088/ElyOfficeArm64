@@ -71,7 +71,7 @@ fn a_whole_message_is_indexed_and_kept_by_its_hash() {
     assert_eq!(stored.message_id.as_deref(), Some("m1@example.com"));
     assert_eq!(stored.flags, ["\\Seen"]);
     assert_eq!(stored.attachments, Some(1));
-    assert!(stored.whole);
+    assert!(stored.body);
     assert_eq!(store.original(id).unwrap().as_deref(), Some(raw.as_slice()));
     assert_eq!(std::fs::read(original_path(dir.path(), &raw)).unwrap(), raw);
     assert_eq!(found(dir.path(), "numbers"), [id.0]);
@@ -92,7 +92,7 @@ fn headers_first_then_the_whole_message() {
         .unwrap();
     let stored = store.get(id).unwrap();
     assert_eq!(stored.subject.as_deref(), Some("Café report"));
-    assert_eq!((stored.whole, stored.attachments), (false, None));
+    assert_eq!((stored.body, stored.attachments), (false, None));
     assert_eq!(store.original(id).unwrap(), None);
     assert_eq!(found(dir.path(), "report"), [id.0]);
     assert!(found(dir.path(), "numbers").is_empty());

@@ -9,16 +9,19 @@ pub mod oauth;
 mod pop;
 mod smtp;
 mod store;
+pub mod sync;
 mod vault;
 mod wire;
 
 pub use account::{Account, Auth, Checked, Protocol};
 pub use error::{Error, Result};
-pub use imap::Imap;
+pub use imap::{Folder, Got, Imap, Opened, Role};
 pub use mime::{Built, Draft, Mail, Mailbox, Part, build, read};
 pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
-pub use store::{AccountId, Cached, Fetched, Key, MailboxId, MessageId, Sizes, Store, Stored};
+pub use store::{
+    AccountId, Cached, Fetched, Held, Key, MailboxId, MessageId, Sizes, Store, Stored, Synced,
+};
 pub use tokio_rustls::TlsConnector;
 pub use vault::{Backend, Kept, Keyring, Vault};

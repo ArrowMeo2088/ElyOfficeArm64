@@ -2,8 +2,9 @@ use std::fs;
 
 use rusqlite::Connection;
 
+use super::folders::Synced;
 use super::{BACKUPS, DB, open, schema::STEPS};
-use crate::{Account, Auth, Error, Protocol, Security, Server};
+use crate::{Account, Auth, Error, Protocol, Role, Security, Server};
 
 fn account(address: &str) -> Account {
     let server = Server {
@@ -109,4 +110,45 @@ fn no_backup_means_no_upgrade() {
     assert!(reason.contains("no backup"), "{reason}");
     drop(store);
     assert_eq!(version(&dir.path().join(DB)), 1);
+}
+
+#[test]
+fn a_v1_store_gains_sync_and_keeps_its_mail() {
+    let dir = tempfile::tempdir().unwrap();
+    let old = open(dir.path(), &[STEPS[0]]).unwrap();
+    let ann = old.add_account(&account("ann@example.com")).unwrap();
+    old.conn
+        .execute_batch(&format!(
+            "INSERT INTO mailboxes (account, name) VALUES ({}, 'INBOX');
+             INSERT INTO messages (mailbox, uidvalidity, uid, in_reply_to, refs,
+                 sender, recipients, copies, content) VALUES
+                 (1, 7, 1, '[]', '[]', '[]', '[]', '[]', '{}'),
+                 (1, 6, 2, '[]', '[]', '[]', '[]', '[]', NULL);",
+            ann.0,
+            "a".repeat(64)
+        ))
+        .unwrap();
+    drop(old);
+    let mut store = open(dir.path(), STEPS).unwrap();
+    assert_eq!(store.read_only(), None);
+    assert_eq!(version(&dir.path().join(DB)), STEPS.len() as i64);
+    assert_eq!(backups(dir.path()).len(), 1);
+    let synced = Synced {
+        at: None,
+        messages: 2,
+        uncached: 1,
+        partial: 0,
+    };
+    assert_eq!(store.synced(ann).unwrap(), synced);
+    store
+        .set_folders(ann, &[("INBOX", Some(Role::Inbox))])
+        .unwrap();
+    let [(inbox, name, role)] = store.folders(ann).unwrap().try_into().unwrap();
+    assert_eq!((name.as_str(), role), ("INBOX", Some(Role::Inbox)));
+    let held = store.open_mailbox(inbox, 7).unwrap();
+    assert_eq!(held.keys().copied().collect::<Vec<_>>(), [1]);
+    assert!(held[&1].body);
+    store.set_synced(ann, 9).unwrap();
+    assert_eq!(store.synced(ann).unwrap().at, Some(9));
+    assert_eq!(store.synced(ann).unwrap().messages, 1);
 }

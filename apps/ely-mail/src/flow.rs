@@ -252,6 +252,7 @@ impl Mail {
                     accounts.push((id, account));
                 }
                 mail.picked = Some(id);
+                mail.sync(id, cx);
                 if mail.awaiting(asked).is_some() {
                     mail.adding = None;
                 }

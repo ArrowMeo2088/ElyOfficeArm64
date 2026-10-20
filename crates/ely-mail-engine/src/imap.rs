@@ -1,29 +1,90 @@
-use base64::{Engine, engine::general_purpose::STANDARD};
-use imap_proto::{AttributeValue, MailboxDatum, Response, Status};
-use tokio::io::{AsyncRead, AsyncWrite};
+use std::collections::HashMap;
+
+use imap_proto::{AttributeValue, Capability, MailboxDatum, NameAttribute, Response, ResponseCode};
 use tokio_rustls::TlsConnector;
 
 use crate::{
     Error, Result,
     net::{self, Login, Secret, Security, Server, Stream, within},
-    wire::{Wire, words},
 };
+
+mod conn;
+mod parts;
+
+use conn::{Arg, Conn};
+pub use parts::Node;
 
 /// A logged-in IMAP session over TLS.
 pub struct Imap {
     conn: Conn<Stream>,
 }
 
-/// One command argument.
-enum Arg<'a> {
-    /// Written as is.
-    Atom(&'a str),
-    /// Quoted, or a literal when quotes cannot carry it.
-    Text(&'a str),
+/// What a folder is for (RFC 6154; INBOX by name).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Role {
+    Inbox,
+    Sent,
+    Drafts,
+    Trash,
+    Junk,
+    Archive,
+    All,
+    Flagged,
 }
 
-/// OK, or the words of NO or BAD.
-type Outcome = std::result::Result<(), String>;
+impl Role {
+    pub fn name(self) -> &'static str {
+        match self {
+            Role::Inbox => "inbox",
+            Role::Sent => "sent",
+            Role::Drafts => "drafts",
+            Role::Trash => "trash",
+            Role::Junk => "junk",
+            Role::Archive => "archive",
+            Role::All => "all",
+            Role::Flagged => "flagged",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Role::Inbox,
+            Role::Sent,
+            Role::Drafts,
+            Role::Trash,
+            Role::Junk,
+            Role::Archive,
+            Role::All,
+            Role::Flagged,
+        ]
+        .into_iter()
+        .find(|role| role.name() == name)
+    }
+}
+
+/// One listed folder.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Folder {
+    pub name: String,
+    pub role: Option<Role>,
+    /// False for `\Noselect` and `\NonExistent`.
+    pub selectable: bool,
+}
+
+/// A folder opened read-only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Opened {
+    pub uidvalidity: u32,
+    pub exists: u32,
+}
+
+/// One fetched message: header, text or whole.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Got {
+    pub uid: u32,
+    pub flags: Vec<String>,
+    pub bytes: Vec<u8>,
+}
 
 impl Imap {
     pub async fn connect(server: &Server, login: &Login, tls: &TlsConnector) -> Result<Self> {
@@ -57,58 +118,308 @@ impl Imap {
         Ok(Self { conn })
     }
 
-    /// Every mailbox name the server lists.
-    pub async fn mailboxes(&mut self) -> Result<Vec<String>> {
-        let mut names = Vec::new();
-        let args = [Arg::Text(""), Arg::Atom("*")];
+    /// Every folder the server lists, with its role.
+    pub async fn folders(&mut self) -> Result<Vec<Folder>> {
+        let can = self.capabilities().await?;
+        let has = |name: &str| can.iter().any(|it| it.eq_ignore_ascii_case(name));
+        // RFC 6154 §2: roles may come only on request.
+        let extended = has("LIST-EXTENDED") && has("SPECIAL-USE");
+        let mut folders = Vec::new();
+        let all = [
+            Arg::Text(""),
+            Arg::Atom("*"),
+            Arg::Atom("RETURN (SPECIAL-USE)"),
+        ];
+        let args = if extended { &all[..] } else { &all[..2] };
         within(
             "listing mailboxes",
-            self.conn.run("LIST", &args, |response, raw| {
+            self.conn.run("LIST", args, |response, raw| {
                 if let Response::MailboxData(MailboxDatum::List(list)) = response {
-                    names.push(mailbox_name(&list.name, raw));
+                    let name = mailbox_name(&list.name, raw);
+                    folders.push(folder(name, &list.name_attributes));
                 }
             }),
         )
         .await??
         .map_err(Error::Server)?;
-        Ok(names)
+        Ok(folders)
+    }
+
+    async fn capabilities(&mut self) -> Result<Vec<String>> {
+        let mut can = Vec::new();
+        within(
+            "reading capabilities",
+            self.conn.run("CAPABILITY", &[], |response, _| {
+                if let Response::Capabilities(list) = response {
+                    can.extend(list.iter().filter_map(|it| match it {
+                        Capability::Atom(atom) => Some(atom.to_string()),
+                        _ => None,
+                    }));
+                }
+            }),
+        )
+        .await??
+        .map_err(Error::Server)?;
+        Ok(can)
+    }
+
+    pub async fn examine(&mut self, mailbox: &str) -> Result<Opened> {
+        let (mut uidvalidity, mut exists) = (None, None);
+        within(
+            "opening the mailbox",
+            self.conn.run(
+                "EXAMINE",
+                &[Arg::Text(mailbox)],
+                |response, _| match response {
+                    Response::Data { outcome, .. } => {
+                        if let Some(ResponseCode::UidValidity(value)) = &outcome.code {
+                            uidvalidity = Some(*value);
+                        }
+                    }
+                    Response::MailboxData(MailboxDatum::Exists(count)) => exists = Some(*count),
+                    _ => {}
+                },
+            ),
+        )
+        .await??
+        .map_err(Error::Server)?;
+        let uidvalidity = uidvalidity
+            .ok_or_else(|| Error::Protocol("the mailbox opened without a UIDVALIDITY".into()))?;
+        // RFC 3501 §6.3.1: EXISTS is required.
+        let exists =
+            exists.ok_or_else(|| Error::Protocol("the mailbox opened without EXISTS".into()))?;
+        Ok(Opened {
+            uidvalidity,
+            exists,
+        })
+    }
+
+    /// Every UID in the open mailbox with its flags.
+    pub async fn flags(&mut self) -> Result<Vec<(u32, Vec<String>)>> {
+        let got = self
+            .uid_fetch("1:*", "(UID FLAGS)", "reading flags")
+            .await?;
+        Ok(got.into_iter().map(|(uid, it)| (uid, it.flags)).collect())
+    }
+
+    /// Headers of `uids`; a UID gone meanwhile is absent.
+    pub async fn headers(&mut self, uids: &[u32]) -> Result<Vec<Got>> {
+        let what = "(UID FLAGS BODY.PEEK[HEADER])";
+        let got = self.uid_fetch(&set(uids), what, "fetching headers").await?;
+        asked(got, uids, "HEADER")
+    }
+
+    /// Whole messages of `uids`; a UID gone meanwhile is absent.
+    pub async fn bodies(&mut self, uids: &[u32]) -> Result<Vec<Got>> {
+        let what = "(UID FLAGS BODY.PEEK[])";
+        let got = self
+            .uid_fetch(&set(uids), what, "fetching messages")
+            .await?;
+        asked(got, uids, "")
+    }
+
+    /// Each UID's MIME tree; a UID gone meanwhile is absent.
+    pub async fn structures(&mut self, uids: &[u32]) -> Result<Vec<(u32, Node)>> {
+        let what = "(UID BODYSTRUCTURE)";
+        let mut got = self
+            .uid_fetch(&set(uids), what, "reading structures")
+            .await?;
+        let mut out = Vec::new();
+        for &uid in uids {
+            let Some(it) = got.remove(&uid) else {
+                continue;
+            };
+            let node = it
+                .structure
+                .ok_or_else(|| Error::Protocol(format!("UID {uid} came without a structure")))?;
+            out.push((uid, node?));
+        }
+        Ok(out)
+    }
+
+    /// The message without its left-out parts; `None` once gone.
+    pub async fn text(&mut self, uid: u32, node: &Node) -> Result<Option<Got>> {
+        let peeks: Vec<String> = node
+            .sections()
+            .iter()
+            .map(|section| format!("BODY.PEEK[{section}]"))
+            .collect();
+        let what = format!("(UID FLAGS {})", peeks.join(" "));
+        let mut got = self
+            .uid_fetch(&uid.to_string(), &what, "fetching message text")
+            .await?;
+        let Some(it) = got.remove(&uid) else {
+            return Ok(None);
+        };
+        Ok(Some(Got {
+            uid,
+            bytes: node.build(&it.sections)?,
+            flags: it.flags,
+        }))
+    }
+
+    /// UIDs of messages that arrived on or after `day` (`19-Jul-2026`).
+    pub async fn since(&mut self, day: &str) -> Result<Vec<u32>> {
+        let mut uids = Vec::new();
+        let args = [Arg::Atom("SINCE"), Arg::Atom(day)];
+        within(
+            "searching by date",
+            self.conn.run("UID SEARCH", &args, |response, _| {
+                if let Response::MailboxData(MailboxDatum::Search(found)) = response {
+                    uids.extend_from_slice(found);
+                }
+            }),
+        )
+        .await??
+        .map_err(Error::Server)?;
+        uids.sort_unstable();
+        Ok(uids)
     }
 
     /// The raw message; `None` once the UID is gone.
     pub async fn fetch(&mut self, mailbox: &str, uid: u32) -> Result<Option<Vec<u8>>> {
-        let examine = [Arg::Text(mailbox)];
-        within(
-            "opening the mailbox",
-            self.conn.run("EXAMINE", &examine, |_, _| {}),
-        )
-        .await??
-        .map_err(Error::Server)?;
-        let number = uid.to_string();
-        let args = [Arg::Atom(&number), Arg::Atom("BODY.PEEK[]")];
-        let mut found = None;
-        within(
-            "fetching the message",
-            self.conn.run("UID FETCH", &args, |response, _| {
-                if let Response::Fetch(_, values) = response
-                    && values.contains(&AttributeValue::Uid(uid))
-                {
-                    found = Some(body(values));
-                }
-            }),
-        )
-        .await??
-        .map_err(Error::Server)?;
-        match found {
-            None => Ok(None),
-            Some(None) => Err(Error::Protocol(format!("UID {uid} came without a body"))),
-            Some(Some(body)) => Ok(Some(body)),
-        }
+        self.examine(mailbox).await?;
+        Ok(self.bodies(&[uid]).await?.pop().map(|got| got.bytes))
     }
 
     pub async fn logout(mut self) -> Result<()> {
         within("logging out", self.conn.run("LOGOUT", &[], |_, _| {}))
             .await??
             .map_err(Error::Server)
+    }
+
+    /// Every FETCH for a UID, merged; flags may come apart.
+    async fn uid_fetch(
+        &mut self,
+        uids: &str,
+        what: &str,
+        step: &'static str,
+    ) -> Result<HashMap<u32, Fetch>> {
+        let mut got: HashMap<u32, Fetch> = HashMap::new();
+        let args = [Arg::Atom(uids), Arg::Atom(what)];
+        within(
+            step,
+            self.conn.run("UID FETCH", &args, |response, _| {
+                if let Response::Fetch(_, values) = response {
+                    merge(&mut got, values);
+                }
+            }),
+        )
+        .await??
+        .map_err(Error::Server)?;
+        Ok(got)
+    }
+}
+
+#[derive(Default)]
+struct Fetch {
+    flags: Vec<String>,
+    sections: HashMap<String, Vec<u8>>,
+    structure: Option<Result<Node>>,
+}
+
+/// Unsolicited FETCH responses without a UID are skipped.
+fn merge(got: &mut HashMap<u32, Fetch>, values: &[AttributeValue]) {
+    let Some(uid) = values.iter().find_map(|value| match value {
+        AttributeValue::Uid(uid) => Some(*uid),
+        _ => None,
+    }) else {
+        return;
+    };
+    let it = got.entry(uid).or_default();
+    for value in values {
+        match value {
+            AttributeValue::Flags(flags) => {
+                // \Recent belongs to one session.
+                it.flags = flags
+                    .iter()
+                    .filter(|flag| !flag.eq_ignore_ascii_case(r"\Recent"))
+                    .map(|flag| flag.to_string())
+                    .collect();
+                it.flags.sort();
+            }
+            AttributeValue::BodySection {
+                section,
+                data: Some(data),
+                ..
+            } => {
+                it.sections
+                    .insert(parts::section_key(section), data.to_vec());
+            }
+            AttributeValue::BodyStructure(structure) => {
+                it.structure = Some(Node::read(structure));
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The asked UIDs in order; each needs `section`.
+fn asked(mut got: HashMap<u32, Fetch>, uids: &[u32], section: &str) -> Result<Vec<Got>> {
+    let mut out = Vec::new();
+    for &uid in uids {
+        let Some(mut it) = got.remove(&uid) else {
+            continue;
+        };
+        let bytes = it
+            .sections
+            .remove(section)
+            .ok_or_else(|| Error::Protocol(format!("UID {uid} came without {section:?}")))?;
+        out.push(Got {
+            uid,
+            flags: it.flags,
+            bytes,
+        });
+    }
+    Ok(out)
+}
+
+/// `1:3,7` from sorted UIDs.
+fn set(uids: &[u32]) -> String {
+    let mut out = String::new();
+    let mut at = 0;
+    while at < uids.len() {
+        let start = uids[at];
+        let mut end = start;
+        while at + 1 < uids.len() && uids[at + 1] == end + 1 {
+            at += 1;
+            end = uids[at];
+        }
+        if !out.is_empty() {
+            out.push(',');
+        }
+        match start == end {
+            true => out.push_str(&start.to_string()),
+            false => out.push_str(&format!("{start}:{end}")),
+        }
+        at += 1;
+    }
+    out
+}
+
+fn folder(name: String, attributes: &[NameAttribute]) -> Folder {
+    let mut role = name.eq_ignore_ascii_case("INBOX").then_some(Role::Inbox);
+    let mut selectable = true;
+    for attribute in attributes {
+        match attribute {
+            NameAttribute::NoSelect => selectable = false,
+            NameAttribute::Extension(other) if other.eq_ignore_ascii_case("\\NonExistent") => {
+                selectable = false
+            }
+            NameAttribute::Sent => role = Some(Role::Sent),
+            NameAttribute::Drafts => role = Some(Role::Drafts),
+            NameAttribute::Trash => role = Some(Role::Trash),
+            NameAttribute::Junk => role = Some(Role::Junk),
+            NameAttribute::Archive => role = Some(Role::Archive),
+            NameAttribute::All => role = Some(Role::All),
+            NameAttribute::Flagged => role = Some(Role::Flagged),
+            _ => {}
+        }
+    }
+    Folder {
+        name,
+        role,
+        selectable,
     }
 }
 
@@ -137,189 +448,11 @@ fn mailbox_name(name: &str, raw: &[u8]) -> String {
     plain
 }
 
-fn body(values: &[AttributeValue]) -> Option<Vec<u8>> {
-    values.iter().find_map(|value| match value {
-        AttributeValue::BodySection {
-            section: None,
-            data: Some(data),
-            ..
-        } => Some(data.to_vec()),
-        _ => None,
-    })
-}
-
-struct Conn<S> {
-    wire: Wire<S>,
-    tags: u32,
-}
-
-impl<S: AsyncRead + AsyncWrite + Unpin> Conn<S> {
-    fn new(io: S) -> Self {
-        Self {
-            wire: Wire::new(io),
-            tags: 0,
-        }
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_uid_set_joins_runs() {
+        assert_eq!(super::set(&[1, 2, 3, 7, 9, 10]), "1:3,7,9:10");
+        assert_eq!(super::set(&[5]), "5");
     }
-
-    /// `* BYE` ends with the server's words.
-    async fn greeting(&mut self) -> Result<()> {
-        self.wire
-            .next(|response, raw| match response {
-                Response::Data {
-                    status: Status::Ok, ..
-                } => Ok(()),
-                Response::Data {
-                    status: Status::Bye,
-                    ..
-                } => Err(Error::Server(words(raw))),
-                Response::Data { status, .. } => Err(Error::Protocol(format!(
-                    "the greeting was {status:?}, not OK"
-                ))),
-                _ => Err(Error::Protocol("the first line was not a greeting".into())),
-            })
-            .await?
-    }
-
-    fn tag(&mut self) -> String {
-        self.tags += 1;
-        format!("A{}", self.tags)
-    }
-
-    /// Sends a command; untagged responses go to `each`.
-    async fn run(
-        &mut self,
-        verb: &str,
-        args: &[Arg<'_>],
-        mut each: impl FnMut(&Response, &[u8]),
-    ) -> Result<Outcome> {
-        let tag = self.tag();
-        log::debug!("mail: IMAP {tag} {verb}");
-        let mut line = format!("{tag} {verb}").into_bytes();
-        for arg in args {
-            line.push(b' ');
-            match arg {
-                Arg::Atom(atom) => line.extend_from_slice(atom.as_bytes()),
-                Arg::Text(text) => match quoted(text)? {
-                    Some(quoted) => line.extend_from_slice(quoted.as_bytes()),
-                    None => {
-                        line.extend_from_slice(format!("{{{}}}\r\n", text.len()).as_bytes());
-                        self.wire.write(&line).await?;
-                        line.clear();
-                        if let Err(words) = self.proceed(&tag, &mut each).await? {
-                            return Ok(Err(words));
-                        }
-                        line.extend_from_slice(text.as_bytes());
-                    }
-                },
-            }
-        }
-        line.extend_from_slice(b"\r\n");
-        self.wire.write(&line).await?;
-        loop {
-            match self.step(&tag, &mut each).await? {
-                Step::Done(outcome) => return Ok(outcome),
-                Step::Untagged => {}
-                Step::Continue => {
-                    return Err(Error::Protocol(
-                        "the server asked for more than was sent".into(),
-                    ));
-                }
-            }
-        }
-    }
-
-    /// Waits for `+` before a literal.
-    async fn proceed(
-        &mut self,
-        tag: &str,
-        each: &mut impl FnMut(&Response, &[u8]),
-    ) -> Result<Outcome> {
-        loop {
-            match self.step(tag, each).await? {
-                Step::Continue => return Ok(Ok(())),
-                Step::Done(Ok(())) => {
-                    return Err(Error::Protocol(
-                        "the command ended before its literal".into(),
-                    ));
-                }
-                Step::Done(refused) => return Ok(refused),
-                Step::Untagged => {}
-            }
-        }
-    }
-
-    /// Answers the first challenge; empty after, so a refusal ends.
-    async fn xoauth2(&mut self, initial: &str) -> Result<Outcome> {
-        let tag = self.tag();
-        self.wire
-            .write(format!("{tag} AUTHENTICATE XOAUTH2\r\n").as_bytes())
-            .await?;
-        let mut answer = Some(STANDARD.encode(initial));
-        loop {
-            match self.step(&tag, &mut |_, _| {}).await? {
-                Step::Continue => {
-                    let line = answer.take().unwrap_or_default() + "\r\n";
-                    self.wire.write(line.as_bytes()).await?;
-                }
-                Step::Done(outcome) => return Ok(outcome),
-                Step::Untagged => {}
-            }
-        }
-    }
-
-    async fn step(&mut self, tag: &str, each: &mut impl FnMut(&Response, &[u8])) -> Result<Step> {
-        self.wire
-            .next(|response, raw| match response {
-                Response::Continue(_) => Ok(Step::Continue),
-                Response::Done {
-                    tag: done, status, ..
-                } => {
-                    if done.0 != tag {
-                        return Err(Error::Protocol(format!(
-                            "a reply for {} came while waiting for {tag}",
-                            done.0
-                        )));
-                    }
-                    match status {
-                        Status::Ok => Ok(Step::Done(Ok(()))),
-                        Status::No | Status::Bad => Ok(Step::Done(Err(words(raw)))),
-                        other => Err(Error::Protocol(format!("{tag} ended with {other:?}"))),
-                    }
-                }
-                untagged => {
-                    each(untagged, raw);
-                    Ok(Step::Untagged)
-                }
-            })
-            .await?
-    }
-}
-
-enum Step {
-    Continue,
-    Untagged,
-    Done(Outcome),
-}
-
-/// `None` when only a literal can carry the text.
-fn quoted(text: &str) -> Result<Option<String>> {
-    if text.contains('\0') {
-        return Err(Error::Invalid("IMAP cannot carry a NUL byte".into()));
-    }
-    if !text
-        .bytes()
-        .all(|byte| byte.is_ascii() && byte != b'\r' && byte != b'\n')
-    {
-        return Ok(None);
-    }
-    let mut quoted = String::with_capacity(text.len() + 2);
-    quoted.push('"');
-    for char in text.chars() {
-        if char == '"' || char == '\\' {
-            quoted.push('\\');
-        }
-        quoted.push(char);
-    }
-    quoted.push('"');
-    Ok(Some(quoted))
 }

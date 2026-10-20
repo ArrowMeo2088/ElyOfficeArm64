@@ -1,7 +1,7 @@
 mod fake;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
-use ely_mail_engine::{Error, Imap, Secret, Security, system_tls};
+use ely_mail_engine::{Error, Imap, Role, Secret, Security, system_tls};
 use fake::{certs, expect, login, send, serve};
 use tokio::task::JoinHandle;
 
@@ -19,13 +19,15 @@ async fn a_password_login_lists_and_fetches() {
             send("* OK ready\n"),
             expect("{tag} LOGIN \"ann@example.com\" \"pw 1\""),
             send("{tag} OK done\n"),
+            expect("{tag} CAPABILITY"),
+            send("* CAPABILITY IMAP4rev1\n{tag} OK caps\n"),
             expect("{tag} LIST \"\" *"),
             send("* LIST (\\HasNoChildren) \"/\" INBOX\n"),
             send("* LIST (\\HasNoChildren \\Sent) \"/\" \"Sent Mail\"\n"),
             send("{tag} OK listed\n"),
             expect("{tag} EXAMINE \"INBOX\""),
             send("* 1 EXISTS\n* OK [UIDVALIDITY 7] v\n{tag} OK [READ-ONLY] in\n"),
-            expect("{tag} UID FETCH 42 BODY.PEEK[]"),
+            expect("{tag} UID FETCH 42 (UID FLAGS BODY.PEEK[])"),
             send(&format!(
                 "* 1 FETCH (UID 42 BODY[] {{{}}}\n{lines})\n{{tag}} OK fetched\n",
                 body.len()
@@ -42,7 +44,15 @@ async fn a_password_login_lists_and_fetches() {
     )
     .await
     .unwrap();
-    assert_eq!(imap.mailboxes().await.unwrap(), ["INBOX", "Sent Mail"]);
+    let folders = imap.folders().await.unwrap();
+    let names: Vec<_> = folders.iter().map(|f| (f.name.as_str(), f.role)).collect();
+    assert_eq!(
+        names,
+        [
+            ("INBOX", Some(Role::Inbox)),
+            ("Sent Mail", Some(Role::Sent))
+        ]
+    );
     let fetched = imap.fetch("INBOX", 42).await.unwrap().unwrap();
     assert_eq!(String::from_utf8(fetched).unwrap(), body);
     imap.logout().await.unwrap();
@@ -151,8 +161,8 @@ async fn a_missing_uid_is_none() {
             expect("{tag} LOGIN \"ann@example.com\" \"pw\""),
             send("{tag} OK done\n"),
             expect("{tag} EXAMINE \"INBOX\""),
-            send("{tag} OK in\n"),
-            expect("{tag} UID FETCH 9 BODY.PEEK[]"),
+            send("* 1 EXISTS\n* OK [UIDVALIDITY 7] v\n{tag} OK in\n"),
+            expect("{tag} UID FETCH 9 (UID FLAGS BODY.PEEK[])"),
             send("{tag} OK nothing\n"),
         ],
     )
@@ -178,6 +188,8 @@ async fn an_unreadable_reply_is_a_protocol_error() {
             send("* OK ready\n"),
             expect("{tag} LOGIN \"ann@example.com\" \"pw\""),
             send("{tag} OK done\n"),
+            expect("{tag} CAPABILITY"),
+            send("* CAPABILITY IMAP4rev1\n{tag} OK caps\n"),
             expect("{tag} LIST \"\" *"),
             send("* LIST (((\n"),
         ],
@@ -190,7 +202,7 @@ async fn an_unreadable_reply_is_a_protocol_error() {
     )
     .await
     .unwrap();
-    let err = imap.mailboxes().await.unwrap_err();
+    let err = imap.folders().await.unwrap_err();
     assert!(matches!(err, Error::Protocol(_)), "{err}");
     script.await.unwrap().unwrap();
 }
@@ -257,18 +269,26 @@ async fn logged_in(steps: Vec<fake::Step>) -> (Imap, JoinHandle<Result<(), Strin
 #[tokio::test]
 async fn listed_names_lose_quote_escapes_and_open_as_listed() {
     let (mut imap, script) = logged_in(vec![
+        expect("{tag} CAPABILITY"),
+        send("* CAPABILITY IMAP4rev1\n{tag} OK caps\n"),
         expect("{tag} LIST \"\" *"),
         send("* LIST () \"/\" \"a\\\"b\"\n"),
         send("* LIST () \"/\" \"c\\\\d\"\n"),
         send("* LIST () \"/\" {3}\ne\\\"\n"),
         send("{tag} OK listed\n"),
         expect("{tag} EXAMINE \"a\\\"b\""),
-        send("{tag} OK in\n"),
-        expect("{tag} UID FETCH 9 BODY.PEEK[]"),
+        send("* 1 EXISTS\n* OK [UIDVALIDITY 7] v\n{tag} OK in\n"),
+        expect("{tag} UID FETCH 9 (UID FLAGS BODY.PEEK[])"),
         send("{tag} OK nothing\n"),
     ])
     .await;
-    let names = imap.mailboxes().await.unwrap();
+    let names: Vec<_> = imap
+        .folders()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|f| f.name)
+        .collect();
     assert_eq!(names, ["a\"b", "c\\d", "e\\\""]);
     assert_eq!(imap.fetch(&names[0], 9).await.unwrap(), None);
     script.await.unwrap().unwrap();
@@ -277,12 +297,14 @@ async fn listed_names_lose_quote_escapes_and_open_as_listed() {
 #[tokio::test]
 async fn a_refused_list_keeps_the_server_words() {
     let (mut imap, script) = logged_in(vec![
+        expect("{tag} CAPABILITY"),
+        send("* CAPABILITY IMAP4rev1\n{tag} OK caps\n"),
         expect("{tag} LIST \"\" *"),
         send("* LIST () \"/\" INBOX\n"),
         send("{tag} NO [UNAVAILABLE] Mailbox listing temporarily unavailable\n"),
     ])
     .await;
-    let err = imap.mailboxes().await.unwrap_err();
+    let err = imap.folders().await.unwrap_err();
     assert!(
         matches!(&err, Error::Server(text) if text.contains("listing temporarily unavailable")),
         "{err}"
@@ -294,8 +316,8 @@ async fn a_refused_list_keeps_the_server_words() {
 async fn a_refused_fetch_is_not_a_missing_uid() {
     let (mut imap, script) = logged_in(vec![
         expect("{tag} EXAMINE \"INBOX\""),
-        send("{tag} OK in\n"),
-        expect("{tag} UID FETCH 9 BODY.PEEK[]"),
+        send("* 1 EXISTS\n* OK [UIDVALIDITY 7] v\n{tag} OK in\n"),
+        expect("{tag} UID FETCH 9 (UID FLAGS BODY.PEEK[])"),
         send("{tag} NO [UNAVAILABLE] Message store temporarily unavailable\n"),
     ])
     .await;
@@ -335,11 +357,13 @@ async fn a_bye_after_login_keeps_the_server_words() {
     script.await.unwrap().unwrap();
 
     let (mut imap, script) = logged_in(vec![
+        expect("{tag} CAPABILITY"),
+        send("* CAPABILITY IMAP4rev1\n{tag} OK caps\n"),
         expect("{tag} LIST \"\" *"),
         send("* BYE Shutting down\n"),
     ])
     .await;
-    let err = imap.mailboxes().await.unwrap_err();
+    let err = imap.folders().await.unwrap_err();
     assert!(
         matches!(&err, Error::Server(text) if text.contains("Shutting down")),
         "{err}"

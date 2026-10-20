@@ -22,6 +22,11 @@ pub enum Key {
 /// What a sync brought down.
 pub enum Fetched<'a> {
     Headers(&'a [u8]),
+    /// Left-out parts are empty and named by part number.
+    Text {
+        bytes: &'a [u8],
+        missing: &'a [String],
+    },
     Whole(&'a [u8]),
 }
 
@@ -40,13 +45,15 @@ pub struct Stored {
     pub to: Vec<Mailbox>,
     pub cc: Vec<Mailbox>,
     pub date: Option<i64>,
-    /// None until the whole message is here.
+    /// None until the body is here.
     pub attachments: Option<u32>,
-    pub whole: bool,
+    pub body: bool,
+    /// Part numbers not downloaded; their content is empty.
+    pub missing: Vec<String>,
 }
 
 const COLUMNS: &str = "id, mailbox, uidvalidity, uid, uidl, message_id, in_reply_to, refs, \
-                       subject, sender, recipients, copies, date, attachments, content";
+                       subject, sender, recipients, copies, date, attachments, content, missing";
 
 impl Store {
     pub fn find(&self, mailbox: MailboxId, key: &Key) -> Result<Option<MessageId>> {
@@ -75,7 +82,7 @@ impl Store {
     ) -> Result<MessageId> {
         self.writable()?;
         let existing = self.find(mailbox, key)?;
-        let bytes = match (fetched, existing) {
+        let (bytes, missing): (&[u8], &[String]) = match (fetched, existing) {
             (Fetched::Headers(_), Some(id)) => {
                 self.set_flags(id, flags)?;
                 return Ok(id);
@@ -84,11 +91,13 @@ impl Store {
                 let mail = read(bytes)?;
                 return self.write(mailbox, key, flags, &mail, None, None);
             }
-            (Fetched::Whole(bytes), _) => bytes,
+            (Fetched::Text { bytes, missing }, _) => (bytes, missing),
+            (Fetched::Whole(bytes), _) => (bytes, &[][..]),
         };
         let mail = read(bytes)?;
         let (content, made) = self.keep(bytes)?;
-        let written = self.write(mailbox, key, flags, &mail, Some(&content), existing);
+        let body = Some((content.as_str(), missing));
+        let written = self.write(mailbox, key, flags, &mail, body, existing);
         if written.is_err() && made {
             let mut aside = Aside::new(&self.dir);
             let gone = aside.drop_unused(&self.conn, &content);
@@ -105,9 +114,11 @@ impl Store {
         key: &Key,
         flags: &[&str],
         mail: &Mail,
-        content: Option<&str>,
+        body: Option<(&str, &[String])>,
         existing: Option<MessageId>,
     ) -> Result<MessageId> {
+        let content = body.map(|(content, _)| content);
+        let missing = body.map_or(&[][..], |(_, missing)| missing);
         let (uidvalidity, uid, uidl) = match key {
             Key::Imap { uidvalidity, uid } => (Some(*uidvalidity), Some(*uid), None),
             Key::Pop { uidl } => (None, None, Some(uidl.as_str())),
@@ -119,6 +130,7 @@ impl Store {
             serde_json::to_string(&mail.from)?,
             serde_json::to_string(&mail.to)?,
             serde_json::to_string(&mail.cc)?,
+            serde_json::to_string(missing)?,
         ];
         let mut values: Vec<&dyn ToSql> = vec![
             &mail.message_id,
@@ -131,6 +143,7 @@ impl Store {
             &mail.date,
             &attachments,
             &content,
+            &json[5],
         ];
         let tx = self.conn.transaction()?;
         let mut aside = Aside::new(&self.dir);
@@ -147,7 +160,7 @@ impl Store {
                     tx.execute(
                         "UPDATE messages SET message_id = ?1, in_reply_to = ?2, refs = ?3,
                          subject = ?4, sender = ?5, recipients = ?6, copies = ?7, date = ?8,
-                         attachments = ?9, content = ?10 WHERE id = ?11",
+                         attachments = ?9, content = ?10, missing = ?11 WHERE id = ?12",
                         values.as_slice(),
                     )?;
                     *id
@@ -156,9 +169,9 @@ impl Store {
                     values.extend::<[&dyn ToSql; 4]>([&mailbox.0, &uidvalidity, &uid, &uidl]);
                     tx.execute(
                         "INSERT INTO messages (message_id, in_reply_to, refs, subject, sender,
-                         recipients, copies, date, attachments, content, mailbox, uidvalidity,
-                         uid, uidl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                         ?13, ?14)",
+                         recipients, copies, date, attachments, content, missing, mailbox,
+                         uidvalidity, uid, uidl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                         ?11, ?12, ?13, ?14, ?15)",
                         values.as_slice(),
                     )?;
                     MessageId(tx.last_insert_rowid())
@@ -295,7 +308,8 @@ fn row(row: &Row) -> Result<Stored> {
         cc: serde_json::from_str(&json(11)?)?,
         date: row.get(12)?,
         attachments: row.get(13)?,
-        whole: row.get::<_, Option<String>>(14)?.is_some(),
+        body: row.get::<_, Option<String>>(14)?.is_some(),
+        missing: serde_json::from_str(&json(15)?)?,
     })
 }
 
