@@ -88,6 +88,17 @@ jobs:
           fi
           ls -l "target/$CARGO_BUILD_TARGET/release" | grep '\.exe$' || true
 
+      - name: Architecture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem "target/$env:CARGO_BUILD_TARGET/release/*.exe" | ForEach-Object {
+            $b = [IO.File]::ReadAllBytes($_.FullName)
+            $machine = '0x{0:X4}' -f [BitConverter]::ToUInt16($b, [BitConverter]::ToInt32($b, 0x3C) + 4)
+            "{0,-20} {1}" -f $_.Name, $machine
+            if ($machine -ne '0xAA64') { throw "$($_.Name) is not ARM64" }
+          }
+
       - name: Package
         id: pkg
         shell: pwsh
@@ -131,4 +142,9 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+            --title "Ely Office $GITHUB_REF_NAME (Windows arm64)" \
+            --notes="Built by GitHub's runner with MSVC v143. No engine inside: Doc, Table and Show need an arm64 LibreOffice kernel beside them; ElyPDF needs tessdata for OCR." \
+            || gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
