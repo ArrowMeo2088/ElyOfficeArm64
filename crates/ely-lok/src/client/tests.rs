@@ -4,10 +4,12 @@ use super::*;
 
 mod analysis;
 mod borders;
+mod cell_looks;
 mod charts;
 mod check;
 mod commands;
 mod filter;
+mod fonts;
 mod format;
 mod formula;
 mod handouts;
