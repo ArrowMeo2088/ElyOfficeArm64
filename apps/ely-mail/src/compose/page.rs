@@ -197,6 +197,7 @@ impl Render for Compose {
             .cc(self.cc.clone())
             .bcc(self.bcc.clone())
             .subject(self.subject.clone())
+            .contacts(self.offered.clone())
             .busy(self.sending || self.reading > 0)
             .check(compose::is_address)
             .on_change(move |draft, _, cx| {

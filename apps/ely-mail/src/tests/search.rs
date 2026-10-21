@@ -162,3 +162,53 @@ fn a_found_message_moves_within_its_own_account() {
     });
     assert_eq!(targets, Some((bob, vec![])));
 }
+
+#[test]
+fn a_window_opened_from_the_tray_keeps_the_search() {
+    let dir = tempfile::tempdir().unwrap();
+    seeded(dir.path());
+    let mut cx = TestAppContext::single();
+    let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
+    typed(&mail, "kept", cx);
+    shows(&mail, cx, &["kept"]);
+    let before = cx.update(|_, app| mail.read(app).seeking.input.clone());
+    cx.update(|window, app| mail.update(app, |mail, cx| mail.rehome(window, cx)));
+    let after = cx.update(|_, app| mail.read(app).seeking.input.clone());
+    assert_ne!(before, after, "a new box for the new window");
+    assert_eq!(cx.update(|_, app| after.read(app).text().to_owned()), "kept");
+    typed(&mail, "", cx);
+    shows(&mail, cx, &["new", "bob", "old"]);
+}
+
+#[test]
+fn a_new_mail_notice_ends_the_search() {
+    let dir = tempfile::tempdir().unwrap();
+    seeded(dir.path());
+    let mut cx = TestAppContext::single();
+    let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
+    shows(&mail, cx, &["new", "bob", "old"]);
+    typed(&mail, "kept", cx);
+    shows(&mail, cx, &["kept"]);
+    let response = gpui::SystemNotificationResponse { tag: "mail-new-1".into(), action_id: None };
+    cx.simulate_system_notification_response(response);
+    cx.run_until_parked();
+    shows(&mail, cx, &["new", "bob", "old"]);
+    cx.update(|_, app| assert!(mail.read(app).seeking.input.read(app).is_empty()));
+    assert_eq!(cx.update(|_, app| mail.read(app).open), Open::Inboxes);
+}
+
+#[test]
+fn a_new_mail_notice_clears_the_filters() {
+    let dir = tempfile::tempdir().unwrap();
+    seeded(dir.path());
+    let mut cx = TestAppContext::single();
+    let (mail, cx) = window(&mut cx, dir.path(), Keys::default());
+    shows(&mail, cx, &["new", "bob", "old"]);
+    let filter = ely_mail_engine::Filter { flagged: true, attachments: true, ..Default::default() };
+    cx.update(|_, app| mail.update(app, |mail, cx| mail.set_filter(filter, cx)));
+    let response = gpui::SystemNotificationResponse { tag: "mail-new-1".into(), action_id: None };
+    cx.simulate_system_notification_response(response);
+    cx.run_until_parked();
+    shows(&mail, cx, &["new", "bob", "old"]);
+    assert_eq!(cx.update(|_, app| mail.read(app).filter), ely_mail_engine::Filter::default());
+}

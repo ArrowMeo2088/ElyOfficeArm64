@@ -49,11 +49,9 @@ fn a_removed_account_folder_or_message_leaves_its_id_unused() {
 #[test]
 fn a_v3_store_keeps_its_ids_and_stops_reusing_them() {
     let dir = tempfile::tempdir().unwrap();
-    let mut old = open(dir.path(), &STEPS[..3]).unwrap();
+    let old = open(dir.path(), &STEPS[..3]).unwrap();
     let ann = old.add_account(&account("ann@example.com")).unwrap();
-    let [inbox] = old
-        .set_folders(ann, &[("INBOX", Some(Role::Inbox))])
-        .unwrap()
+    let [inbox] = super::old_folders(&old, ann, &[("INBOX", Some(Role::Inbox))])
         .try_into()
         .unwrap();
     old.conn
@@ -84,11 +82,9 @@ fn a_v3_store_keeps_its_ids_and_stops_reusing_them() {
 #[test]
 fn a_flagged_headers_only_v5_message_upgrades_and_stays_writable() {
     let dir = tempfile::tempdir().unwrap();
-    let mut old = open(dir.path(), &STEPS[..5]).unwrap();
+    let old = open(dir.path(), &STEPS[..5]).unwrap();
     let ann = old.add_account(&account("ann@example.com")).unwrap();
-    let [inbox] = old
-        .set_folders(ann, &[("INBOX", Some(Role::Inbox))])
-        .unwrap()
+    let [inbox] = super::old_folders(&old, ann, &[("INBOX", Some(Role::Inbox))])
         .try_into()
         .unwrap();
     old.conn

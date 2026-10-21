@@ -1,5 +1,7 @@
 //! Opening a message to write, and handing it over (C12.12).
 
+use std::path::PathBuf;
+
 use ely_mail_engine::{
     AccountId, Draft, Error, Identity, Letter, Mail as Message, Mailbox, MessageId, Part, Result,
     Store, build,
@@ -7,7 +9,7 @@ use ely_mail_engine::{
     read,
 };
 use ely_platform::AppId;
-use gpui::{App, AppContext as _, Context, WeakEntity, Window, px, size};
+use gpui::{App, AppContext as _, Context, WeakEntity, Window, WindowHandle, px, size};
 
 use crate::{
     compose::{Compose, Reopened},
@@ -182,7 +184,8 @@ pub fn guard_leaving(mail: WeakEntity<Mail>, window: &mut Window, cx: &mut App) 
             cx.quit();
         }
     });
-    ely_gpui_component::shell::guard_close(window, cx, move |_, cx| may_leave(&mail, cx));
+    // A kept window closes to the tray; only quitting asks.
+    ely_gpui_component::shell::guard_close(window, cx, move |_, cx| ely_ui::tray::kept(cx) || may_leave(&mail, cx));
 }
 
 /// True when every message, then the Outbox, lets it go.
@@ -208,6 +211,11 @@ fn may_leave(mail: &WeakEntity<Mail>, cx: &mut App) -> bool {
 impl Mail {
     /// A blank message from the open account, else the first.
     pub fn write_new(&mut self, cx: &mut Context<Self>) {
+        self.write_with(Vec::new(), cx);
+    }
+
+    /// A new message carrying `files` (§16); it never sends itself.
+    pub fn write_with(&mut self, files: Vec<PathBuf>, cx: &mut Context<Self>) {
         let preferred = self.open.account();
         self.with_store(
             cx,
@@ -224,7 +232,7 @@ impl Mail {
                     let from = preferred
                         .filter(|id| senders.iter().any(|sender| sender.id == *id))
                         .unwrap_or(senders[0].id);
-                    mail.open_compose(
+                    let opened = mail.open_compose(
                         Opening {
                             senders,
                             from,
@@ -233,6 +241,9 @@ impl Mail {
                         },
                         cx,
                     );
+                    if let Some(window) = opened.filter(|_| !files.is_empty()) {
+                        window.update(cx, |compose, _, cx| compose.attach(files, cx)).ok();
+                    }
                 }
                 Err(error) => mail.failed("mail.write.unread", &error, cx),
             },
@@ -245,13 +256,15 @@ impl Mail {
             cx,
             move |store| answered(store, id, how),
             |mail, read, cx| match read {
-                Ok(opening) => mail.open_compose(opening, cx),
+                Ok(opening) => {
+                    mail.open_compose(opening, cx);
+                }
                 Err(error) => mail.failed("mail.write.unread", &error, cx),
             },
         );
     }
 
-    pub fn open_compose(&mut self, opening: Opening, cx: &mut Context<Self>) {
+    pub fn open_compose(&mut self, opening: Opening, cx: &mut Context<Self>) -> Option<WindowHandle<Compose>> {
         let mut options = ely_ui::window_options(AppId::Mail, size(px(760.0), px(680.0)), cx);
         let subject = match (&opening.draft, &opening.answered) {
             (Some(draft), _) => Some(&draft.unsent.subject),
@@ -270,8 +283,15 @@ impl Mail {
             cx.new(|cx| Compose::new(this, opening, window, cx))
         });
         match opened {
-            Ok(_) => log::info!("mail: a compose window opened"),
-            Err(error) => self.failed("mail.write.unopened", &format!("{error:#}"), cx),
+            Ok(window) => {
+                log::info!("mail: a compose window opened");
+                self.offer_contacts(window, cx);
+                Some(window)
+            }
+            Err(error) => {
+                self.failed("mail.write.unopened", &format!("{error:#}"), cx);
+                None
+            }
         }
     }
 }

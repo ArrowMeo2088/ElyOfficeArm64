@@ -1,5 +1,3 @@
-mod fake;
-
 use ely_mail_engine::{Error, Identity, Store};
 use fake::account;
 

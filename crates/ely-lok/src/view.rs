@@ -17,6 +17,7 @@ use crate::{Doc, Events, Rect, Worker};
 mod borders;
 mod clip;
 mod clock;
+mod edge;
 mod formula;
 mod handles;
 mod ime;
@@ -135,6 +136,7 @@ pub struct LokView {
     picked: usize,
     marked: Option<ime::Marked>,
     dragging: bool,
+    edge: edge::Edge,
     grip: Option<handles::Grip>,
     borders: borders::Borders,
     handle_size: Pixels,
@@ -227,6 +229,7 @@ impl LokView {
             picked: 0,
             marked: None,
             dragging: false,
+            edge: Default::default(),
             grip: None,
             borders: Default::default(),
             handle_size: px(6.0),

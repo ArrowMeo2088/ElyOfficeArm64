@@ -1,8 +1,10 @@
 /// Step `n` upgrades version `n`.
-pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
+pub(super) const STEPS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18];
 
 /// Upgrades to this version reindex every message.
 pub(super) const REINDEX: usize = 12;
+/// Stable identities are filled from originals at this version.
+pub(super) const IDENTS: usize = 18;
 
 const V1: &str = "
 CREATE TABLE accounts (
@@ -263,4 +265,98 @@ CREATE VIRTUAL TABLE search USING fts5(
     subject, sender, recipients, body, files,
     content = '', contentless_delete = 1, tokenize = 'unicode61 remove_diacritics 2'
 );
+";
+
+/// Folders pinned to the top, accounts folded (R11.3).
+const V13: &str = "
+ALTER TABLE mailboxes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE accounts ADD COLUMN folded INTEGER NOT NULL DEFAULT 0;
+";
+
+/// Local rules; `handled` marks mail already ruled (C12.18).
+const V14: &str = "
+ALTER TABLE accounts ADD COLUMN handled INTEGER NOT NULL DEFAULT 0;
+UPDATE accounts SET handled = (SELECT coalesce(max(m.id), 0) FROM messages m
+    JOIN mailboxes b ON b.id = m.mailbox WHERE b.account = accounts.id);
+CREATE TABLE rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account INTEGER NOT NULL REFERENCES accounts ON DELETE CASCADE,
+    field TEXT NOT NULL CHECK (field IN ('from', 'to', 'subject')),
+    words TEXT NOT NULL CHECK (words <> ''),
+    action TEXT NOT NULL CHECK (action IN ('move', 'flag', 'archive')),
+    target INTEGER REFERENCES mailboxes ON DELETE CASCADE,
+    CHECK ((action = 'move') = (target IS NOT NULL))
+);
+";
+
+/// Contacts; those written to from Sent folders seed them (C12.19).
+const V15: &str = "
+CREATE TABLE contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address TEXT NOT NULL UNIQUE COLLATE NOCASE CHECK (address <> ''),
+    name TEXT CHECK (name <> ''),
+    sent INTEGER NOT NULL DEFAULT 0,
+    last INTEGER
+);
+INSERT INTO contacts (address, name, sent, last)
+SELECT address, max(name), count(*), max(date) FROM (
+    SELECT trim(json_extract(p.value, '$.email')) AS address,
+           nullif(trim(json_extract(p.value, '$.name')), '') AS name, m.date
+    FROM messages m JOIN mailboxes b ON b.id = m.mailbox, json_each(m.recipients) p
+    WHERE b.role = 'sent'
+    UNION ALL
+    SELECT trim(json_extract(p.value, '$.email')), nullif(trim(json_extract(p.value, '$.name')), ''), m.date
+    FROM messages m JOIN mailboxes b ON b.id = m.mailbox, json_each(m.copies) p
+    WHERE b.role = 'sent'
+)
+WHERE address <> ''
+GROUP BY address COLLATE NOCASE;
+";
+
+/// Folders imported here, never synced (C12.20); ids never reused.
+const V16: &str = "
+CREATE TABLE mailboxes_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account INTEGER NOT NULL REFERENCES accounts ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    role TEXT,
+    uidvalidity INTEGER,
+    offline INTEGER NOT NULL DEFAULT 0,
+    pinned INTEGER NOT NULL DEFAULT 0,
+    local INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (account, local, name)
+);
+INSERT INTO mailboxes_new (id, account, name, role, uidvalidity, offline, pinned)
+    SELECT id, account, name, role, uidvalidity, offline, pinned FROM mailboxes;
+INSERT INTO sqlite_sequence (name, seq)
+    SELECT 'mailboxes_new', 0 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'mailboxes_new');
+UPDATE sqlite_sequence
+    SET seq = max(seq, coalesce((SELECT seq FROM sqlite_sequence WHERE name = 'mailboxes'), 0))
+    WHERE name = 'mailboxes_new';
+DROP TABLE mailboxes;
+ALTER TABLE mailboxes_new RENAME TO mailboxes;
+";
+
+/// Rebuilt mail is no news; trimmed mail stays trimmed.
+const V17: &str = "
+ALTER TABLE messages ADD COLUMN trimmed INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE rebuilt (
+    mailbox INTEGER NOT NULL REFERENCES mailboxes ON DELETE CASCADE,
+    ident TEXT NOT NULL,
+    PRIMARY KEY (mailbox, ident)
+) WITHOUT ROWID;
+";
+
+/// Identity outlives the cache; bodies compare only when whole.
+const V18: &str = "
+ALTER TABLE messages ADD COLUMN ident TEXT;
+CREATE TABLE rebuilt_new (
+    mailbox INTEGER NOT NULL REFERENCES mailboxes ON DELETE CASCADE,
+    ident TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (mailbox, ident, body)
+) WITHOUT ROWID;
+INSERT INTO rebuilt_new (mailbox, ident) SELECT mailbox, ident FROM rebuilt;
+DROP TABLE rebuilt;
+ALTER TABLE rebuilt_new RENAME TO rebuilt;
 ";

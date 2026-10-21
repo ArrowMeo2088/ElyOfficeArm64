@@ -278,7 +278,9 @@ impl Mail {
                     return mail.drop_draft(id, None, cx);
                 }
                 match read {
-                    Ok(opening) => mail.open_compose(opening, cx),
+                    Ok(opening) => {
+                        mail.open_compose(opening, cx);
+                    }
                     Err(error) => mail.failed("mail.drafts.unread", &error, cx),
                 }
             },

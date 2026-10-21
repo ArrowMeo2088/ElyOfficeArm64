@@ -144,15 +144,18 @@ fn apply(tx: &Transaction, aside: &mut Aside, here: &Here, change: Change) -> Re
         }
         Change::Move(target) => {
             imap_only(here, "moved")?;
-            let theirs: Option<i64> = tx
+            let theirs: Option<(i64, bool)> = tx
                 .query_row(
-                    "SELECT account FROM mailboxes WHERE id = ?1",
+                    "SELECT account, local FROM mailboxes WHERE id = ?1",
                     [target.0],
-                    |row| row.get(0),
+                    |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()?;
-            if theirs != Some(here.account.0) {
-                return Err(Error::Invalid("mail moves within its own account".into()));
+            match theirs {
+                Some((account, false)) if account == here.account.0 => {}
+                // The server has no imported folder.
+                Some((_, true)) => return Err(Error::Invalid("mail is not moved into an imported folder".into())),
+                _ => return Err(Error::Invalid("mail moves within its own account".into())),
             }
             relocate(tx, here, target)
         }
@@ -162,7 +165,7 @@ fn apply(tx: &Transaction, aside: &mut Aside, here: &Here, change: Change) -> Re
 fn imap_only(here: &Here, verb: &str) -> Result<()> {
     match here.imap {
         Some(_) => Ok(()),
-        None => Err(Error::Invalid(format!("POP3 mail is not {verb}"))),
+        None => Err(Error::Invalid(format!("mail kept only here is not {verb}"))),
     }
 }
 

@@ -1,5 +1,3 @@
-mod fake;
-
 use ely_mail_engine::{
     Error, Imap, Protocol, Remote, Secret, Security,
     drafts::{Placed, put},

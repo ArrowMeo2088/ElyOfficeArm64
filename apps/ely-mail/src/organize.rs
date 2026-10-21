@@ -123,6 +123,15 @@ impl Mail {
             row = row.child(self.button(id, icon, label, change, cx));
         }
         row = row.children(self.move_menu(&picked, cx));
+        if let [one] = picked.as_slice() {
+            let (this, id) = (cx.weak_entity(), one.id);
+            let save = IconButton::new("mail-act-eml", IconName::Save)
+                .tooltip(text(cx, "mail.eml.save", &[]))
+                .on_click(move |_, _, cx| {
+                    this.update(cx, |mail, cx| mail.save_eml(id, cx)).ok();
+                });
+            row = row.child(save);
+        }
         Some(row.into_any_element())
     }
 
@@ -223,7 +232,7 @@ impl Mail {
         let folders = &self.syncs.get(&account)?.folders;
         let targets = folders
             .iter()
-            .filter(|folder| !picked.iter().all(|fact| fact.mailbox == folder.id))
+            .filter(|folder| !folder.local && !picked.iter().all(|fact| fact.mailbox == folder.id))
             .collect();
         Some((account, targets))
     }

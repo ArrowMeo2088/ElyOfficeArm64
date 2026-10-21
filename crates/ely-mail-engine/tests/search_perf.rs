@@ -1,10 +1,9 @@
-//! PERF-06: run with `--release --ignored`; ELY_MAILS sets the count.
+//! PERF-06 (`--release --ignored`, ELY_MAILS); ELY_SEED seeds frame timing.
 
-mod fake;
 
 use std::time::Instant;
 
-use ely_mail_engine::{Fetched, Field, Key, Role, Search, Store};
+use ely_mail_engine::{Fetched, Field, Key, MailboxId, Role, Search, Store};
 
 const LATIN: &[&str] = &[
     "the", "report", "meeting", "budget", "project", "review", "invoice", "travel", "plan",
@@ -39,21 +38,9 @@ fn body(seq: &mut Seq, n: usize) -> String {
     out
 }
 
-#[test]
-#[ignore]
-fn a_hundred_thousand_messages_search_within_a_second() {
-    let count: u32 = std::env::var("ELY_MAILS").map_or(100_000, |n| n.parse().unwrap());
-    let dir = tempfile::tempdir().unwrap();
-    let mut store = Store::open(dir.path()).unwrap();
-    let id = store.add_account(&fake::account("ann@example.com")).unwrap();
-    let [inbox] = store
-        .set_folders(id, &[("INBOX", Some(Role::Inbox))])
-        .unwrap()
-        .try_into()
-        .unwrap();
-    store.open_mailbox(inbox, 1).unwrap();
+/// `count` messages, the same on every run.
+fn fill(store: &mut Store, inbox: MailboxId, count: u32) {
     let mut seq = Seq(7);
-    let started = Instant::now();
     for uid in 1..=count {
         let sender = LATIN[seq.next(LATIN.len())];
         let bytes = format!(
@@ -71,6 +58,23 @@ fn a_hundred_thousand_messages_search_within_a_second() {
         };
         store.put(inbox, &key, &[], Fetched::Whole(bytes.as_bytes())).unwrap();
     }
+}
+
+#[test]
+#[ignore]
+fn a_hundred_thousand_messages_search_within_a_second() {
+    let count: u32 = std::env::var("ELY_MAILS").map_or(100_000, |n| n.parse().unwrap());
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open(dir.path()).unwrap();
+    let id = store.add_account(&fake::account("ann@example.com")).unwrap();
+    let [inbox] = store
+        .set_folders(id, &[("INBOX", Some(Role::Inbox))])
+        .unwrap()
+        .try_into()
+        .unwrap();
+    store.open_mailbox(inbox, 1).unwrap();
+    let started = Instant::now();
+    fill(&mut store, inbox, count);
     eprintln!("perf: {count} messages stored in {:?}", started.elapsed());
     let cases = [
         ("common Latin", "report", Field::All),
@@ -100,4 +104,24 @@ fn a_hundred_thousand_messages_search_within_a_second() {
         worst = worst.max(times[4]);
     }
     assert!(worst < 1.0, "a search took {worst:.3} s");
+}
+
+#[test]
+#[ignore]
+fn seeds_a_data_root_for_frame_timing() {
+    let Ok(root) = std::env::var("ELY_SEED") else {
+        return eprintln!("SKIP: no ELY_SEED");
+    };
+    let count: u32 = std::env::var("ELY_MAILS").map_or(20_000, |n| n.parse().unwrap());
+    let mut store = Store::open(&std::path::Path::new(&root).join("ely-mail")).unwrap();
+    // Nothing listens on its ports: syncs fail at once.
+    let id = store.add_account(&fake::account("bench@example.com")).unwrap();
+    let [inbox] = store
+        .set_folders(id, &[("INBOX", Some(Role::Inbox))])
+        .unwrap()
+        .try_into()
+        .unwrap();
+    store.open_mailbox(inbox, 1).unwrap();
+    fill(&mut store, inbox, count);
+    eprintln!("perf: {count} messages seeded under {root}");
 }

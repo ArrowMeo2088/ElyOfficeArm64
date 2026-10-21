@@ -1,5 +1,4 @@
 //! A scripted mail server over real TLS, for protocol tests.
-#![allow(dead_code)]
 
 pub mod smtp;
 
@@ -8,7 +7,7 @@ use std::sync::Arc;
 use ely_mail_engine::{Account, Auth, Login, Protocol, Secret, Security, Server, TlsConnector};
 use rcgen::{CertificateParams, KeyPair};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::TcpListener,
     task::JoinHandle,
 };
@@ -28,6 +27,12 @@ pub enum Step {
     Expect(String),
     /// SMTP DATA lines before the lone dot.
     Data(String),
+    /// Any DATA, for messages built with a date.
+    AnyData,
+    /// One line that starts so; `{tag} ` as in `Expect`.
+    Prefix(String),
+    /// The literal the last line announced, as `{N}`.
+    Literal,
     StartTls,
     /// Ends the script, holding the connection open unanswered.
     Hang,
@@ -112,16 +117,32 @@ pub async fn serve(
     security: Security,
     steps: Vec<Step>,
 ) -> (Server, JoinHandle<Result<(), String>>) {
+    serve_each(certs, security, vec![steps], None).await
+}
+
+/// Connection `i` runs script `i`; `accepted` hears each `i`.
+pub async fn serve_each(
+    certs: &Certs,
+    security: Security,
+    scripts: Vec<Vec<Step>>,
+    accepted: Option<std::sync::mpsc::Sender<usize>>,
+) -> (Server, JoinHandle<Result<(), String>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let acceptor = certs.acceptor.clone();
     let task = tokio::spawn(async move {
-        let (tcp, _) = listener.accept().await.map_err(|err| err.to_string())?;
-        let io: Box<dyn Io> = match security {
-            Security::Tls => Box::new(acceptor.accept(tcp).await.map_err(|e| e.to_string())?),
-            Security::StartTls => Box::new(tcp),
-        };
-        run(io, &acceptor, steps).await
+        for (at, steps) in scripts.into_iter().enumerate() {
+            let (tcp, _) = listener.accept().await.map_err(|err| err.to_string())?;
+            if let Some(accepted) = &accepted {
+                accepted.send(at).map_err(|err| err.to_string())?;
+            }
+            let io: Box<dyn Io> = match security {
+                Security::Tls => Box::new(acceptor.accept(tcp).await.map_err(|e| e.to_string())?),
+                Security::StartTls => Box::new(tcp),
+            };
+            run(io, &acceptor, steps).await?;
+        }
+        Ok(())
     });
     let server = Server {
         host: "127.0.0.1".into(),
@@ -134,6 +155,7 @@ pub async fn serve(
 async fn run(io: Box<dyn Io>, acceptor: &TlsAcceptor, steps: Vec<Step>) -> Result<(), String> {
     let mut io = BufReader::new(io);
     let mut tag = String::new();
+    let mut announced = 0;
     for step in steps {
         match step {
             Step::Send(text) => {
@@ -169,6 +191,32 @@ async fn run(io: Box<dyn Io>, acceptor: &TlsAcceptor, steps: Vec<Step>) -> Resul
                 let got = lines.join("\n");
                 if got != want {
                     return Err(format!("expected data {want:?}, got {got:?}"));
+                }
+            }
+            Step::AnyData => while line(&mut io).await? != "." {},
+            Step::Prefix(want) => {
+                let got = line(&mut io).await?;
+                let got = match want.strip_prefix("{tag} ") {
+                    Some(_) => {
+                        let (first, rest) = got.split_once(' ').unwrap_or((&got, ""));
+                        tag = first.to_owned();
+                        format!("{{tag}} {rest}")
+                    }
+                    None => got,
+                };
+                if !got.starts_with(&want) {
+                    return Err(format!("expected {want:?}..., got {got:?}"));
+                }
+                announced = match got.rsplit_once('{').and_then(|(_, size)| size.strip_suffix('}')) {
+                    Some(size) => size.parse().map_err(|_| format!("a literal size {size:?}"))?,
+                    None => 0,
+                };
+            }
+            Step::Literal => {
+                let mut bytes = vec![0; announced + 2];
+                io.read_exact(&mut bytes).await.map_err(|e| e.to_string())?;
+                if !bytes.ends_with(b"\r\n") {
+                    return Err("the literal did not end its line".into());
                 }
             }
             Step::StartTls => {

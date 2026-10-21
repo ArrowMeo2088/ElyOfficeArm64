@@ -3,13 +3,13 @@
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
 use ely_gpui_component::primitives::Severity;
 use ely_mail_engine::{
-    Account, AccountId, DraftId, Filter, Queued, Shelved, Store, TlsConnector, Vault,
+    Account, AccountId, DraftId, Filter, MessageId, Queued, Shelved, Store, TlsConnector, Vault,
 };
 use ely_platform::AppId;
 use ely_ui::Root;
@@ -30,11 +30,19 @@ use crate::{
     syncing::Syncs,
 };
 
+/// Opens a file in its app.
+pub type Opener = Arc<dyn Fn(&Path) -> std::io::Result<()> + Send + Sync>;
+
 /// What the engine runs on and keeps to.
 pub struct Parts {
     pub store: Result<Store, String>,
     pub vault: Vault,
     pub tls: Result<TlsConnector, String>,
+    /// Working copies of opened files go here.
+    pub copies: PathBuf,
+    /// The app's settings file.
+    pub settings: PathBuf,
+    pub open: Opener,
 }
 
 impl Parts {
@@ -43,6 +51,9 @@ impl Parts {
             store: Store::open(dir).map_err(|err| err.to_string()),
             vault: Vault::system(),
             tls: ely_mail_engine::system_tls().map_err(|err| err.to_string()),
+            copies: dir.join("opened"),
+            settings: dir.join("settings.json"),
+            open: Arc::new(ely_platform::apps::open_file),
         }
     }
 }
@@ -55,6 +66,8 @@ pub struct Mail {
     pub(crate) runtime: Arc<Runtime>,
     /// None until read.
     pub accounts: Option<Result<Vec<(AccountId, Account)>, String>>,
+    /// Accounts the side folds away.
+    pub folded: HashSet<AccountId>,
     /// Remove acts on its account.
     pub open: Open,
     pub filter: Filter,
@@ -66,6 +79,16 @@ pub struct Mail {
     pub removing: Option<Removing>,
     /// The open account's sender name and signature.
     pub identity: Option<Editing>,
+    /// The open account's rules.
+    pub ruling: Option<crate::rules::Ruling>,
+    /// The contacts page's list.
+    pub people: Option<crate::contacts::People>,
+    /// An imported folder whose removal waits for an answer.
+    pub unimporting: Option<crate::migrate::Unimporting>,
+    /// Mail's storage rows in settings.
+    pub cache: crate::storage::Cache,
+    pub cap: crate::capacity::Cap,
+    pub settings: PathBuf,
     pub syncs: Syncs,
     /// Numbers every sync, even across forgotten accounts.
     pub runs: u64,
@@ -94,6 +117,10 @@ pub struct Mail {
     pub pending: usize,
     /// Messages asked to go for good.
     pub erasing: Option<Erasing>,
+    /// Messages coming down whole for their files.
+    pub downloading: HashSet<MessageId>,
+    pub copies: PathBuf,
+    pub open_copy: Opener,
     /// The quit question is showing.
     pub quitting: bool,
     /// Asked once, the quit goes on.
@@ -114,8 +141,33 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
     };
     let parts = Parts::system(&dir);
     let mail = cx.new(|cx| Mail::new(parts, window, cx));
+    crate::storage::install(mail.downgrade(), cx);
+    let root = attach(app, &mail, false, window, cx);
+    // Message files open to read; others go into a draft.
+    let files = ely_ui::launch_files(cx);
+    mail.update(cx, |mail, cx| mail.take_files(files, cx));
+    let handed = mail.downgrade();
+    ely_ui::on_open(cx, move |path, cx| {
+        handed.update(cx, |mail, cx| mail.take_files(vec![path], cx)).ok();
+    });
+    // Closing the window leaves sync and the Outbox running.
+    let kept = mail.clone();
+    let tray = ely_ui::tray::keep(app, TRAY_PNG, "envelope", move |window, cx| attach(app, &kept, true, window, cx), cx);
+    if let Err(error) = tray {
+        log::warn!("mail: no tray, so closing the window quits: {error:#}");
+    }
+    root
+}
+
+const TRAY_PNG: &[u8] = include_bytes!("../../../assets/icons/ely-mail.png");
+
+/// The window's root around `mail`; `again` from the tray.
+fn attach(app: AppId, mail: &Entity<Mail>, again: bool, window: &mut Window, cx: &mut App) -> Entity<Root> {
     let root = ely_ui::tool_root(app, mail.clone().into(), crate::menu::menus(cx), window, cx);
     mail.update(cx, |mail, cx| {
+        if again {
+            mail.rehome(window, cx);
+        }
         mail.root = root.downgrade();
         window.focus(&mail.focus, cx);
     });
@@ -159,6 +211,7 @@ impl Mail {
             tls: parts.tls,
             runtime: Arc::new(runtime),
             accounts: None,
+            folded: HashSet::new(),
             open: Open::Inboxes,
             filter: Filter::default(),
             seeking: Seeking::new(window, cx),
@@ -168,6 +221,12 @@ impl Mail {
             adding: None,
             removing: None,
             identity: None,
+            ruling: None,
+            people: None,
+            unimporting: None,
+            cache: Default::default(),
+            cap: Default::default(),
+            settings: parts.settings,
             syncs: Syncs::new(),
             runs: 0,
             paused: false,
@@ -183,6 +242,9 @@ impl Mail {
             queued: Vec::new(),
             pending: 0,
             erasing: None,
+            downloading: HashSet::new(),
+            copies: parts.copies,
+            open_copy: parts.open,
             quitting: false,
             quit_anyway: false,
             focus: cx.focus_handle(),
@@ -190,16 +252,22 @@ impl Mail {
             side: cx.new(|_| Side::new(this)),
         };
         mail.read_accounts(cx);
+        mail.read_cap(cx);
         Self::sync_on_a_timer(cx);
+        Self::answer_notices(cx);
         mail
     }
 
     pub fn read_accounts(&mut self, cx: &mut Context<Self>) {
         self.with_store(
             cx,
-            |store| store.accounts(),
+            |store| Ok((store.accounts()?, store.folded()?)),
             |mail, read, cx| {
                 let first = mail.accounts.is_none();
+                let read = read.map(|(accounts, folded)| {
+                    mail.folded = folded.into_iter().collect();
+                    accounts
+                });
                 if let Ok(accounts) = &read {
                     let still = |id| accounts.iter().any(|(each, _)| *each == id);
                     if mail.open.account().is_some_and(|id| !still(id)) {
@@ -286,9 +354,17 @@ impl Mail {
 
     /// Not logged: the words may name an address.
     pub fn toast(&self, text: SharedString, severity: Severity, cx: &mut App) {
-        if let Some(root) = self.root.upgrade() {
-            root.update(cx, |root, cx| root.toast(text, severity, cx));
+        match self.root.upgrade() {
+            Some(root) => root.update(cx, |root, cx| root.toast(text, severity, cx)),
+            None => log::info!("mail: the window is closed, so a note is not shown"),
         }
+    }
+
+    /// A reopened window: inputs of the closed one go.
+    pub(crate) fn rehome(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        log::info!("mail: the window opened again");
+        self.adding = None;
+        self.seeking.rehome(window, cx);
     }
 
     pub fn failed(&self, key: &str, error: &str, cx: &mut App) {

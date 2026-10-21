@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use rusqlite::ToSql;
 
-use super::{AccountId, MailboxId, MessageId, Store};
+use super::{AccountId, MailboxId, MessageId, Store, rebuilt::REBUILT};
 use crate::{Error, Mailbox, Result, Role};
 
 /// Which messages a list holds.
@@ -135,6 +135,35 @@ impl Store {
             })
         })
         .collect()
+    }
+
+    /// The account `message` belongs to.
+    pub fn owner(&self, message: MessageId) -> Result<AccountId> {
+        let owner = self.conn.query_row(
+            "SELECT b.account FROM messages m JOIN mailboxes b ON b.id = m.mailbox WHERE m.id = ?1",
+            [message.0],
+            |row| row.get(0),
+        );
+        match owner {
+            Ok(owner) => Ok(AccountId(owner)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Err(Error::Store(format!("no message {}", message.0))),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// The latest message stored; later ones have greater ids.
+    pub fn newest(&self) -> Result<MessageId> {
+        let id = self.conn.query_row("SELECT coalesce(max(id), 0) FROM messages", [], |row| row.get(0))?;
+        Ok(MessageId(id))
+    }
+
+    /// Unread inbox mail stored past `after`; never rebuilt.
+    pub(super) fn arrived(&self, account: AccountId, after: MessageId) -> Result<Vec<Summary>> {
+        let clauses = format!(
+            "NOT m.erasing AND b.role = 'inbox' AND b.account = ?1 AND m.id > ?2 AND NOT {SEEN}
+             AND NOT {REBUILT}"
+        );
+        self.summaries(&clauses, &[&account.0, &after.0])
     }
 
     /// Unread messages per mailbox; mailboxes with none are left out.

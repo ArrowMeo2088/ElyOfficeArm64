@@ -3,6 +3,7 @@ use super::*;
 mod borders;
 mod clip;
 mod commands;
+mod edge;
 mod fit;
 mod formula;
 mod input;

@@ -76,7 +76,19 @@ impl Mail {
             .picked(shown.id.0.to_string())
             .on_reply(answering(How::Reply, cx))
             .on_reply_all(answering(How::ReplyAll, cx))
-            .on_forward(answering(How::Forward, cx));
+            .on_forward(answering(How::Forward, cx))
+            .on_open_file({
+                let this = cx.weak_entity();
+                move |key, index, _, cx| {
+                    this.update(cx, |mail, cx| mail.open_file(key, index, cx)).ok();
+                }
+            })
+            .on_download({
+                let this = cx.weak_entity();
+                move |key, index, _, cx| {
+                    this.update(cx, |mail, cx| mail.file_button(key, index, cx)).ok();
+                }
+            });
         for each in &thread.letters {
             view = view.message(message(each, cx), self.letter(each, cx));
         }
@@ -116,8 +128,16 @@ impl Mail {
         let Some(body) = &letter.body else {
             let only = text(cx, "mail.reader.headers_only", &[]);
             let key = format!("mail-headers-only-{}", id.0);
+            let name = format!("mail-download-{}", id.0);
+            let this = cx.weak_entity();
+            let download = Button::new(SharedString::from(name.clone()), text(cx, "mail.reader.download", &[]))
+                .disabled(self.downloading.contains(&id))
+                .on_click(move |_, _, cx| {
+                    this.update(cx, |mail, cx| mail.download(id, cx)).ok();
+                });
             return part
                 .child(Alert::new(SharedString::from(key), Severity::Info, only))
+                .child(div().debug_selector(move || name.clone()).child(download))
                 .child(self.headers(each, &letter.headers, cx))
                 .into_any_element();
         };

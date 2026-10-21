@@ -25,6 +25,17 @@ pub struct Reading {
     pub shown: Option<Shown>,
 }
 
+impl Reading {
+    /// The shown message's files, once its body is read.
+    pub fn files(&self, id: MessageId) -> Option<&[(String, Option<u64>)]> {
+        let Some(Shown { thread: Some(Ok(thread)), .. }) = &self.shown else {
+            return None;
+        };
+        let each = thread.letters.iter().find(|each| each.stored.id == id)?;
+        each.open.as_ref().ok()?.body().map(|body| body.files.as_slice())
+    }
+}
+
 pub struct Shown {
     /// The message picked in the list.
     pub id: MessageId,

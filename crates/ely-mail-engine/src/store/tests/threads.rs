@@ -6,11 +6,9 @@ use crate::{MessageId, Role};
 #[test]
 fn a_v6_store_links_its_messages_on_upgrade() {
     let dir = tempfile::tempdir().unwrap();
-    let mut old = open(dir.path(), &STEPS[..6]).unwrap();
+    let old = open(dir.path(), &STEPS[..6]).unwrap();
     let ann = old.add_account(&account("ann@example.com")).unwrap();
-    let [inbox] = old
-        .set_folders(ann, &[("INBOX", Some(Role::Inbox))])
-        .unwrap()
+    let [inbox] = super::old_folders(&old, ann, &[("INBOX", Some(Role::Inbox))])
         .try_into()
         .unwrap();
     let mut ids = Vec::new();

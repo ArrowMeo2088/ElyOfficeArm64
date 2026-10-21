@@ -40,7 +40,15 @@ const count = said("p", "count");
 count.hidden = true;
 const get = said("a", "get");
 get.href = RELEASES;
-footer.append(version, count, said("p", "platforms"), said("p", "needs"), get);
+const legal = document.createElement("ul");
+for (const [key, href] of [["privacy", "/privacy"], ["terms", "/termofservice"]] as const) {
+  const a = said("a", key);
+  a.href = href;
+  const li = document.createElement("li");
+  li.append(a);
+  legal.append(li);
+}
+footer.append(version, count, said("p", "platforms"), said("p", "needs"), get, legal);
 
 const toggle = said("button", "other");
 toggle.className = "lang";

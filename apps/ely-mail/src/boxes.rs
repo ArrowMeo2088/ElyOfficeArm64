@@ -22,6 +22,8 @@ pub enum Open {
     Drafts,
     /// Messages handed over to send, of every account.
     Outbox,
+    /// The people mail is written to.
+    Contacts,
     Mailbox(AccountId, MailboxId),
     /// The account's settings and sync.
     Account(AccountId),
@@ -33,6 +35,7 @@ impl Open {
             Open::Inboxes => "inboxes".into(),
             Open::Drafts => "drafts".into(),
             Open::Outbox => "outbox".into(),
+            Open::Contacts => "contacts".into(),
             Open::Mailbox(_, mailbox) => format!("box-{}", mailbox.0).into(),
             Open::Account(id) => format!("account-{}", id.0).into(),
         }
@@ -40,7 +43,7 @@ impl Open {
 
     pub fn account(self) -> Option<AccountId> {
         match self {
-            Open::Inboxes | Open::Drafts | Open::Outbox => None,
+            Open::Inboxes | Open::Drafts | Open::Outbox | Open::Contacts => None,
             Open::Mailbox(id, _) | Open::Account(id) => Some(id),
         }
     }
@@ -49,7 +52,7 @@ impl Open {
         match self {
             Open::Inboxes => Some(Scope::Inboxes),
             Open::Mailbox(_, mailbox) => Some(Scope::Mailbox(mailbox)),
-            Open::Drafts | Open::Outbox | Open::Account(_) => None,
+            Open::Drafts | Open::Outbox | Open::Contacts | Open::Account(_) => None,
         }
     }
 }
@@ -146,8 +149,12 @@ impl Mail {
             self.open = open;
             if let Open::Account(id) = open {
                 self.read_identity(id, cx);
+                self.read_rules(id, cx);
                 self.read_drafts_up(id, cx);
                 self.read_sent_copy(id, cx);
+            }
+            if open == Open::Contacts {
+                self.read_contacts(cx);
             }
             self.listing.show(None);
             self.listing.pick(Vec::new());

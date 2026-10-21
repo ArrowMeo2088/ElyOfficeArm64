@@ -56,6 +56,8 @@ pub struct Compose {
     pub reading: usize,
     /// Forwarded files not downloaded.
     pub missing: usize,
+    /// Contacts offered as addresses.
+    pub offered: Vec<ely_gpui_component::mail::Contact>,
     /// What it opened with, or last sent.
     base: Carried,
     /// The addresses and subject as now written.
@@ -134,6 +136,7 @@ impl Compose {
             next_file: 0,
             reading: 0,
             missing: 0,
+            offered: Vec::new(),
             base: Carried {
                 draft: blank(),
                 words: String::new(),
@@ -271,6 +274,14 @@ impl Compose {
     }
 
     /// Reads the files off the UI thread, then lists them.
+    pub fn offer(&mut self, contacts: Vec<ely_mail_engine::Contact>, cx: &mut Context<Self>) {
+        let named = |contact: ely_mail_engine::Contact| {
+            ely_gpui_component::mail::Contact::new(contact.name.unwrap_or_default(), contact.address)
+        };
+        self.offered = contacts.into_iter().map(named).collect();
+        cx.notify();
+    }
+
     pub fn attach(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
         let count = paths.len();
         self.reading += count;

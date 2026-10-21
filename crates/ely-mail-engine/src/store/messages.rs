@@ -3,7 +3,7 @@ use std::{fs, io::ErrorKind, path::Path};
 use rusqlite::{OptionalExtension, Row, ToSql, Transaction, params};
 use sha2::{Digest, Sha256};
 
-use super::{CONTENT, MailboxId, MessageId, Store, aside::Aside, disk, search, threads};
+use super::{CONTENT, MailboxId, MessageId, Store, aside::Aside, disk, rebuilt, search, threads};
 use crate::{Error, Mail, Mailbox, Result, read};
 
 /// RFC 3501 §2.3.1.1: identity is mailbox, UIDVALIDITY and UID.
@@ -13,7 +13,7 @@ pub enum Key {
         uidvalidity: u32,
         uid: u32,
     },
-    /// POP3 has one mailbox and UIDL names.
+    /// POP3's UIDL, or `mbox:N` for mail imported here.
     Pop {
         uidl: String,
     },
@@ -31,7 +31,7 @@ pub enum Fetched<'a> {
 }
 
 /// What a write keeps: a header block, or an original.
-enum Kept<'a> {
+pub(super) enum Kept<'a> {
     Head(&'a [u8]),
     Body {
         content: &'a str,
@@ -141,7 +141,7 @@ impl Store {
         written
     }
 
-    fn write(
+    pub(super) fn write(
         &mut self,
         mailbox: MailboxId,
         key: &Key,
@@ -159,6 +159,7 @@ impl Store {
             Key::Pop { uidl } => (None, None, Some(uidl.as_str())),
         };
         let attachments = content.map(|_| mail.attachments.len() as u32);
+        let ident = rebuilt::ident(mail);
         let json = [
             serde_json::to_string(&mail.in_reply_to)?,
             serde_json::to_string(&mail.references)?,
@@ -196,19 +197,19 @@ impl Store {
                     tx.execute(
                         "UPDATE messages SET message_id = ?1, in_reply_to = ?2, refs = ?3,
                          subject = ?4, sender = ?5, recipients = ?6, copies = ?7, date = ?8,
-                         attachments = ?9, content = ?10, missing = ?11, head = ?12
+                         attachments = ?9, content = ?10, missing = ?11, head = ?12, trimmed = 0
                          WHERE id = ?13",
                         values.as_slice(),
                     )?;
                     *id
                 }
                 None => {
-                    values.extend::<[&dyn ToSql; 4]>([&mailbox.0, &uidvalidity, &uid, &uidl]);
+                    values.extend::<[&dyn ToSql; 5]>([&mailbox.0, &uidvalidity, &uid, &uidl, &ident]);
                     tx.execute(
                         "INSERT INTO messages (message_id, in_reply_to, refs, subject, sender,
                          recipients, copies, date, attachments, content, missing, head, mailbox,
-                         uidvalidity, uid, uidl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
-                         ?11, ?12, ?13, ?14, ?15, ?16)",
+                         uidvalidity, uid, uidl, ident) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                         ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
                         values.as_slice(),
                     )?;
                     MessageId(tx.last_insert_rowid())

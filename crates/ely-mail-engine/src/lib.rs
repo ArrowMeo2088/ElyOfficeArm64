@@ -16,7 +16,10 @@ pub mod push;
 pub mod sent;
 mod smtp;
 mod store;
+pub mod mbox;
 pub mod sync;
+pub mod vcard;
+pub mod whole;
 mod vault;
 mod wire;
 
@@ -28,10 +31,10 @@ pub use net::{Login, Secret, Security, Server, system_tls};
 pub use pop::Pop;
 pub use smtp::Smtp;
 pub use store::{
-    AccountId, Cached, Change, DraftId, Fetched, Field, Filed, Filing, Filter, Found, Going,
-    Handed, Held, Identity, Key, Landing, Left, Letter, LocalFolder, MailboxId, MessageId,
-    OutboxId, Queued, Remote, Scope, Search, Shelved, Sizes, Store, Stored, Stowed, Summary,
-    Synced, Unsent,
+    AccountId, Action, Arrivals, Cached, Change, Contact, ContactId, DraftId, Fetched, Field, Filed, Filing, Filter, Found,
+    Going, Handed, Held, Identity, Imported, Key, Landing, Left, Letter, LocalFolder, MailboxId, Match,
+    MessageId, OutboxId, Packed, Queued, Remote, Rule, RuleId, Scope, Search, Shelved, Sizes, Store,
+    Stored, Stowed, Summary, Synced, Unpacked, Unsent,
 };
 pub use tokio_rustls::TlsConnector;
 pub use vault::{Backend, Kept, Keyring, Vault};
