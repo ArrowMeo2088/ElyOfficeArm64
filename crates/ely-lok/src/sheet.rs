@@ -6,6 +6,7 @@ mod analysis;
 pub mod csv;
 mod data;
 mod page;
+mod text;
 pub use analysis::*;
 pub use data::*;
 pub use page::*;

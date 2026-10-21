@@ -9,6 +9,7 @@ mod input;
 mod large;
 mod show_borders;
 mod theme;
+mod text;
 use gpui::{App, Bounds, Entity, point, size};
 
 #[test]

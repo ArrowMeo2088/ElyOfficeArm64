@@ -1,7 +1,7 @@
 //! Scrolling the page view (LOK-04).
 
 use gpui::{
-    Bounds, Context, Pixels, Point, ScrollDelta, ScrollWheelEvent, Window, point, px, size,
+    Bounds, Context, Pixels, Point, ScrollDelta, ScrollWheelEvent, Window, point, px,
 };
 
 use super::{LokView, input::Input};
@@ -149,6 +149,18 @@ impl LokView {
         (axis(fx, self.scroll.0), axis(fy, self.scroll.1))
     }
 
+    /// Whether a print-twips rectangle intersects the visible panes.
+    pub fn is_visible(&self, rect: Rect) -> bool {
+        let rect = self.tile_rect(rect);
+        rect.2 > 0 && rect.3 > 0 && self.tile_visible(rect)
+    }
+
+    pub(super) fn tile_visible(&self, (x, y, w, h): Rect) -> bool {
+        let (ax, ay) = self.axes();
+        ax.visible(x, w, self.geom.twips_of(self.viewport.0))
+            && ay.visible(y, h, self.geom.twips_of(self.viewport.1))
+    }
+
     /// The window point of a print-twips document point (LOK-04).
     pub fn window_point(&self, at: (i32, i32)) -> gpui::Point<Pixels> {
         self.tile_window_point(self.tile_of(at))
@@ -173,13 +185,9 @@ impl LokView {
 
     /// The cursor rect in window pixels.
     pub fn cursor_bounds(&self) -> Option<Bounds<Pixels>> {
-        let (x, y, w, h) = self.cursor?;
-        let origin = self.window_point((x, y));
-        let end = self.window_point((x + w, y + h));
-        Some(Bounds {
-            origin,
-            size: size((end.x - origin.x).max(px(self.geom.px_of(1))), end.y - origin.y),
-        })
+        let mut bounds = self.text_caret()?;
+        bounds.size.width = bounds.size.width.max(px(self.geom.px_of(1)));
+        Some(bounds)
     }
 }
 
