@@ -37,6 +37,8 @@ pub struct Docs {
     pub review: Entity<Review>,
     /// What the right column shows.
     pub side: Side,
+    /// The right column is shown.
+    pub siding: bool,
     pub offer: Option<ely_office::menu::Offer<ely_lok::menu::Offered>>,
     pub merge: Entity<crate::merge::Merge>,
     pub navigator: Entity<crate::navigate::Navigator>,
@@ -55,6 +57,8 @@ pub struct Docs {
 
 /// Open dialog kinds, Ely's and the shell's, and the tab.
 type Seen = (Option<std::mem::Discriminant<Dialog>>, Option<std::mem::Discriminant<ely_office::Dialog>>, Option<u64>);
+
+gpui::actions!(doc, [ToggleSidePanel]);
 
 /// The right column's panels.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -110,7 +114,11 @@ impl Host for Docs {
 fn menus(undo: (bool, bool), cx: &App) -> Vec<gpui::Menu> {
     vec![
         gpui::Menu::new(ely_ui::i18n::text(cx, "menu.edit", &[])).items(ely_office::undo_items(undo, cx)),
-        gpui::Menu::new(ely_ui::i18n::text(cx, "menu.view", &[])).items(ely_office::zoom_items(false, cx)),
+        gpui::Menu::new(ely_ui::i18n::text(cx, "menu.view", &[])).items(
+            ely_office::zoom_items(false, cx)
+                .into_iter()
+                .chain([gpui::MenuItem::separator(), gpui::MenuItem::action(ely_ui::i18n::text(cx, "doc.side.toggle", &[]), ToggleSidePanel)]),
+        ),
         crate::insert::menu(cx),
         crate::review::menu(cx),
         crate::merge::menu(cx),
@@ -135,6 +143,11 @@ pub fn open(app: AppId, window: &mut Window, cx: &mut App) -> Entity<Root> {
         gpui::KeyBinding::new(
             "secondary-f",
             ely_office::FindReplace,
+            Some(commands::CONTEXT),
+        ),
+        gpui::KeyBinding::new(
+            "secondary-alt-b",
+            ToggleSidePanel,
             Some(commands::CONTEXT),
         ),
         gpui::KeyBinding::new(
@@ -192,6 +205,7 @@ impl Docs {
             props,
             review,
             side: Side::Props,
+            siding: true,
             offer: None,
             merge,
             navigator,
@@ -202,6 +216,17 @@ impl Docs {
             dialog_seen: (None, None, None),
             undo_menu: (false, false),
         }
+    }
+
+    /// Shows `side` in the right column, opening it.
+    pub fn show_side(&mut self, side: Side, cx: &mut Context<Self>) {
+        (self.side, self.siding) = (side, true);
+        cx.notify();
+    }
+
+    pub fn on_side_panel(&mut self, _: &ToggleSidePanel, _: &mut Window, cx: &mut Context<Self>) {
+        self.siding = !self.siding;
+        cx.notify();
     }
 
     /// A dialog or tab change ends earlier dialog reads.
