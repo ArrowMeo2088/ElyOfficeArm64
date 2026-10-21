@@ -55,13 +55,11 @@ jobs:
       - name: Engines
         if: steps.engines.outputs.cache-hit != 'true'
         shell: bash
-        env:
-          # MSYS would rewrite openssl:arm64-windows-static into a path list.
-          MSYS2_ARG_CONV_EXCL: '*'
         run: |
           set -euo pipefail
           scripts/fetch-references.sh mupdf
-          "$VCPKG_INSTALLATION_ROOT/vcpkg.exe" install openssl:arm64-windows-static \
+          # --triplet, not openssl:arm64-…: MSYS would rewrite the colon form.
+          "$VCPKG_INSTALLATION_ROOT/vcpkg.exe" install openssl --triplet arm64-windows-static \
             --x-install-root="$(cygpath -w "$PWD/engines/vcpkg/installed")"
           scripts/build-mupdf.sh
           ls -l engines/mupdf-build
