@@ -24,6 +24,14 @@ cd "$root"
 inside=()
 [ "$os" != linux ] || inside=(packaging/linux/container.sh)
 
+# Intel Macs run under Rosetta: x86_64 Rust, pinned OpenSSL.
+intel=
+if [ "$os" = macos ] && [ "$(uname -s)-$(uname -m)" = Darwin-x86_64 ]; then
+  intel=1
+  channel=$(awk -F'"' '$1 ~ /^channel/ { print $2 }' rust-toolchain.toml)
+  export RUSTUP_TOOLCHAIN=$channel-x86_64-apple-darwin PKG_CONFIG_PATH=$root/engines/openssl/lib/pkgconfig
+fi
+
 # Engines another clone on this host built; else built here.
 if [ -n "${ELY_SHARE:-}" ]; then
   for part in engines reference; do
@@ -46,12 +54,21 @@ if [ -n "${ELY_SHARE:-}" ]; then
   done
 else
   scripts/fetch-references.sh
+  [ -z "$intel" ] || scripts/build-openssl.sh
   ${inside[@]+"${inside[@]}"} scripts/build-mupdf.sh
   ${inside[@]+"${inside[@]}"} scripts/build-git.sh
   ${inside[@]+"${inside[@]}"} scripts/fetch-git-lfs.sh
   ${inside[@]+"${inside[@]}"} scripts/fetch-tessdata.sh
   ${inside[@]+"${inside[@]}"} scripts/build-libreoffice.sh
 fi
+
+if [ -n "$intel" ]; then
+  [ -f "$PKG_CONFIG_PATH/libcrypto.pc" ] || {
+    echo "ci.sh: no x86_64 OpenSSL in $PKG_CONFIG_PATH; run scripts/build-openssl.sh" >&2
+    exit 1
+  }
+fi
+[ "$(uname -s)" != Darwin ] || tests/scripts/engine-arch.sh "$(uname -m)"
 
 dist=$root/dist
 rm -rf "$dist"

@@ -14,7 +14,9 @@ command -v python3 >/dev/null || {
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 version=$(awk -F'"' '/^version = / { print $2; exit }' "$root/Cargo.toml")
-mkdir -p "$work/share/engines" "$work/share/reference" "$work/bin"
+mkdir -p "$work/share/engines/openssl/lib/pkgconfig" "$work/share/reference" "$work/bin"
+# Intel Macs check for the pinned OpenSSL.
+: >"$work/share/engines/openssl/lib/pkgconfig/libcrypto.pc"
 export STATE=$work/uploads
 : >"$STATE"
 
@@ -45,10 +47,12 @@ clone() { # os
   local at=$work/$1 source='d=$1; touch "$d/ElyOffice-V-c0ffee-source.tar.gz" "$d/ElyOffice-V-c0ffee-upstream-source.tar.gz"'
   mkdir -p "$at/scripts" "$at/packaging/macos" "$at/packaging/linux"
   cp "$root/scripts/ci.sh" "$at/scripts/"
-  cp "$root/Cargo.toml" "$at/"
+  cp "$root/Cargo.toml" "$root/rust-toolchain.toml" "$at/"
   cp "$root/packaging/apps.tsv" "$at/packaging/"
   write() { printf '#!/usr/bin/env bash\n%s\n' "$2" >"$at/$1" && chmod +x "$at/$1"; }
   write packaging/source.sh "$source"
+  mkdir -p "$at/tests/scripts"
+  write tests/scripts/engine-arch.sh :
   write packaging/macos/release.sh "mkdir -p dist; touch dist/App-$1.dmg; packaging/source.sh dist"
   write packaging/linux/container.sh 'exec "$@"'
   write packaging/linux/package.sh "mkdir -p dist; touch dist/\$1-$1.AppImage"

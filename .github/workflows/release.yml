@@ -33,6 +33,31 @@ jobs:
           git -C "$dir" fetch --force --tags origin
           git -C "$dir" checkout --force "${{ github.sha }}"
           "$dir/scripts/ci.sh" macos "${{ github.ref_name }}"
+  macos-intel:
+    # The same Mac under Rosetta, own clone and engines.
+    runs-on: [self-hosted, macos-signing]
+    timeout-minutes: 720
+    steps:
+      - name: Build, package and upload for Intel macOS
+        shell: bash
+        env:
+          ELY_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Organization secrets, built into ElyMail.
+          ELY_GOOGLE_CLIENT_ID: ${{ secrets.ELY_GOOGLE_CLIENT_ID }}
+          ELY_GOOGLE_CLIENT_SECRET: ${{ secrets.ELY_GOOGLE_CLIENT_SECRET }}
+          ELY_MICROSOFT_CLIENT_ID: ${{ secrets.ELY_MICROSOFT_CLIENT_ID }}
+          # x86_64 engines, built once by hand (R10.10).
+          ELY_SHARE: /Users/zacharyzhang/ely-share-x86_64
+          ELY_PATH: /Users/zacharyzhang/.cargo/bin:/opt/homebrew/bin
+          ELY_SIGN_IDENTITY: ${{ vars.ELY_SIGN_IDENTITY }}
+          ELY_NOTARY_PROFILE: ${{ vars.ELY_NOTARY_PROFILE }}
+        run: |
+          dir=$HOME/ely-ci-x86_64/ElyOffice
+          [ -d "$dir/.git" ] || git clone https://github.com/ELY-Open-Source/ElyOffice.git "$dir"
+          git -C "$dir" remote set-url origin https://github.com/ELY-Open-Source/ElyOffice.git
+          git -C "$dir" fetch --force --tags origin
+          git -C "$dir" checkout --force "${{ github.sha }}"
+          arch -x86_64 /bin/bash "$dir/scripts/ci.sh" macos "${{ github.ref_name }}"
   windows:
     runs-on: [self-hosted, ely-windows]
     timeout-minutes: 360
