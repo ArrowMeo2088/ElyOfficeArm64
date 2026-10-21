@@ -165,7 +165,8 @@ impl SettingsView {
             let typed = typed.clone();
             async move {
                 if !typed.is_empty() {
-                    ely_platform::git::system_version(std::path::Path::new(&typed))?;
+                    // The same reading ElyTree runs by: a folder is its Git, quotes are noise.
+                    ely_platform::git::system_version(&ely_platform::git::program(&typed))?;
                 }
                 // Under the file lock: a later commit skips this.
                 let still = || latest.load(Ordering::SeqCst) == asked;

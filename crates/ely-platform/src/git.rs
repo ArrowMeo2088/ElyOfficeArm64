@@ -23,16 +23,23 @@ const GIT: &str = "bin/git";
 /// `ELY_GIT`, ElyTree's setting, else Ely's own Git.
 pub fn locate() -> io::Result<(PathBuf, bool)> {
     if let Some(path) = std::env::var_os("ELY_GIT") {
-        return Ok((PathBuf::from(path), false));
+        return Ok((program(&path.to_string_lossy()), false));
     }
     let set = crate::settings::Store::app(AppId::Tree)?.read()?;
     match set.get(PROGRAM) {
         None => {}
         Some(serde_json::Value::String(path)) if path.is_empty() => {}
-        Some(serde_json::Value::String(path)) => return Ok((PathBuf::from(path), false)),
+        Some(serde_json::Value::String(path)) => return Ok((program(path), false)),
         Some(other) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("settings: git cannot be {other}"))),
     }
     Ok((own(&std::env::current_exe()?)?, true))
+}
+
+/// The program a user's words name: quotes off, and a Git install folder is its Git.
+/// Run as a folder, Windows answers `Access is denied`, and a quoted path is a bad name.
+pub fn program(text: &str) -> PathBuf {
+    let path = PathBuf::from(text.trim().trim_matches('"').trim());
+    if path.is_dir() { path.join(GIT) } else { path }
 }
 
 /// `git version 2.56.0…` as (2, 56); None for anything else.
@@ -137,7 +144,18 @@ mod tests {
 
     use super::{GIT, NoGit, find};
     use crate::{AppId, apps::beside};
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn a_named_git_install_folder_is_its_program() {
+        let root = tempfile::tempdir().expect("a temp dir");
+        let git = root.path().join(GIT);
+        std::fs::create_dir_all(git.parent().expect("a folder")).expect("Git's folder");
+        std::fs::write(&git, "").expect("git");
+        same(super::program(&format!("\"{}\"", root.path().display())), &git);
+        same(super::program(&root.path().display().to_string()), &git);
+        assert_eq!(super::program("  git  "), PathBuf::from("git"), "a bare name goes to the OS");
+    }
 
     /// `find` with only temp folders: no installed or built Git.
     fn found(exe: &Path, root: &Path) -> std::io::Result<std::path::PathBuf> {
