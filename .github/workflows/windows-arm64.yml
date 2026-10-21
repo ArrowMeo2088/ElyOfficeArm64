@@ -1,7 +1,9 @@
 # GitHub's hosted runner: this fork has no self-hosted machine and builds in the cloud.
-# Three apps, one zip each. ElyPDF's and ElyMark's worker links MuPDF, so the arm64
-# MuPDF and its static OpenSSL are built here too. Nothing else is bundled: no licence
-# set, no source, no tessdata for OCR. ElyTree runs a system Git; none is in its zip.
+# Three apps, one setup.exe each, from packaging/windows/installer.nsi: NSIS has no
+# ARM64 stub, so the setup itself is x64 while every installed program is arm64.
+# ElyPDF's and ElyMark's worker links MuPDF, so the arm64 MuPDF and its static OpenSSL
+# are built here too. Nothing else is bundled: no licence set, no source, no tessdata
+# for OCR. ElyTree runs a system Git; none is in its setup.
 name: windows-arm64
 on:
   push:
@@ -100,41 +102,33 @@ jobs:
 
       - name: Package
         id: pkg
-        shell: pwsh
+        shell: bash
         run: |
-          $ErrorActionPreference = 'Stop'
-          $version = (Select-String Cargo.toml -Pattern '^version = "([^"]+)"' |
-            Select-Object -First 1).Matches[0].Groups[1].Value
-          $release = "target/$env:CARGO_BUILD_TARGET/release"
-          $workers = [ordered]@{ 'ely-lok' = 'ely-lok-worker'; 'ely-pdf-engine' = 'ely-pdf-worker' }
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          foreach ($slug in $env:ELY_APPS -split ' ') {
-            $name = (Select-String packaging/apps.tsv -Pattern "^$slug\t" |
-              Select-Object -First 1).Line.Split("`t")[1]
-            $stage = "target/arm64/$slug"
-            if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
-            New-Item -ItemType Directory -Force -Path $stage | Out-Null
-            Copy-Item "$release/$slug.exe" $stage
-            foreach ($engine in $workers.Keys) {
-              if (Select-String "apps/$slug/Cargo.toml" -Pattern "^$engine" -Quiet) {
-                Copy-Item "$release/$($workers[$engine]).exe" $stage
-              }
-            }
-            Copy-Item LICENSE $stage
-            Compress-Archive -Path "$stage/*" -DestinationPath "dist/$name-$version-windows-arm64.zip"
-          }
-          Get-ChildItem dist | Select-Object Name, Length | Format-Table
-          # PowerShell 5.1's utf8 carries a BOM, which would prefix the key.
-          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "version=$version`n")
+          set -euo pipefail
+          release=target/$CARGO_BUILD_TARGET/release
+          ls -d "/c/Program Files (x86)/NSIS" || true
+          awk -F'"' '/^version = / { print "version=" $2; exit }' Cargo.toml >>"$GITHUB_OUTPUT"
+          for slug in $ELY_APPS; do
+            stage=$PWD/target/arm64/$slug
+            rm -rf "$stage"
+            mkdir -p "$stage"
+            cp "$release/$slug.exe" "$stage/"
+            if grep -q '^ely-pdf-engine' "apps/$slug/Cargo.toml"; then
+              cp "$release/ely-pdf-worker.exe" "$stage/"
+            fi
+            cp LICENSE "$stage/"
+            packaging/windows/installer.sh "$slug" "$stage"
+          done
+          ls -l dist
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: ElyOffice-${{ steps.pkg.outputs.version }}-windows-arm64
-          path: dist/*.zip
-          compression-level: 0
+          path: dist/*.exe
+          compression-level: 6
 
-      # A tag's release carries each app's archive as its own asset, to download direct.
+      # A tag's release carries each app's setup as its own asset, to download direct.
       - name: Publish
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
@@ -142,7 +136,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+          gh release create "$GITHUB_REF_NAME" dist/*.exe \
             --title "Ely Office $GITHUB_REF_NAME (Windows arm64)" \
-            --notes="arm64 builds by GitHub's runner with MSVC v143. ElyTree runs a system Git; ElyPDF needs tessdata beside it for OCR." \
-            || gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
+            --notes="arm64 programs built by GitHub's runner with MSVC v143; the setup stub itself is x64, as NSIS has no ARM64 stub. ElyTree runs a system Git; ElyPDF needs tessdata beside it for OCR." \
+            || gh release upload "$GITHUB_REF_NAME" dist/*.exe --clobber

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Builds dist/<Name>-<version>-windows-x86_64-setup.exe. Usage: installer.sh <slug>
+# Builds dist/<Name>-<version>-windows-<arch>-setup.exe.
+# Usage: installer.sh <slug> [stage] — with a stage, its files are already there;
+# without one, packaging/stage.sh builds and fills the usual folder.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -16,8 +18,13 @@ makensis=${MAKENSIS:-"/c/Program Files (x86)/NSIS/makensis.exe"}
   echo "installer.sh: no makensis at $makensis; install NSIS" >&2
   exit 1
 }
-stage=$root/target/stage/$slug
-"$root/packaging/stage.sh" "$slug" "$stage"
+# The install carries the arch the Rust target names; NSIS' own stub stays x64.
+case ${CARGO_BUILD_TARGET:-} in
+  aarch64-pc-windows-msvc) arch=arm64 ;;
+  *) arch=x86_64 ;;
+esac
+stage=${2:-$root/target/stage/$slug}
+[ $# -ge 2 ] || "$root/packaging/stage.sh" "$slug" "$stage"
 # Explorer's New copies these; the install list owns them.
 for ext in $(awk -F'\t' -v slug="$slug" '$1 == slug { print $2 }' "$root/packaging/types.tsv"); do
   [ ! -e "$root/packaging/windows/new/new.$ext" ] || cp "$root/packaging/windows/new/new.$ext" "$stage/"
@@ -27,7 +34,7 @@ types=$root/target/stage/$slug-types.nsh
 list=$root/target/stage/$slug-files.txt
 "$root/packaging/windows/files.sh" "$stage" "$slug" >"$list"
 mkdir -p "$dist"
-out=$dist/$name-$version-windows-x86_64-setup.exe
+out=$dist/$name-$version-windows-$arch-setup.exe
 "$makensis" -V2 -INPUTCHARSET UTF8 -DAPP_NAME="$name" -DAPP_SLUG="$slug" -DVERSION="$version" \
   -DSTAGE="$(cygpath -w "$stage")" -DICON="$(cygpath -w "$root/assets/icons/$slug.ico")" \
   -DTYPES="$(cygpath -w "$types")" -DLIST="$(cygpath -w "$list")" -DOUTFILE="$(cygpath -w "$out")" \
