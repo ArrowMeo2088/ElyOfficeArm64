@@ -1,7 +1,7 @@
 # GitHub's hosted runner: this fork has no self-hosted machine and builds in the cloud.
-# ElyPDF and ElyMark link MuPDF into their worker (crates/ely-pdf-engine/build.rs),
-# and scripts/build-mupdf.sh has no arm64 output, so the four apps that load their
-# engine at runtime are what this cross-builds. ElyMail and ElyAgent are batch 2.
+# It cross-builds every app of the first release batch. ElyPDF's and ElyMark's worker
+# links MuPDF, so the arm64 MuPDF and its static OpenSSL are built here too; the
+# LibreOffice kernel is not, so Doc, Table and Show still need one beside them.
 name: windows-arm64
 on:
   push:
@@ -12,14 +12,14 @@ permissions:
   contents: write
 env:
   CARGO_BUILD_TARGET: aarch64-pc-windows-msvc
-  ELY_APPS: ely-doc ely-table ely-show ely-tree
+  ELY_APPS: ely-doc ely-table ely-show ely-tree ely-pdf ely-mark
   # ring assembles its ARM64 code from .S files: clang, not cl.
   # cc picks the archiver, so lib.exe still writes the MSVC library.
   CC_aarch64_pc_windows_msvc: clang
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +41,30 @@ jobs:
             ~/.cargo/git
           key: arm64-${{ hashFiles('Cargo.lock') }}
           restore-keys: arm64-
+
+      - name: Engine cache
+        id: engines
+        uses: actions/cache@v4
+        with:
+          path: |
+            reference/mupdf
+            engines/mupdf-build
+            engines/vcpkg/installed
+          key: engines-${{ hashFiles('scripts/fetch-references.sh', 'scripts/build-mupdf.sh', 'patches/mupdf/*.patch') }}
+
+      - name: Engines
+        if: steps.engines.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          # MSYS would rewrite openssl:arm64-windows-static into a path list.
+          MSYS2_ARG_CONV_EXCL: '*'
+        run: |
+          set -euo pipefail
+          scripts/fetch-references.sh mupdf
+          "$VCPKG_INSTALLATION_ROOT/vcpkg.exe" install openssl:arm64-windows-static \
+            --x-install-root="$(cygpath -w "$PWD/engines/vcpkg/installed")"
+          scripts/build-mupdf.sh
+          ls -l engines/mupdf-build
 
       - name: Build
         shell: bash

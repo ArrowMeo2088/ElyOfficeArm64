@@ -127,7 +127,15 @@ fn main() {
 /// An OpenSSL directory: vcpkg's static build on Windows, else pkg-config's.
 fn openssl(root: &std::path::Path, variable: &str) -> String {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        let dir = root.join("engines/vcpkg/installed/x64-windows-static");
+        let arch = match std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+            Ok("x86_64") => "x64",
+            Ok("aarch64") => "arm64",
+            Ok(other) => panic!("no vcpkg OpenSSL for Windows {other}"),
+            Err(_) => panic!("cargo gives no target arch"),
+        };
+        let dir = root
+            .join("engines/vcpkg/installed")
+            .join(format!("{arch}-windows-static"));
         let sub = if variable == "includedir" { "include" } else { "lib" };
         assert!(dir.join("lib/libcrypto.lib").is_file(), "no static OpenSSL in {}", dir.display());
         return dir.join(sub).display().to_string();

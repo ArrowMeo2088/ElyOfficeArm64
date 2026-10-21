@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Builds the pinned MuPDF, with patches/mupdf, into engines/mupdf-build.
+# On Windows the arch is the one CARGO_BUILD_TARGET names: x64 or arm64.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -21,10 +22,27 @@ for patch in "$root"/patches/mupdf/*.patch; do
 done
 case $(uname -s) in
   MINGW* | MSYS*)
+    # The MSVC build follows the Rust target cargo builds for; x64 unless told.
+    # The solution names its platform ARM64, the triplet and Rust say arm64.
+    case ${CARGO_BUILD_TARGET:-x86_64-pc-windows-msvc} in
+      x86_64-pc-windows-msvc)
+        arch=x64
+        platform=x64
+        ;;
+      aarch64-pc-windows-msvc)
+        arch=arm64
+        platform=ARM64
+        ;;
+      *)
+        echo "build-mupdf.sh: no MSVC build for $CARGO_BUILD_TARGET" >&2
+        exit 1
+        ;;
+    esac
+    triplet=$arch-windows-static
     # MSVC: the static runtime Rust links, OpenSSL from vcpkg.
-    ssl=$(cygpath -w "$root/engines/vcpkg/installed/x64-windows-static")
+    ssl=$(cygpath -w "$root/engines/vcpkg/installed/$triplet")
     [ -f "$ssl/lib/libcrypto.lib" ] || {
-      echo "build-mupdf.sh: no static OpenSSL; run engines/vcpkg/vcpkg install openssl:x64-windows-static" >&2
+      echo "build-mupdf.sh: no static OpenSSL; run engines/vcpkg/vcpkg install openssl:$triplet" >&2
       exit 1
     }
     cat >"$src/ely.props" <<PROPS
@@ -40,10 +58,10 @@ case $(uname -s) in
 PROPS
     msbuild=$("/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" -latest -find 'MSBuild\**\Bin\MSBuild.exe' | tr -d '\r')
     "$msbuild" "$(cygpath -w "$src/platform/win32/mupdf.sln")" -m -nologo -v:minimal \
-      -t:libmupdf -p:Configuration=Release -p:Platform=x64 -p:PlatformToolset=v143 \
+      -t:libmupdf -p:Configuration=Release -p:Platform=$platform -p:PlatformToolset=v143 \
       -p:ForceImportAfterCppTargets="$(cygpath -w "$src/ely.props")"
     rm -rf "$out" && mkdir -p "$out"
-    cp "$src"/platform/win32/x64/Release/*.lib "$out/"
+    cp "$src"/platform/win32/$platform/Release/*.lib "$out/"
     ls "$out"
     exit 0
     ;;
