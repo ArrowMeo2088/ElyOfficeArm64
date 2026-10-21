@@ -13,12 +13,14 @@ permissions:
 env:
   CARGO_BUILD_TARGET: aarch64-pc-windows-msvc
   ELY_APPS: ely-doc ely-table ely-show ely-tree ely-mark
+  # The image with the MSVC v143 toolset scripts/build-mupdf.sh names.
+  ELY_IMAGE: windows-2022
   # ring assembles its ARM64 code from .S files: clang, not cl.
   # cc picks the archiver, so lib.exe still writes the MSVC library.
   CC_aarch64_pc_windows_msvc: clang
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ${{ env.ELY_IMAGE }}
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +52,7 @@ jobs:
             reference/mupdf
             engines/mupdf-build
             engines/vcpkg/installed
-          key: engines-${{ hashFiles('scripts/fetch-references.sh', 'scripts/build-mupdf.sh', 'patches/mupdf/*.patch') }}
+          key: engines-${{ env.ELY_IMAGE }}-${{ hashFiles('scripts/fetch-references.sh', 'scripts/build-mupdf.sh', 'patches/mupdf/*.patch') }}
 
       - name: Engines
         if: steps.engines.outputs.cache-hit != 'true'
