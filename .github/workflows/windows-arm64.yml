@@ -89,6 +89,13 @@ jobs:
           fi
           ls -l "target/$CARGO_BUILD_TARGET/release" | grep '\.exe$' || true
 
+      - name: Test
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The arm64 binaries cannot run on this runner: check Git's lookup on the host.
+          cargo test -p ely-platform --lib --target x86_64-pc-windows-msvc -- git::tests::
+
       - name: Architecture
         shell: pwsh
         run: |
