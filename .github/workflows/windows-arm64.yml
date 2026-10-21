@@ -1,7 +1,7 @@
 # GitHub's hosted runner: this fork has no self-hosted machine and builds in the cloud.
-# ElyMark's PDF export and printing go through ely-pdf-engine, so the arm64 MuPDF and
-# its static OpenSSL are built here too. ElyPDF, ElyMail and ElyAgent are not shipped
-# yet; the LibreOffice kernel is not built, so Doc, Table and Show still need one beside them.
+# Every app in packaging/apps.tsv is cross-built, one zip each. ElyMark's and ElyPDF's
+# worker links MuPDF, so the arm64 MuPDF and its static OpenSSL are built here too.
+# The LibreOffice kernel is not: Doc, Table and Show still need an arm64 kernel beside them.
 name: windows-arm64
 on:
   push:
@@ -12,15 +12,13 @@ permissions:
   contents: write
 env:
   CARGO_BUILD_TARGET: aarch64-pc-windows-msvc
-  ELY_APPS: ely-doc ely-table ely-show ely-tree ely-mark
-  # The image with the MSVC v143 toolset scripts/build-mupdf.sh names.
-  ELY_IMAGE: windows-2022
   # ring assembles its ARM64 code from .S files: clang, not cl.
   # cc picks the archiver, so lib.exe still writes the MSVC library.
   CC_aarch64_pc_windows_msvc: clang
 jobs:
   build:
-    runs-on: ${{ env.ELY_IMAGE }}
+    # The image with the MSVC v143 toolset scripts/build-mupdf.sh names.
+    runs-on: windows-2022
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +50,7 @@ jobs:
             reference/mupdf
             engines/mupdf-build
             engines/vcpkg/installed
-          key: engines-${{ env.ELY_IMAGE }}-${{ hashFiles('scripts/fetch-references.sh', 'scripts/build-mupdf.sh', 'patches/mupdf/*.patch') }}
+          key: engines-windows-2022-${{ hashFiles('scripts/fetch-references.sh', 'scripts/build-mupdf.sh', 'patches/mupdf/*.patch') }}
 
       - name: Engines
         if: steps.engines.outputs.cache-hit != 'true'
@@ -73,12 +71,14 @@ jobs:
           args=()
           lok=no
           pdf=no
-          for slug in $ELY_APPS; do
+          # packaging/apps.tsv is the app list: slug, name, categories, batch.
+          while IFS=$'\t' read -r slug _; do
+            [ -n "$slug" ] || continue
             args+=(-p "$slug")
             # stage.sh's rule: an app takes the worker of the engine it links.
             grep -q '^ely-lok' "apps/$slug/Cargo.toml" && lok=yes
             grep -q '^ely-pdf-engine' "apps/$slug/Cargo.toml" && pdf=yes
-          done
+          done <packaging/apps.tsv
           cargo build --release --bins "${args[@]}"
           if [ "$lok" = yes ]; then
             cargo build --release -p ely-lok --bin ely-lok-worker
@@ -97,10 +97,11 @@ jobs:
             Select-Object -First 1).Matches[0].Groups[1].Value
           $release = "target/$env:CARGO_BUILD_TARGET/release"
           $workers = [ordered]@{ 'ely-lok' = 'ely-lok-worker'; 'ely-pdf-engine' = 'ely-pdf-worker' }
+          $apps = Get-Content packaging/apps.tsv | Where-Object { $_.Trim() -ne '' } |
+            ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ slug = $f[0]; name = $f[1] } }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          foreach ($slug in $env:ELY_APPS -split ' ') {
-            $name = (Select-String packaging/apps.tsv -Pattern "^$slug\t" |
-              Select-Object -First 1).Line.Split("`t")[1]
+          foreach ($app in $apps) {
+            $slug = $app.slug
             $stage = "target/arm64/$slug"
             if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
             New-Item -ItemType Directory -Force -Path $stage | Out-Null
@@ -111,7 +112,7 @@ jobs:
               }
             }
             Copy-Item LICENSE $stage
-            Compress-Archive -Path "$stage/*" -DestinationPath "dist/$name-$version-windows-arm64.zip"
+            Compress-Archive -Path "$stage/*" -DestinationPath "dist/$($app.name)-$version-windows-arm64.zip"
           }
           Get-ChildItem dist | Select-Object Name, Length | Format-Table
           # PowerShell 5.1's utf8 carries a BOM, which would prefix the key.
