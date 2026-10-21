@@ -1,13 +1,19 @@
 # GitHub's hosted runner: this fork has no self-hosted machine and builds in the cloud.
-# Every app in packaging/apps.tsv is cross-built, one zip each. ElyMark's and ElyPDF's
-# worker links MuPDF, so the arm64 MuPDF and its static OpenSSL are built here too.
-# The LibreOffice kernel is not: Doc, Table and Show still need an arm64 kernel beside them.
+# A push cross-builds every app in packaging/apps.tsv, one zip each; a manual run may
+# name fewer. ElyMark's and ElyPDF's worker links MuPDF, so the arm64 MuPDF and its
+# static OpenSSL are built here too. The LibreOffice kernel is not: Doc, Table and
+# Show still need an arm64 kernel beside them.
 name: windows-arm64
 on:
   push:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      apps:
+        description: Slugs to build, spaced; empty is every app in packaging/apps.tsv
+        required: false
+        default: ''
 permissions:
   contents: write
 env:
@@ -66,19 +72,25 @@ jobs:
 
       - name: Build
         shell: bash
+        env:
+          ELY_PICK: ${{ inputs.apps }}
         run: |
           set -euo pipefail
           args=()
           lok=no
           pdf=no
           # packaging/apps.tsv is the app list: slug, name, categories, batch.
-          while IFS=$'\t' read -r slug _; do
-            [ -n "$slug" ] || continue
+          slugs=${ELY_PICK:-$(cut -f1 packaging/apps.tsv)}
+          for slug in $slugs; do
+            [ -d "apps/$slug" ] || {
+              echo "no app $slug" >&2
+              exit 1
+            }
             args+=(-p "$slug")
             # stage.sh's rule: an app takes the worker of the engine it links.
             grep -q '^ely-lok' "apps/$slug/Cargo.toml" && lok=yes
             grep -q '^ely-pdf-engine' "apps/$slug/Cargo.toml" && pdf=yes
-          done <packaging/apps.tsv
+          done
           cargo build --release --bins "${args[@]}"
           if [ "$lok" = yes ]; then
             cargo build --release -p ely-lok --bin ely-lok-worker
@@ -102,6 +114,8 @@ jobs:
       - name: Package
         id: pkg
         shell: pwsh
+        env:
+          ELY_PICK: ${{ inputs.apps }}
         run: |
           $ErrorActionPreference = 'Stop'
           $version = (Select-String Cargo.toml -Pattern '^version = "([^"]+)"' |
@@ -110,6 +124,10 @@ jobs:
           $workers = [ordered]@{ 'ely-lok' = 'ely-lok-worker'; 'ely-pdf-engine' = 'ely-pdf-worker' }
           $apps = Get-Content packaging/apps.tsv | Where-Object { $_.Trim() -ne '' } |
             ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ slug = $f[0]; name = $f[1] } }
+          if ($env:ELY_PICK.Trim()) {
+            $pick = $env:ELY_PICK -split '\s+'
+            $apps = @($apps | Where-Object { $pick -contains $_.slug })
+          }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           foreach ($app in $apps) {
             $slug = $app.slug
