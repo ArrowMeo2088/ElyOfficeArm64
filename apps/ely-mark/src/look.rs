@@ -12,7 +12,18 @@ use crate::desk::Desk;
 actions!(
     mark,
     [
-        FocusMode, Typewriter, Narrow, Medium, Wide, Sans, Serif, Mono, Larger, Smaller, ActualSize
+        FocusMode,
+        Typewriter,
+        LineNumbers,
+        Narrow,
+        Medium,
+        Wide,
+        Sans,
+        Serif,
+        Mono,
+        Larger,
+        Smaller,
+        ActualSize
     ]
 );
 
@@ -41,6 +52,9 @@ pub struct Look {
     pub font: Font,
     /// Percent of the app's text size.
     pub size: u32,
+    /// Source mode numbers lines; looks kept before it have none.
+    #[serde(default)]
+    pub line_numbers: bool,
 }
 
 impl Default for Look {
@@ -51,6 +65,7 @@ impl Default for Look {
             width: Width::Medium,
             font: Font::Sans,
             size: 100,
+            line_numbers: false,
         }
     }
 }
@@ -81,6 +96,7 @@ impl Look {
             measure: Some(rems(measure)),
             font,
             scale: self.size as f32 / 100.0,
+            line_numbers: self.line_numbers,
         }
     }
 }
@@ -155,6 +171,9 @@ impl Desk {
             }))
             .on_action(cx.listener(|desk, _: &Typewriter, _, cx| {
                 desk.relook(|look| look.typewriter = !look.typewriter, cx)
+            }))
+            .on_action(cx.listener(|desk, _: &LineNumbers, _, cx| {
+                desk.relook(|look| look.line_numbers = !look.line_numbers, cx)
             }))
             .on_action(cx.listener(|desk, _: &Narrow, _, cx| {
                 desk.relook(|look| look.width = Width::Narrow, cx)
@@ -256,6 +275,11 @@ mod tests {
         assert_eq!((look.measure, look.scale), (Some(rems(64.0)), 1.1));
         let kept = std::fs::read_to_string(data.path().join("look.json")).expect("kept");
         assert!(kept.contains("\"wide\"") && kept.contains("110"), "{kept}");
+        assert!(!document_look(&desk, cx).line_numbers, "off by default");
+        cx.dispatch_action(super::LineNumbers);
+        assert!(document_look(&desk, cx).line_numbers, "the menu numbers lines");
+        let kept = std::fs::read_to_string(data.path().join("look.json")).expect("kept");
+        assert!(kept.contains("\"line_numbers\": true"), "{kept}");
     }
 
     #[test]
