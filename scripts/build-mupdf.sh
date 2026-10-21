@@ -13,7 +13,13 @@ mkdir -p "$src"
 case $(uname -s) in
   MINGW* | MSYS*)
     rm -rf "$src" && mkdir -p "$src"
-    tar -C "$root/reference/mupdf" --exclude .git -cf - . | tar -C "$src" -xf -
+    # A checkout here writes real symlinks, and zxing's libzint links are broken,
+    # so tar could not recreate them. A Windows checkout of theirs keeps their
+    # target text instead, and MSVC compiles none of them: leave them out.
+    links=$root/engines/mupdf-links.txt
+    (cd "$root/reference/mupdf" && find . -type l >"$links")
+    tar -C "$root/reference/mupdf" --exclude .git --exclude-from="$links" -cf - . |
+      tar -C "$src" -xf -
     ;;
   *) rsync -a --delete --exclude .git "$root/reference/mupdf/" "$src/" ;;
 esac

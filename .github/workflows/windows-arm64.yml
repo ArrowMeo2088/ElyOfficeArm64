@@ -1,7 +1,7 @@
 # GitHub's hosted runner: this fork has no self-hosted machine and builds in the cloud.
-# It cross-builds every app of the first release batch. ElyPDF's and ElyMark's worker
-# links MuPDF, so the arm64 MuPDF and its static OpenSSL are built here too; the
-# LibreOffice kernel is not, so Doc, Table and Show still need one beside them.
+# ElyMark's PDF export and printing go through ely-pdf-engine, so the arm64 MuPDF and
+# its static OpenSSL are built here too. ElyPDF, ElyMail and ElyAgent are not shipped
+# yet; the LibreOffice kernel is not built, so Doc, Table and Show still need one beside them.
 name: windows-arm64
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   contents: write
 env:
   CARGO_BUILD_TARGET: aarch64-pc-windows-msvc
-  ELY_APPS: ely-doc ely-table ely-show ely-tree ely-pdf ely-mark
+  ELY_APPS: ely-doc ely-table ely-show ely-tree ely-mark
   # ring assembles its ARM64 code from .S files: clang, not cl.
   # cc picks the archiver, so lib.exe still writes the MSVC library.
   CC_aarch64_pc_windows_msvc: clang
