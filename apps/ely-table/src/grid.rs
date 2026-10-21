@@ -280,7 +280,13 @@ impl Book {
     /// The square at the selection's corner; dragging it fills.
     fn fill_handle(&self, view: &Entity<LokView>, cx: &mut Context<Self>) -> Option<AnyElement> {
         let read = view.read(cx);
+        if read.cell_text_selected() {
+            return None;
+        }
         let area = span(read.selection()).or(read.cell().cursor)?;
+        if !read.is_visible(area) {
+            return None;
+        }
         let corner = read.place((area.0 + area.2, area.1 + area.3));
         let start = read.place((area.0, area.1));
         // Scrolled under the frozen part, the area shows nothing.

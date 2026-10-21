@@ -31,6 +31,7 @@ mod zoom;
 pub use zoom::{ZOOM_STEPS, Zoomed};
 mod scroll;
 mod sheet;
+mod text;
 pub use input::{CONTEXT, Copy, Cut, Paste, init};
 pub use off::read_off;
 pub use render::{SCHEME, paper};
@@ -38,7 +39,6 @@ mod turn;
 pub use turn::notch;
 
 pub(crate) use crate::{TILE_TWIPS, TWIPS_PER_PIXEL};
-
 /// Document/view conversion under one zoom and DPI (LOK-04).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Geom {
@@ -120,6 +120,7 @@ pub struct LokView {
     /// The event watch; it ends with the view.
     watching: Option<Task<()>>,
     cursor: Option<Rect>,
+    text: text::TextGeometry,
     cursor_visible: bool,
     pointer: gpui::CursorStyle,
     selection: Vec<Rect>,
@@ -217,6 +218,7 @@ impl LokView {
             on_screen: Vec::new(),
             copied: None,
             cursor: None,
+            text: text::TextGeometry::default(),
             cursor_visible: true,
             pointer: gpui::CursorStyle::Arrow,
             selection: Vec::new(),
@@ -353,7 +355,8 @@ impl LokView {
     }
 
     /// Takes the cursor; drops the tiles a batch dirties (LOK-03).
-    fn apply_batch(&mut self, batch: Events, measured: Option<Measured>, cx: &mut Context<Self>) {
+    fn apply_batch(&mut self, mut batch: Events, measured: Option<Measured>, cx: &mut Context<Self>) {
+        let moved = self.read_text(&mut batch);
         // What the view shows is the document at this revision.
         self.seen_revision(batch.revision);
         match measured {
@@ -368,7 +371,7 @@ impl LokView {
             Some(Err(error)) => log::warn!("lok: document size lost: {error}"),
             None => {}
         }
-        if batch.cursor != self.cursor {
+        if moved {
             self.moves += 1;
             // A moved cursor stays in view, but not mid-drag.
             if self.viewport.1 > 0.0
