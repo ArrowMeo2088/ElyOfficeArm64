@@ -2,11 +2,12 @@
 export type Lang = "en" | "zh";
 
 const en = {
-  tagline: "Six desktop apps. They work offline.",
+  tagline: "Seven desktop apps. They work offline.",
   ElyDoc: "Letters, reports, books. Opens and saves Word files.",
   ElyTable: "Formulas, filters, charts. Opens and saves Excel files.",
   ElyShow: "Slides, animation, a presenter view. Opens PowerPoint files.",
   ElyPDF: "Read, mark up, sign, fill forms. Finds text in scans.",
+  ElyMail: "Gmail, Outlook, iCloud and IMAP in one inbox. Reads and searches offline.",
   ElyTree: "Stage lines, commit, read the graph. Git without a terminal.",
   ElyMark: "Markdown as you read it. Math and diagrams in place.",
   offline: "Works with the network off.",
@@ -41,11 +42,12 @@ const en = {
 };
 
 const zh: typeof en = {
-  tagline: "六个桌面应用，断网也能用。",
+  tagline: "七个桌面应用，断网也能用。",
   ElyDoc: "信件、报告、书稿。打开并保存 Word 文件。",
   ElyTable: "公式、筛选、图表。打开并保存 Excel 文件。",
   ElyShow: "幻灯片、动画、演讲者视图。打开 PowerPoint 文件。",
   ElyPDF: "阅读、批注、签名、填表。扫描件里也能查字。",
+  ElyMail: "Gmail、Outlook、iCloud 与 IMAP 收在一个收件箱。断网也能读信、搜索。",
   ElyTree: "按行暂存、提交、看提交图。不用终端的 Git。",
   ElyMark: "写的就是看到的 Markdown。公式与图表就地显示。",
   offline: "断网照常工作。",

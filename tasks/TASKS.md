@@ -354,3 +354,4 @@
 - [x] R12.1 合并 PR #21（ElyTable 公式编辑的插入点、选区与输入法位置，有效性下拉失效后关闭）。冲突两处（`agents.md`、`view/scroll.rs` 的导入）。`a_drag_selects_and_events_carry_the_cursor` 改为先设视口：PR 起视口外的光标不画，未绘制的测试视图视口为零。未送审
 - [x] R12.2 #20 ElyDoc 右栏可收起：“视图›侧栏”（Ctrl/Cmd+Alt+B），打开审阅、邮件合并、比较、新批注时自动展开；不跨重启记忆。ElyTable 的格式面板本可关。测试 `the_side_panel_hides_and_review_brings_it_back`（修前失败）。未送审
 - [x] R12.3 #22 ElyPDF 书签栏不随滚轮滚动：书签列表未放进滚动区（批注、附件两页本有）；改用 `ScrollArea::vertical`。测试 `a_long_bookmark_list_scrolls_to_its_last_mark`（修前失败）。未送审
+- [x] R12.4 官网加上 ElyMail（用户报：官网仍是六个应用）：标语改为七个应用，ElyMail 的中英文案；桌面模型加一座邮筒（`model.ts`），导览在 ElyPDF 之后停 ElyMail，屏幕贴真实录屏 `public/clips/mail.*`（Windows 上的 ElyMail 发行构建，`ELY_DATA_ROOT` 下的虚构收件箱：读会话、换信、本机搜索；`video/web.sh` 记下剪辑点）；道路游乐场加邮筒。单测与端到端随之改为七个；`e2e/text.spec.ts` 的页脚下载数原连隐私与条款链接一起数（改前即失败）；`touch.spec.ts` 的按下打开在整套运行时改前即不稳。未送审
