@@ -1,23 +1,18 @@
 # GitHub's hosted runner: this fork has no self-hosted machine and builds in the cloud.
-# A push cross-builds every app in packaging/apps.tsv, one zip each; a manual run may
-# name fewer. ElyMark's and ElyPDF's worker links MuPDF, so the arm64 MuPDF and its
-# static OpenSSL are built here too. The LibreOffice kernel is not: Doc, Table and
-# Show still need an arm64 kernel beside them.
+# Three apps, one zip each. ElyPDF's and ElyMark's worker links MuPDF, so the arm64
+# MuPDF and its static OpenSSL are built here too. Nothing else is bundled: no licence
+# set, no source, no tessdata for OCR. ElyTree runs a system Git; none is in its zip.
 name: windows-arm64
 on:
   push:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      apps:
-        description: Slugs to build, spaced; empty is every app in packaging/apps.tsv
-        required: false
-        default: ''
 permissions:
   contents: write
 env:
   CARGO_BUILD_TARGET: aarch64-pc-windows-msvc
+  ELY_APPS: ely-pdf ely-mark ely-tree
   # ring assembles its ARM64 code from .S files: clang, not cl.
   # cc picks the archiver, so lib.exe still writes the MSVC library.
   CC_aarch64_pc_windows_msvc: clang
@@ -72,20 +67,12 @@ jobs:
 
       - name: Build
         shell: bash
-        env:
-          ELY_PICK: ${{ inputs.apps }}
         run: |
           set -euo pipefail
           args=()
           lok=no
           pdf=no
-          # packaging/apps.tsv is the app list: slug, name, categories, batch.
-          slugs=${ELY_PICK:-$(cut -f1 packaging/apps.tsv)}
-          for slug in $slugs; do
-            [ -d "apps/$slug" ] || {
-              echo "no app $slug" >&2
-              exit 1
-            }
+          for slug in $ELY_APPS; do
             args+=(-p "$slug")
             # stage.sh's rule: an app takes the worker of the engine it links.
             grep -q '^ely-lok' "apps/$slug/Cargo.toml" && lok=yes
@@ -114,23 +101,16 @@ jobs:
       - name: Package
         id: pkg
         shell: pwsh
-        env:
-          ELY_PICK: ${{ inputs.apps }}
         run: |
           $ErrorActionPreference = 'Stop'
           $version = (Select-String Cargo.toml -Pattern '^version = "([^"]+)"' |
             Select-Object -First 1).Matches[0].Groups[1].Value
           $release = "target/$env:CARGO_BUILD_TARGET/release"
           $workers = [ordered]@{ 'ely-lok' = 'ely-lok-worker'; 'ely-pdf-engine' = 'ely-pdf-worker' }
-          $apps = Get-Content packaging/apps.tsv | Where-Object { $_.Trim() -ne '' } |
-            ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ slug = $f[0]; name = $f[1] } }
-          if ($env:ELY_PICK.Trim()) {
-            $pick = $env:ELY_PICK -split '\s+'
-            $apps = @($apps | Where-Object { $pick -contains $_.slug })
-          }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          foreach ($app in $apps) {
-            $slug = $app.slug
+          foreach ($slug in $env:ELY_APPS -split ' ') {
+            $name = (Select-String packaging/apps.tsv -Pattern "^$slug\t" |
+              Select-Object -First 1).Line.Split("`t")[1]
             $stage = "target/arm64/$slug"
             if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
             New-Item -ItemType Directory -Force -Path $stage | Out-Null
@@ -141,7 +121,7 @@ jobs:
               }
             }
             Copy-Item LICENSE $stage
-            Compress-Archive -Path "$stage/*" -DestinationPath "dist/$($app.name)-$version-windows-arm64.zip"
+            Compress-Archive -Path "$stage/*" -DestinationPath "dist/$name-$version-windows-arm64.zip"
           }
           Get-ChildItem dist | Select-Object Name, Length | Format-Table
           # PowerShell 5.1's utf8 carries a BOM, which would prefix the key.
@@ -164,5 +144,5 @@ jobs:
           set -euo pipefail
           gh release create "$GITHUB_REF_NAME" dist/*.zip \
             --title "Ely Office $GITHUB_REF_NAME (Windows arm64)" \
-            --notes="Built by GitHub's runner with MSVC v143. No engine inside: Doc, Table and Show need an arm64 LibreOffice kernel beside them; ElyPDF needs tessdata for OCR." \
+            --notes="arm64 builds by GitHub's runner with MSVC v143. ElyTree runs a system Git; ElyPDF needs tessdata beside it for OCR." \
             || gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
