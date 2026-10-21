@@ -306,7 +306,7 @@ fn an_unpatched_build_is_rejected() {
     };
     assert_eq!(error.kind(), std::io::ErrorKind::InvalidData, "{error}");
     assert!(
-        error.to_string().contains("does not paint tiles (unpatched)"),
+        error.to_string().contains("paints no BGRA red (unpatched"),
         "rejected for the tile check, not {error}"
     );
 }
