@@ -1,5 +1,3 @@
-mod fake;
-
 use ely_mail_engine::{
     Change, Fetched, Field, Filter, Key, MailboxId, MessageId, Role, Search, Store,
 };

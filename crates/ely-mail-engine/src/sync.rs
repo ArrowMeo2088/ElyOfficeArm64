@@ -45,7 +45,7 @@ pub async fn secret(account: &Account, vault: &Vault) -> Result<Secret> {
     Ok(Secret::Token(tokens.access))
 }
 
-/// One pass over every folder; `now` is Unix seconds.
+/// One pass over all folders; `step` follows folders, then each.
 pub async fn imap(
     account: &Account,
     id: AccountId,
@@ -53,6 +53,7 @@ pub async fn imap(
     tls: &TlsConnector,
     store: &Mutex<Store>,
     now: i64,
+    step: &(dyn Fn() + Sync),
 ) -> Result<Report> {
     let mut imap = Imap::connect(&account.incoming, &account.login(secret), tls).await?;
     // §12.3: changes go first, checked against the server.
@@ -68,6 +69,7 @@ pub async fn imap(
         .map(|folder| (folder.name.as_str(), folder.role))
         .collect();
     let boxes = lock(store)?.set_folders(id, &named)?;
+    step();
     let day = since(now)?;
     let mut report = Report {
         folders: folders.len(),
@@ -76,6 +78,7 @@ pub async fn imap(
     };
     for (folder, mailbox) in folders.iter().zip(boxes) {
         one(&mut imap, store, mailbox, &folder.name, &day, &mut report).await?;
+        step();
     }
     imap.logout().await?;
     lock(store)?.set_synced(id, now)?;
@@ -104,7 +107,7 @@ pub async fn changes(
     Ok(pushed)
 }
 
-/// New mail by UIDL; no folders, local copies stay.
+/// New mail by UIDL; copies stay; `step` after the inbox.
 pub async fn pop(
     account: &Account,
     id: AccountId,
@@ -112,6 +115,7 @@ pub async fn pop(
     tls: &TlsConnector,
     store: &Mutex<Store>,
     now: i64,
+    step: &(dyn Fn() + Sync),
 ) -> Result<Report> {
     let Protocol::Pop { keep } = account.protocol else {
         return Err(Error::Invalid("a POP3 sync of an IMAP account".into()));
@@ -121,6 +125,7 @@ pub async fn pop(
         [inbox] => inbox,
         _ => return Err(Error::Store("a POP3 account has one inbox".into())),
     };
+    step();
     let mut held = lock(store)?.uidls(inbox)?;
     let mut report = Report {
         folders: 1,
@@ -208,7 +213,8 @@ async fn one(
     let mut bodies = Vec::new();
     for uid in server.keys() {
         match (held.get(uid), recent.contains(uid)) {
-            (None | Some(Held { body: false, .. }), true) => bodies.push(*uid),
+            // Trimmed for the cap, a body waits for a press.
+            (None | Some(Held { body: false, trimmed: false, .. }), true) => bodies.push(*uid),
             (None, false) => headers.push(*uid),
             _ => {}
         }
@@ -297,7 +303,8 @@ fn since(now: i64) -> Result<String> {
         .to_string())
 }
 
-pub(crate) fn lock(store: &Mutex<Store>) -> Result<MutexGuard<'_, Store>> {
+/// The store, or why a task broke it.
+pub fn lock(store: &Mutex<Store>) -> Result<MutexGuard<'_, Store>> {
     store
         .lock()
         .map_err(|_| Error::Store("a store task panicked".into()))

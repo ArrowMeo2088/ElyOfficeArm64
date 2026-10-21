@@ -167,7 +167,7 @@ fn delete_moves_to_trash_and_trash_asks_before_for_good() {
 }
 
 /// The dialog's last stop confirms.
-fn press_confirm(mail: &Entity<Mail>, cx: &mut VisualTestContext) {
+pub(super) fn press_confirm(mail: &Entity<Mail>, cx: &mut VisualTestContext) {
     cx.update(|window, app| window.focus(&mail.read(app).focus.clone(), app));
     for _ in 0..2 {
         cx.update(|window, _| window.refresh());

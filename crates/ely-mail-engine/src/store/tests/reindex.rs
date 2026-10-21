@@ -14,19 +14,17 @@ const BODY: &[u8] =
 
 /// A v11 store: one message, the old index.
 fn at_v11(dir: &std::path::Path, body: &[u8]) -> MessageId {
-    let mut store = open(dir, STEPS).unwrap();
+    let mut store = open(dir, &STEPS[..12]).unwrap();
     let id = store.add_account(&account("ann@example.com")).unwrap();
-    let [inbox] = store
-        .set_folders(id, &[("INBOX", Some(Role::Inbox))])
-        .unwrap()
+    let [inbox] = super::old_folders(&store, id, &[("INBOX", Some(Role::Inbox))])
         .try_into()
         .unwrap();
-    store.open_mailbox(inbox, 1).unwrap();
+    store.conn.execute("UPDATE mailboxes SET uidvalidity = 1 WHERE id = ?1", [inbox.0]).unwrap();
     let key = Key::Imap {
         uidvalidity: 1,
         uid: 1,
     };
-    let message = store.put(inbox, &key, &[], Fetched::Whole(body)).unwrap();
+    let message = super::old_put(&mut store, inbox, &key, Fetched::Whole(body));
     drop(store);
     Connection::open(dir.join(DB))
         .unwrap()

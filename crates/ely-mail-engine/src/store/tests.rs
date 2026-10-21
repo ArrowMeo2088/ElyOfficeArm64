@@ -23,6 +23,24 @@ fn account(address: &str) -> Account {
     }
 }
 
+/// Folders in a store left at an older version.
+fn old_folders(store: &super::Store, account: crate::AccountId, folders: &[(&str, Option<Role>)]) -> Vec<crate::MailboxId> {
+    let insert = "INSERT INTO mailboxes (account, name, role) VALUES (?1, ?2, ?3)";
+    let made = |(name, role): &(&str, Option<Role>)| {
+        store.conn.execute(insert, rusqlite::params![account.0, name, role.map(Role::name)]).unwrap();
+        crate::MailboxId(store.conn.last_insert_rowid())
+    };
+    folders.iter().map(made).collect()
+}
+
+/// Puts mail the way a pre-v18 store did.
+fn old_put(store: &mut super::Store, mailbox: crate::MailboxId, key: &crate::Key, fetched: crate::Fetched) -> crate::MessageId {
+    store.conn.execute_batch("ALTER TABLE messages ADD COLUMN ident TEXT").unwrap();
+    let id = store.put(mailbox, key, &[], fetched).unwrap();
+    store.conn.execute_batch("ALTER TABLE messages DROP COLUMN ident").unwrap();
+    id
+}
+
 /// An original on disk for a row written as SQL.
 fn held(dir: &std::path::Path) -> String {
     let bytes = b"Subject: kept\r\n\r\nhi\r\n";
@@ -36,10 +54,16 @@ fn held(dir: &std::path::Path) -> String {
     hash
 }
 
+mod contacts;
 mod ids;
 mod listing;
+mod mbox;
+mod rebuilt;
 mod reindex;
+mod rules;
+mod side;
 mod threads;
+mod trim;
 
 const ADD: &str = "ALTER TABLE accounts ADD COLUMN nick TEXT";
 const BROKEN: &str = "ALTER TABLE nowhere ADD COLUMN nick TEXT";

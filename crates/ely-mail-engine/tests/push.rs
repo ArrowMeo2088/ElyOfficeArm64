@@ -1,4 +1,3 @@
-mod fake;
 mod queue;
 
 use ely_mail_engine::{Account, Change, Key, Secret, Security, push::Dropped, sync};
@@ -404,7 +403,16 @@ async fn a_sync_sends_changes_first_and_keeps_one_made_meanwhile() {
     let secret = Secret::Password("pw".into());
     // 2026-10-19 12:00 UTC; bodies from 21 July.
     let now = 1_792_411_200;
-    let report = sync::imap(&account, here.id, secret, &certs.trusted, &here.store, now).await;
+    let report = sync::imap(
+        &account,
+        here.id,
+        secret,
+        &certs.trusted,
+        &here.store,
+        now,
+        &|| {},
+    )
+    .await;
     task.await.unwrap().unwrap();
     report.unwrap();
     assert_eq!(dropped(&here), []);

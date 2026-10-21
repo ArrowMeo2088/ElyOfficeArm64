@@ -1,5 +1,3 @@
-mod fake;
-
 use std::collections::HashSet;
 
 use ely_mail_engine::{

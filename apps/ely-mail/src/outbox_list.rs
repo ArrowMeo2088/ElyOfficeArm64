@@ -217,6 +217,10 @@ impl Mail {
         }
         log::info!("mail: {} queued messages hold the quit", self.pending);
         self.quitting = true;
+        // From the tray: the question needs the window.
+        cx.defer(|cx| {
+            ely_ui::tray::show_main(cx);
+        });
         cx.notify();
         false
     }

@@ -1,6 +1,5 @@
 //! The queue when a connection breaks or races (§12.3).
 
-mod fake;
 mod queue;
 
 use ely_mail_engine::{
@@ -59,9 +58,17 @@ async fn synced(here: &Here, steps: Vec<fake::Step>) {
         ..fake::account("ann@example.com")
     };
     let secret = Secret::Password("pw".into());
-    sync::imap(&account, here.id, secret, &certs.trusted, &here.store, NOW)
-        .await
-        .unwrap();
+    sync::imap(
+        &account,
+        here.id,
+        secret,
+        &certs.trusted,
+        &here.store,
+        NOW,
+        &|| {},
+    )
+    .await
+    .unwrap();
     task.await.unwrap().unwrap();
 }
 

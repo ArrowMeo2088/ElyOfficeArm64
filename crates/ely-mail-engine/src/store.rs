@@ -13,31 +13,39 @@ use crate::{Error, Result};
 mod accounts;
 mod aside;
 mod changes;
+mod contacts;
 mod drafts;
 mod find;
 mod folders;
 mod identity;
 mod listing;
+mod mbox;
 mod messages;
 mod outbox;
 mod pushed;
+mod rebuilt;
+mod rules;
 mod schema;
 mod search;
 #[cfg(test)]
 mod tests;
 mod threads;
+mod trim;
 mod trusted;
 
 pub use accounts::Cached;
 pub use changes::Change;
+pub use contacts::{Contact, ContactId, Imported};
 pub use drafts::{DraftId, Left, Remote, Shelved, Stowed, Unsent};
 pub use find::{Field, Found, Search};
 pub use folders::{Held, LocalFolder, Synced};
 pub use identity::Identity;
 pub use listing::{Filter, Scope, Summary};
+pub use mbox::{Packed, Unpacked};
 pub use messages::{Fetched, Key, Stored};
 pub use outbox::{Filed, Filing, Going, Handed, Landing, Letter, OutboxId, Queued};
 pub(crate) use pushed::{Done, Pending, Settled};
+pub use rules::{Action, Arrivals, Match, Rule, RuleId};
 
 const DB: &str = "mail.db";
 const CONTENT: &str = "content";
@@ -83,10 +91,10 @@ impl Store {
         }
     }
 
-    /// The mailbox by name, made on first use.
+    /// The server mailbox by name, made on first use.
     pub fn mailbox(&self, account: AccountId, name: &str) -> Result<MailboxId> {
         let name = mailbox_name(name);
-        let find = "SELECT id FROM mailboxes WHERE account = ?1 AND name = ?2";
+        let find = "SELECT id FROM mailboxes WHERE account = ?1 AND name = ?2 AND NOT local";
         if let Some(id) = self
             .conn
             .query_row(find, params![account.0, name], |row| row.get(0))
@@ -202,6 +210,10 @@ fn migrate(conn: &mut Connection, dir: &Path, version: usize, steps: &[&str]) ->
     let tx = conn.transaction()?;
     for step in &steps[version..] {
         tx.execute_batch(step)?;
+    }
+    if version < schema::IDENTS && steps.len() >= schema::IDENTS {
+        let count = rebuilt::fill(&tx, dir)?;
+        log::info!("mail: {count} messages given their identity in the upgrade");
     }
     if version < schema::REINDEX && steps.len() >= schema::REINDEX {
         let count = search::refill(&tx, dir)?;

@@ -7,6 +7,11 @@ mod doc;
 mod mail;
 mod mail_drafts;
 mod mail_organize;
+mod mail_contacts;
+mod mail_migrate;
+mod mail_notify;
+mod mail_storage;
+mod mail_rules;
 mod mail_search;
 mod mail_outbox;
 mod mail_write;
@@ -30,9 +35,12 @@ use gpui::{App, SharedString};
 
 const EN: &[(&str, &str)] = &[
     ("menu.app.quit", "Quit {app}"),
+    ("tray.open", "Open {app}"),
     ("updates.failed", "The update did not finish: {error}"),
     ("updates.latest", "{app} {version} is the latest version."),
     ("menu.app.updates", "Check for Updates…"),
+    ("updates.package", "{app} {version} is out. Download its package from the release page, then run: {command}"),
+    ("updates.copy", "Copy Command"),
     ("menu.app.switch", "Open Ely App"),
     ("toast.open", "Open"),
     ("toast.open_failed", "The file did not open: {error}"),
@@ -85,9 +93,12 @@ const EN: &[(&str, &str)] = &[
 
 const ZH_CN: &[(&str, &str)] = &[
     ("menu.app.quit", "退出 {app}"),
+    ("tray.open", "打开 {app}"),
     ("updates.failed", "更新没有完成：{error}"),
     ("updates.latest", "{app} {version} 已是最新版本。"),
     ("menu.app.updates", "检查更新…"),
+    ("updates.package", "{app} {version} 已发布。从发布页下载其安装包后运行：{command}"),
+    ("updates.copy", "复制命令"),
     ("menu.app.switch", "打开 Ely 应用"),
     ("toast.open", "打开"),
     ("toast.open_failed", "文件没能打开：{error}"),
@@ -176,6 +187,11 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(mail_drafts::EN)
         .chain(mail_outbox::EN)
         .chain(mail_organize::EN)
+        .chain(mail_contacts::EN)
+        .chain(mail_migrate::EN)
+        .chain(mail_notify::EN)
+        .chain(mail_storage::EN)
+        .chain(mail_rules::EN)
         .chain(mail_search::EN)
         .chain(tools::EN)
         .chain(table::EN)
@@ -206,6 +222,11 @@ fn catalogs() -> (Catalog, Catalog) {
         .chain(mail_drafts::ZH_CN)
         .chain(mail_outbox::ZH_CN)
         .chain(mail_organize::ZH_CN)
+        .chain(mail_contacts::ZH_CN)
+        .chain(mail_migrate::ZH_CN)
+        .chain(mail_notify::ZH_CN)
+        .chain(mail_storage::ZH_CN)
+        .chain(mail_rules::ZH_CN)
         .chain(mail_search::ZH_CN)
         .chain(tools::ZH_CN)
         .chain(table::ZH_CN)

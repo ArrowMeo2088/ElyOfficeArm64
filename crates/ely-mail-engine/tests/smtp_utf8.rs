@@ -1,5 +1,3 @@
-mod fake;
-
 use ely_mail_engine::{Draft, Error, Mailbox, Part, build};
 use fake::smtp::{logged_in, transaction};
 

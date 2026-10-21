@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::fake::{self, certs, expect, send, serve};
+use fake::{certs, expect, send, serve};
 use ely_mail_engine::{
     Account, AccountId, Change, Error, Fetched, Filter, Key, MailboxId, MessageId, Role, Scope,
     Secret, Security, Store, push::Dropped, sync,

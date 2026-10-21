@@ -44,17 +44,7 @@ pub struct Seeking {
 
 impl Seeking {
     pub fn new(window: &mut Window, cx: &mut Context<Mail>) -> Self {
-        let words = text(cx, "mail.search", &[]);
-        let input = cx.new(|cx| {
-            TextInput::new(window, cx)
-                .placeholder(words.clone())
-                .label(words)
-        });
-        let typed = cx.subscribe(&input, |mail: &mut Mail, _, event: &InputEvent, cx| {
-            if *event == InputEvent::Changed {
-                mail.typed(cx);
-            }
-        });
+        let (input, typed) = Self::input(String::new(), window, cx);
         Seeking {
             input,
             field: Field::All,
@@ -63,6 +53,27 @@ impl Seeking {
             edits: 0,
             _typed: typed,
         }
+    }
+
+    /// A new window needs a new box: focus is per-window.
+    pub fn rehome(&mut self, window: &mut Window, cx: &mut Context<Mail>) {
+        let words = self.input.read(cx).text().to_owned();
+        (self.input, self._typed) = Self::input(words, window, cx);
+    }
+
+    fn input(words: String, window: &mut Window, cx: &mut Context<Mail>) -> (Entity<TextInput>, Subscription) {
+        let hint = text(cx, "mail.search", &[]);
+        let input = cx.new(|cx| {
+            let mut input = TextInput::new(window, cx).placeholder(hint.clone()).label(hint);
+            input.set_text(words, cx);
+            input
+        });
+        let typed = cx.subscribe(&input, |mail: &mut Mail, _, event: &InputEvent, cx| {
+            if *event == InputEvent::Changed {
+                mail.typed(cx);
+            }
+        });
+        (input, typed)
     }
 
     /// What is asked; None while nothing is.

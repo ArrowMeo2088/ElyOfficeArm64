@@ -149,6 +149,7 @@ impl Store {
         )?;
         let id = OutboxId(tx.last_insert_rowid());
         drafts::write_files(&tx, FILES, id.0, files)?;
+        super::contacts::remember(&tx, unsent.to.iter().chain(&unsent.cc).chain(&unsent.bcc))?;
         tx.commit()?;
         log::info!("mail: message {} queued, draft {draft:?} taken", id.0);
         Ok((id, left))

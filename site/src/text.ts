@@ -36,6 +36,8 @@ const en = {
   light: "Switch to light",
   clipPlay: "Play",
   clipPause: "Pause",
+  privacy: "Privacy",
+  terms: "Terms",
 };
 
 const zh: typeof en = {
@@ -73,6 +75,8 @@ const zh: typeof en = {
   light: "切换到浅色",
   clipPlay: "播放",
   clipPause: "暂停",
+  privacy: "隐私政策",
+  terms: "服务条款",
 };
 
 export type Key = keyof typeof en;

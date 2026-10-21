@@ -1,5 +1,3 @@
-mod fake;
-
 use ely_mail_engine::{
     Draft, DraftId, Error, Filed, Filing, Going, Landing, Left, Letter, Mailbox, OutboxId, Remote,
     Store, Unsent, build, compose::attachment, read, without_bcc,

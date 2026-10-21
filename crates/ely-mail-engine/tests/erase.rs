@@ -1,4 +1,3 @@
-mod fake;
 mod queue;
 
 use ely_mail_engine::{Change, Fetched, Key, Role, push::Dropped};
