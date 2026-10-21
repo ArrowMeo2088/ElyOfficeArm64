@@ -18,9 +18,10 @@ makensis=${MAKENSIS:-"/c/Program Files (x86)/NSIS/makensis.exe"}
   echo "installer.sh: no makensis at $makensis; install NSIS" >&2
   exit 1
 }
-# The install carries the arch the Rust target names; NSIS' own stub stays x64.
+# The install carries the arch the Rust target names, as the app's own update
+# platform does; NSIS' own stub stays x64.
 case ${CARGO_BUILD_TARGET:-} in
-  aarch64-pc-windows-msvc) arch=arm64 ;;
+  aarch64-pc-windows-msvc) arch=aarch64 ;;
   *) arch=x86_64 ;;
 esac
 stage=${2:-$root/target/stage/$slug}
@@ -41,4 +42,4 @@ out=$dist/$name-$version-windows-$arch-setup.exe
   -DTYPES="$(cygpath -w "$types")" -DLIST="$(cygpath -w "$list")" -DOUTFILE="$(cygpath -w "$out")" \
   "$(cygpath -w "$root/packaging/windows/installer.nsi")"
 echo "$out"
-"$root/packaging/manifest.sh" "$slug" windows-x86_64 "$out"
+"$root/packaging/manifest.sh" "$slug" "windows-$arch" "$out"
