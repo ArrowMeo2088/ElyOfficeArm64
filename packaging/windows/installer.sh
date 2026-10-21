@@ -30,6 +30,7 @@ for ext in $(awk -F'\t' -v slug="$slug" '$1 == slug { print $2 }' "$root/packagi
   [ ! -e "$root/packaging/windows/new/new.$ext" ] || cp "$root/packaging/windows/new/new.$ext" "$stage/"
 done
 types=$root/target/stage/$slug-types.nsh
+mkdir -p "$(dirname "$types")"
 "$root/packaging/windows/types.sh" "$slug" >"$types"
 list=$root/target/stage/$slug-files.txt
 "$root/packaging/windows/files.sh" "$stage" "$slug" >"$list"
