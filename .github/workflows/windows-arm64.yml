@@ -1,5 +1,5 @@
 # GitHub's hosted runner: this fork has no self-hosted machine and builds in the cloud.
-# Three apps, one setup.exe each, from packaging/windows/installer.nsi: NSIS has no
+# Four apps, one setup.exe each, from packaging/windows/installer.nsi: NSIS has no
 # ARM64 stub, so the setup itself is x64 while every installed program is arm64.
 # ElyPDF's and ElyMark's worker links MuPDF, so the arm64 MuPDF and its static OpenSSL
 # are built here too. Nothing else is bundled: no licence set, no source, no tessdata
@@ -14,7 +14,7 @@ permissions:
   contents: write
 env:
   CARGO_BUILD_TARGET: aarch64-pc-windows-msvc
-  ELY_APPS: ely-pdf ely-mark ely-tree
+  ELY_APPS: ely-mail ely-pdf ely-mark ely-tree
   # ring assembles its ARM64 code from .S files: clang, not cl.
   # cc picks the archiver, so lib.exe still writes the MSVC library.
   CC_aarch64_pc_windows_msvc: clang
