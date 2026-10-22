@@ -370,7 +370,7 @@ impl LokView {
             self.request_tile(key);
         }
         let rect = |rect: Rect| self.screen_rect(rect);
-        let caret = self.cursor.filter(|_| self.cursor_visible).map(rect);
+        let caret = self.text_caret().filter(|_| self.cursor_visible);
         let half = self.handle_size / 2.0;
         let frame = self.frame().map(|frame| {
             let squares = handles::points(frame)
@@ -385,7 +385,7 @@ impl LokView {
         Painted {
             pages,
             tiles: ready,
-            selection: self.selection.iter().copied().map(rect).collect(),
+            selection: self.text_selection(),
             caret,
             cell: self.cell.cursor.map(rect),
             frame,

@@ -2,7 +2,7 @@ import { DOWNLOADS, expect, test, VERSION, type Page } from "./fixtures.ts";
 import { TEXT, word, type Key, type Lang } from "../src/text.ts";
 
 const REPO = "https://github.com/ELY-Open-Source/ElyOffice";
-const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyTree", "ElyMark"];
+const APPS = ["ElyDoc", "ElyTable", "ElyShow", "ElyPDF", "ElyMail", "ElyTree", "ElyMark"];
 const RELEASES = `${REPO}/releases/latest`;
 
 test.use({ reducedMotion: "reduce" });
@@ -93,7 +93,7 @@ test.describe("English locale", () => {
     await page.goto("/");
     await expect(page.locator(".tour .get")).toHaveCount(APPS.length);
     for (const i of APPS.keys()) await expect(page.locator(".tour .get").nth(i)).toHaveAttribute("href", RELEASES);
-    await expect(page.locator("#download a")).toHaveCount(1);
+    await expect(page.locator("#download > a")).toHaveCount(1);
     await expect(page.locator("#download [data-t=get]")).toHaveAttribute("href", RELEASES);
     await expect(page.locator(".hero .links a").last()).toHaveText("Source");
     await expect(page.locator(".hero .links a").last()).toHaveAttribute("href", REPO);
